@@ -1,0 +1,51 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": ["ebin", "_rel", ".erlang.mk"],
+			"file_exclude_patterns": ["*.plt", "*.d", "erlang.mk", "relx", "rebar", "elvis"]
+		}
+	],
+	"build_systems":
+	[
+		{
+			"name": "make",
+			"shell_cmd": "make",
+			"working_dir": "$project_path",
+			"variants":
+			[
+				{
+					"name": "Clean",
+					"shell_cmd": "make clean",
+				},
+				{
+					"name": "Distclean",
+					"shell_cmd": "make distclean",
+				},
+				{
+					"name": "Dialyze",
+					"shell_cmd": "make dialyze",
+				},
+				{
+					"name": "Eunit",
+					"shell_cmd": "make eunit",
+				},
+				{
+					"name": "Elvis",
+					"shell_cmd": "make elvis"
+				},
+				{
+					"name": "Xref",
+					"shell_cmd": "make xref"
+				},
+				{
+					"name": "Deps",
+					"shell_cmd": "make deps"
+				}
+			],
+			"target": "ansi_color_build",
+			"syntax": "Packages/ANSIescape/ANSI.tmLanguage"
+		}
+	]
+}
