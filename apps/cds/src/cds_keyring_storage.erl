@@ -14,20 +14,20 @@
 
 -spec get() -> binary().
 get() ->
-	cds_backend:call(keyring_storage, get, []).
+    cds_backend:call(keyring_storage, get, []).
 
 -spec put(binary()) -> ok.
 put(Keyring) ->
-	cds_backend:call(keyring_storage, put, [Keyring]).
+    cds_backend:call(keyring_storage, put, [Keyring]).
 
 -spec lock() -> ok.
 lock() ->
-	cds_backend:call(keyring_storage, lock, []).
+    cds_backend:call(keyring_storage, lock, []).
 
 -spec unlock() -> ok.
 unlock() ->
-	cds_backend:call(keyring_storage, unlock, []).
+    cds_backend:call(keyring_storage, unlock, []).
 
 -spec delete() -> ok.
 delete() ->
-	cds_backend:call(keyring_storage, delete, []).
+    cds_backend:call(keyring_storage, delete, []).

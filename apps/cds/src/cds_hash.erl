@@ -8,6 +8,5 @@
 
 -spec hash(binary(), binary()) -> hash().
 hash(Plain, Salt) ->
-	{ok, {N, R, P}} = application:get_env(cds, scrypt_opts),
-	scrypt:scrypt(Plain, Salt, N, R, P, 16).
-		
+    {ok, {N, R, P}} = application:get_env(cds, scrypt_opts),
+    scrypt:scrypt(Plain, Salt, N, R, P, 16).

@@ -10,12 +10,12 @@
 
 -spec get(atom(), binary()) -> binary().
 get(Type, Key) ->
-	cds_backend:call(storage, get, [Type, Key]).
+    cds_backend:call(storage, get, [Type, Key]).
 
 -spec put(atom(), binary(), binary()) -> ok.
 put(Type, Key, Data) ->
-	cds_backend:call(storage, put, [Type, Key, Data]).
+    cds_backend:call(storage, put, [Type, Key, Data]).
 
 -spec delete(atom(), binary()) -> ok.
 delete(Type, Key) ->
-	cds_backend:call(storage, delete, [Type, Key]).
+    cds_backend:call(storage, delete, [Type, Key]).
