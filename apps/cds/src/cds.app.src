@@ -1,0 +1,23 @@
+{application, cds , [
+    {description, "A service that does cds"},
+    {vsn, "1"},
+    {registered, []},
+    {mod, { cds , []}},
+    {applications, [
+        kernel,
+        stdlib,
+        crypto,
+        pooler,
+        scrypt,
+        riakc,
+        woody,
+        lager
+    ]},
+    {env, []},
+    {modules, []},
+    {maintainers, [
+        "Igor Savchuk <trollfred@gmail.com>"
+    ]},
+    {licenses, []},
+    {links, []}
+]}.

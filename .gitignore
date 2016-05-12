@@ -1,13 +1,15 @@
-/cds.sublime-workspace
-/.erlang.mk/
-/deps/
-/ebin/
-/_rel/
-/elvis
-/relx
-/xrefr
-/erl_crash.dump
-*.plt
-*.d
-/src/cds_interface_*
-/log
+# general
+log
+/_build/
+*~
+erl_crash.dump
+.tags*
+*.sublime-workspace
+.DS_Store
+
+# wercker
+/_builds/
+/_cache/
+/_projects/
+/_steps/
+/_temp/
