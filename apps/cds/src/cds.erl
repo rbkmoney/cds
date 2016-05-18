@@ -76,8 +76,13 @@ init([]) ->
 %%
 -spec start(normal, any()) ->
     {ok, pid()} | {error, any()}.
-start(_StartType, _StartArgs) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start(normal, _StartArgs) ->
+    case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+        {ok, Sup} ->
+            cds_storage:start(),
+            {ok, Sup}
+    end.
+
 
 -spec stop(any()) ->
     ok.

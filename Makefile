@@ -1,12 +1,15 @@
 REBAR := $(shell which rebar3 2>/dev/null || which ./rebar3)
 RELNAME = cds
 
-.PHONY: all compile devrel start test clean distclean dialyze
+.PHONY: all compile devrel start test clean distclean dialyze damsel
 
 all: compile
 
-compile:
+compile: damsel
 	$(REBAR) compile
+
+damsel:
+	git submodule update --init apps/cds/damsel
 
 rebar-update:
 	$(REBAR) update

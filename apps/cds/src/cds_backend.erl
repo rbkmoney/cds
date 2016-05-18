@@ -30,7 +30,8 @@ call(Key, Method, Args) ->
         {error, Error} ->
             throw(Error)
     catch Class:Reason ->
-        lager:error("keyring backend failed with ~p ~p", [Class, Reason])
+        lager:error("~p (~p) ~p failed with ~p ~p", [Key, Module, Method, Class, Reason]),
+        exit(backend_error)
     end.
 
 -spec ok() -> ok().

@@ -73,50 +73,9 @@ woody_call(Function, Args) ->
     woody_client:call(woody_random_context(), {{cds_thrift, cds}, Function, Args}, #{url => "localhost:8022/v1/cds"}).
 
 test_configuration() ->
-    application:set_env(cds, riak_host, "192.168.99.100"),
-    application:set_env(cds, riak_port, 32777),
     application:set_env(cds, scrypt_opts, {16384, 8, 1}),
-    application:set_env(cds, keyring_storage, cds_keyring_file_storage),
-    application:set_env(cds, keyring_location, "/tmp/cdskeyring"),
-    application:set_env(cds, keyring_lock_location, "/tmp/cdslock"),
-    application:set_env(cds, storage, cds_riak_storage),
-    application:set_env(pooler, pools, [
-        [
-            {name, riak1},
-            {group, riak},
-            {max_count, 5},
-            {init_count, 2},
-            {start_mfa, {riakc_pb_socket, start_link, ["192.168.99.100", 32769]}}
-        ],
-        [
-            {name, riak2},
-            {group, riak},
-            {max_count, 5},
-            {init_count, 2},
-            {start_mfa, {riakc_pb_socket, start_link, ["192.168.99.100", 32771]}}
-        ],
-        [
-            {name, riak3},
-            {group, riak},
-            {max_count, 5},
-            {init_count, 2},
-            {start_mfa, {riakc_pb_socket, start_link, ["192.168.99.100", 32773]}}
-        ],
-        [
-            {name, riak4},
-            {group, riak},
-            {max_count, 5},
-            {init_count, 2},
-            {start_mfa, {riakc_pb_socket, start_link, ["192.168.99.100", 32775]}}
-        ],
-        [
-            {name, riak5},
-            {group, riak},
-            {max_count, 5},
-            {init_count, 2},
-            {start_mfa, {riakc_pb_socket, start_link, ["192.168.99.100", 32777]}}
-        ]
-    ]).
+    application:set_env(cds, keyring_storage, cds_keyring_env_storage),
+    application:set_env(cds, storage, cds_ets_storage).
 
 prepare_keyring(Threshold, Shares) ->
     ok = cds:destroy_keyring(),

@@ -1,10 +1,18 @@
 -module(cds_riak_storage).
 -behaviour(cds_storage).
 
+-export([start/0]).
 -export([get/2]).
 -export([put/3]).
 -export([delete/2]).
 
+-spec start() -> cds_backend:cds().
+start() ->
+    #{conn_params := ConnParams} = cds_config:get(cds_riak_storage),
+    case lists:foreach(fun start_pool/1, ConnParams) of
+        ok ->
+            cds_backend:ok()
+    end.
 
 -spec get(atom(), binary()) -> cds_backend:response(binary()) | cds_backend:error(not_found).
 get(Type, Key) ->
@@ -51,3 +59,13 @@ resolve_bucket(hash) ->
     <<"h">>;
 resolve_bucket(token) ->
     <<"t">>.
+
+start_pool({Name, Host, Port}) ->
+    PoolConfig = [
+        {name, Name},
+        {group, riak},
+        {max_count, 5},
+        {init_count, 2},
+        {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
+    ],
+    pooler:new_pool(PoolConfig).
