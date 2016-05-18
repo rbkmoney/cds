@@ -11,6 +11,7 @@
         scrypt,
         riakc,
         woody,
+        cowboy, %% temporary kostyl'
         lager
     ]},
     {env, []},
