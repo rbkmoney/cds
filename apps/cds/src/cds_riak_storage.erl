@@ -6,7 +6,7 @@
 -export([put/3]).
 -export([delete/2]).
 
--spec start() -> cds_backend:cds().
+-spec start() -> cds_backend:ok().
 start() ->
     #{conn_params := ConnParams} = cds_config:get(cds_riak_storage),
     case lists:foreach(fun start_pool/1, ConnParams) of

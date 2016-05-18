@@ -44,6 +44,6 @@ handle_function(put_card_data, {CardData}, _Context, _Opts) ->
     woody_server_thrift_handler:handler_opts()
 ) -> _.
 handle_error(get_card_data_exception, Error, RpcId, _Opts) ->
-    lager:info("[~p] got error from thrift: ~p", [my_event_handler:format_id(RpcId), Error]);
+    lager:info("[~p] got error from thrift: ~p", [RpcId, Error]);
 handle_error(put_card_data_exception, Error, RpcId, _Opts) ->
-    lager:info("[~p] got error from thrift: ~p", [my_event_handler:format_id(RpcId), Error]).
+    lager:info("[~p] got error from thrift: ~p", [RpcId, Error]).
