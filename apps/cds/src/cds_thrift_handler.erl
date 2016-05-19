@@ -18,6 +18,14 @@
     woody_client:context(),
     woody_server_thrift_handler:handler_opts()
 ) -> ok | {ok, woody_server_thrift_handler:result()} | no_return().
+handle_function(init, {Threshold, Count}, _Context, _Opts) ->
+    try cds:init_keyring(Threshold, Count) of
+        Shares ->
+            {ok, Shares}
+    catch
+        already_exists ->
+            throw(#keyring_exists{})
+    end;
 handle_function(unlock, {Share}, _Context, _Opts) ->
     case cds:unlock_keyring(Share) of
         {more, More} ->
@@ -25,6 +33,17 @@ handle_function(unlock, {Share}, _Context, _Opts) ->
         unlocked ->
             {ok, #unlock_status{unlocked = true, more_keys_needed = 0}}
     end;
+handle_function(rotate, {}, _Context, _Opts) ->
+    try cds:rotate_keyring() of
+        ok ->
+            ok
+    catch
+        locked ->
+            throw(#locked{})
+    end;
+handle_function(lock, {}, _Context, _Opts) ->
+    ok = cds:lock_keyring(),
+    ok;
 handle_function(get_card_data, {Token}, _Context, _Opts) ->
     try cds:get(Token) of
         CardData ->

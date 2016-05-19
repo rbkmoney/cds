@@ -3,16 +3,26 @@
 -include_lib("cds/include/cds_thrift.hrl").
 -compile(export_all).
 
+-define(CREDIT_CARD, <<"1234-1234-1234-1234 12/18">>).
 %%
 %% tests descriptions
 %%
 all() ->
     [
-        unlock_keyring,
-        basic_crud,
-        basic_thrift
+        {group, basic_lifecycle}
     ].
 
+groups() ->
+    [
+        {basic_lifecycle, [sequence], [
+            init,
+            unlock,
+            put,
+            get,
+            rotate,
+            lock
+        ]}
+    ].
 %%
 %% starting/stopping
 %%
@@ -37,49 +47,41 @@ application_stop(App) ->
 %%
 %% tests
 %%
-unlock_keyring(_C) ->
-    [MasterOne, MasterTwo, _MasterThree, MasterFour] = prepare_keyring(3, 4),
-    {more, 2} = cds:unlock_keyring(MasterOne),
-    {more, 1} = cds:unlock_keyring(MasterTwo),
-    unlocked = cds:unlock_keyring(MasterFour),
+init(_C) ->
+    MasterKeys = cds_client:init(2,3),
+    3 = length(MasterKeys),
+    {save_config, MasterKeys}.
+
+unlock(C) ->
+    {init, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
+    #unlock_status{unlocked = false, more_keys_needed = 1} = cds_client:unlock(MasterKey1),
+    #unlock_status{unlocked = true} = cds_client:unlock(MasterKey2),
     ok.
 
-basic_crud(C) ->
-    ok = unlock_keyring(C),
-    CreditCard = <<"1234-5678-8765-4321 10/20">>,
-    Token = cds:put(CreditCard),
-    Token = cds:put(CreditCard),
-    CreditCard = cds:get(Token),
-    ok = cds:delete(Token),
-    not_found = (catch cds:get(Token)),
+put(_C) ->
+    Token = cds_client:put(?CREDIT_CARD),
+    {save_config, Token}.
+
+get(C) ->
+    {put, Token} = ?config(saved_config, C),
+    ?CREDIT_CARD = cds_client:get(Token),
     ok.
 
-basic_thrift(_C) ->
-    [MasterKey] = prepare_keyring(1,1),
-    {{ok, #unlock_status{unlocked = true}}, _} = woody_call(unlock, [MasterKey]),
-    CreditCard = <<"1234-5678-8765-4321 10/20">>,
-    {{ok, Token}, _} = woody_call(put_card_data, [CreditCard]),
-    {{ok, CreditCard}, _} = woody_call(get_card_data, [Token]),
+rotate(_C) ->
+    ok = cds_client:rotate(),
     ok.
+
+lock(_C) ->
+    ok = cds_client:lock(),
+    {locked} = (catch cds_client:put(?CREDIT_CARD)),
+    ok.
+
 
 %%
 %% helpers
 %%
 
-woody_random_context() ->
-    woody_client:new_context(crypto:rand_bytes(10), cds_thrift_handler).
-
-woody_call(Function, Args) ->
-    woody_client:call(woody_random_context(), {{cds_thrift, cds}, Function, Args}, #{url => "localhost:8022/v1/cds"}).
-
 test_configuration() ->
-    application:set_env(cds, scrypt_opts, {16384, 8, 1}),
     application:set_env(cds, keyring_storage, cds_keyring_storage_env),
     application:set_env(cds, storage, cds_storage_ets).
-
-prepare_keyring(Threshold, Shares) ->
-    ok = cds:destroy_keyring(),
-    Keys = cds:init_keyring(Threshold, Shares),
-    ok = cds:update_keyring(),
-    Keys.
 

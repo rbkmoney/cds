@@ -23,6 +23,7 @@
 -export([init_keyring/2]).
 -export([update_keyring/0]).
 -export([rotate_keyring/0]).
+-export([lock_keyring/0]).
 -export([destroy_keyring/0]).
 
 -compile({no_auto_import, [get/1]}).
@@ -50,13 +51,15 @@ stop() ->
 %% Supervisor callbacks
 %%
 init([]) ->
+    {ok, ThriftHost} = inet:parse_address(application:get_env(cds, thrift_host, "127.0.0.1")),
+    ThriftPort = application:get_env(cds, thrift_port, 8022),
     ThriftService = woody_server:child_spec(
         cds_thrift_service_sup,
         #{
             handlers => [{"/v1/cds", {{cds_thrift, cds}, cds_thrift_handler, []}}],
             event_handler => cds_thrift_handler,
-            ip => {127, 0, 0, 1},
-            port => 8022,
+            ip => ThriftHost,
+            port => ThriftPort,
             net_opts => []
         }
     ),
@@ -135,7 +138,9 @@ init_keyring(Threshold, Count) when Threshold =< Count ->
         MarshalledKeyring = cds_keyring:marshall(Keyring),
         EncryptedKeyring = cds_crypto:encrypt(MasterKey, MarshalledKeyring),
         ok = cds_keyring_storage:put(EncryptedKeyring),
-        cds_keysharing:share(MasterKey, Threshold, Count)
+        Shares = cds_keysharing:share(MasterKey, Threshold, Count),
+        cds_keyring_manager:update_keyring(EncryptedKeyring),
+        Shares
     after
         cds_keyring_storage:unlock()
     end.
@@ -159,6 +164,9 @@ rotate_keyring() ->
     after
         cds_keyring_storage:unlock()
     end.
+
+lock_keyring() ->
+    cds_keyring_manager:lock().
 
 -spec destroy_keyring() -> ok.
 destroy_keyring() ->
