@@ -67,15 +67,15 @@ basic_thrift(_C) ->
 %%
 
 woody_random_context() ->
-    woody_client:new_context(crypto:rand_bytes(10), cds_thrift_event_handler).
+    woody_client:new_context(crypto:rand_bytes(10), cds_thrift_handler).
 
 woody_call(Function, Args) ->
     woody_client:call(woody_random_context(), {{cds_thrift, cds}, Function, Args}, #{url => "localhost:8022/v1/cds"}).
 
 test_configuration() ->
     application:set_env(cds, scrypt_opts, {16384, 8, 1}),
-    application:set_env(cds, keyring_storage, cds_keyring_env_storage),
-    application:set_env(cds, storage, cds_ets_storage).
+    application:set_env(cds, keyring_storage, cds_keyring_storage_env),
+    application:set_env(cds, storage, cds_storage_ets).
 
 prepare_keyring(Threshold, Shares) ->
     ok = cds:destroy_keyring(),

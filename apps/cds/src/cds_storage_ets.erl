@@ -1,4 +1,4 @@
--module(cds_ets_storage).
+-module(cds_storage_ets).
 -behaviour(cds_storage).
 -behaviour(gen_server).
 
@@ -20,42 +20,33 @@
 %% cds_storage behaviour
 %%
 
--spec start() -> cds_backend:ok().
+-spec start() -> ok.
 start() ->
     ChildSpec = #{
         id => ?MODULE,
         start => {gen_server, start_link, [?MODULE, [], []]}
     },
-    case supervisor:start_child(cds, ChildSpec) of
-        {ok, _Child} ->
-            cds_backend:ok()
-    end.
+    {ok, _Child} = supervisor:start_child(cds, ChildSpec),
+    ok.
 
--spec get(atom(), binary()) -> cds_backend:response(binary()) | cds_backend:error(not_found).
+-spec get(atom(), binary()) -> {ok, binary()} | {error, not_found}.
 get(Type, Key) ->
     case ets:lookup(resolve_bucket(Type), Key) of
         [{Key, Data}] ->
-            cds_backend:response(Data);
+            {ok, Data};
         [] ->
-            cds_backend:error(not_found)
+            {error, not_found}
     end.
-    
 
--spec put(atom(), binary(), binary()) -> cds_backend:ok().
+-spec put(atom(), binary(), binary()) -> ok.
 put(Type, Key, Data) ->
-    case ets:insert(resolve_bucket(Type), {Key, Data}) of
-        true ->
-            cds_backend:ok()
-    end.
-    
+    true = ets:insert(resolve_bucket(Type), {Key, Data}),
+    ok.
 
--spec delete(atom(), binary()) -> cds_backend:ok().
+-spec delete(atom(), binary()) -> ok.
 delete(Type, Key) ->
-    case ets:delete(resolve_bucket(Type), Key) of
-        true ->
-            cds_backend:ok()
-    end.
-
+    true = ets:delete(resolve_bucket(Type), Key),
+    ok.
 %%
 %% gen_server behaviour
 %%
@@ -87,7 +78,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal
 %%
 
--spec resolve_bucket(atom()) -> binary().
 resolve_bucket(hash) ->
     cds_ets_storage_hashes;
 resolve_bucket(token) ->

@@ -7,15 +7,14 @@
 
 -export_type([key/0, token/0]).
 
--include("cds.hrl").
--type key() :: <<_:?KEY_BITSIZE>>.
--type token() :: <<_:?TOKEN_BITSIZE>>.
+-type key() :: binary().
+-type token() :: binary().
 
 %%internal
 
--type iv() :: <<_:128>>.
--type tag() :: <<_:128>>.
--type aad() :: <<_:32>>.
+-type iv() :: binary().
+-type tag() :: binary().
+-type aad() :: binary().
 
 %% cedf is for CDS Encrypted Data Format
 -record(cedf, {
@@ -48,13 +47,13 @@ encrypt(Key, Plain) ->
     try
         {Cipher, Tag} = crypto:block_encrypt(aes_gcm, Key, IV, {AAD, Plain}),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
-    catch Type:Error ->
-        lager:error("encryption failed with ~p ~p", [Type, Error]),
+    catch Class:Reason ->
+        _ = lager:error("encryption failed with ~p ~p", [Class, Reason]),
         throw(encryption_failed)
     end.
 
 -spec decrypt(key(), binary()) -> binary().
-decrypt(Key, MarshalledCEDF) when bit_size(MarshalledCEDF) >= 288 ->
+decrypt(Key, MarshalledCEDF) ->
     try
         #cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag} = unmarshall_cedf(MarshalledCEDF),
          crypto:block_decrypt(aes_gcm, Key, IV, {AAD, Cipher, Tag})
@@ -64,7 +63,7 @@ decrypt(Key, MarshalledCEDF) when bit_size(MarshalledCEDF) >= 288 ->
         Plain ->
             Plain
     catch Type:Error ->
-        lager:error("decryption failed with ~p ~p", [Type, Error]),
+        _ = lager:error("decryption failed with ~p ~p", [Type, Error]),
         throw(decryption_failed)
     end.
 

@@ -24,8 +24,6 @@
 -export([terminate/3]).
 -export([code_change/4]).
 
--include("cds_keyring.hrl").
-
 -define(FSM, ?MODULE).
 -define(UNLOCK_TIMEOUT, 60*1000).
 
@@ -41,15 +39,15 @@
 start_link() ->
     gen_fsm:start_link({local, ?FSM}, ?MODULE, [], []).
 
--spec get_key(key_id()) -> {key_id(), cds_crypto:key()}.
+-spec get_key(cds_keyring:key_id()) -> {cds_keyring:key_id(), cds_crypto:key()}.
 get_key(KeyId) ->
     sync_send_event({get_key, KeyId}).
 
--spec get_all_keys() -> [{key_id(), cds_crypto:key()}].
+-spec get_all_keys() -> [{cds_keyring:key_id(), cds_crypto:key()}].
 get_all_keys() ->
     sync_send_event(get_all_keys).
 
--spec get_current_key() -> {key_id(), cds_crypto:key()}.
+-spec get_current_key() -> {cds_keyring:key_id(), cds_crypto:key()}.
 get_current_key() ->
     sync_send_event(get_current_key).
 
@@ -122,7 +120,7 @@ locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Sha
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             try
-                MasterKey = cds_shamir:recover(maps:values(AllShares)),
+                MasterKey = cds_keysharing:recover(maps:values(AllShares)),
                 DecryptedKeyring = cds_crypto:decrypt(MasterKey, Keyring),
                 UnmarshalledKeyring = cds_keyring:unmarshall(DecryptedKeyring),
                 {reply, {ok, unlocked}, unlocked, #state{keyring = UnmarshalledKeyring, masterkey = MasterKey}}
@@ -151,16 +149,16 @@ unlocked({update_keyring, Keyring}, _From, #state{masterkey = MasterKey} = State
     catch Error ->
         {reply, {error, Error}, unlocked, StateData}
     end;
-unlocked({get_key, KeyId}, _From, #state{keyring = #keyring{keys = Keys}} = StateData) ->
+unlocked({get_key, KeyId}, _From, #state{keyring = #{keys := Keys}} = StateData) ->
     try
         Key = maps:get(KeyId, Keys),
         {reply, {ok, {KeyId, Key}}, unlocked, StateData}
     catch error:{badkey, KeyId} ->
         {reply, {error, key_not_found}, unlocked, StateData}
     end;
-unlocked(get_all_keys, _From, #state{keyring = #keyring{keys = Keys}} = StateData) ->
+unlocked(get_all_keys, _From, #state{keyring = #{keys := Keys}} = StateData) ->
     {reply, {ok, maps:to_list(Keys)}, unlocked, StateData};
-unlocked(get_current_key, _From, #state{keyring = #keyring{current_key = CurrentKeyId, keys = Keys}} = StateData) ->
+unlocked(get_current_key, _From, #state{keyring = #{current_key := CurrentKeyId, keys := Keys}} = StateData) ->
     CurrentKey = maps:get(CurrentKeyId, Keys),
     {reply, {ok, {CurrentKeyId, CurrentKey}}, unlocked, StateData};
 unlocked(rotate_keyring, _From, #state{keyring = Keyring, masterkey = MasterKey} = StateData) ->
@@ -189,6 +187,3 @@ terminate(_Reason, _StateName, _StateData) ->
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
-
-
-

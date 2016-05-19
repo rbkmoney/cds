@@ -1,10 +1,10 @@
 -module(cds_keyring_storage).
 
--callback get() -> cds_backend:response(binary()) | cds_backend:error(not_found).
--callback put(Keyring :: binary()) -> cds_backend:ok().
--callback lock() -> cds_backend:ok() | cds_backend:error(locked).
--callback unlock() -> cds_backend:ok().
--callback delete() -> cds_backend:ok().
+-callback get() -> {ok, binary()} | {error, not_found}.
+-callback put(binary()) -> ok.
+-callback lock() -> ok | {error, locked}.
+-callback unlock() -> ok.
+-callback delete() -> ok.
 
 -export([get/0]).
 -export([put/1]).

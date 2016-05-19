@@ -1,9 +1,16 @@
--module(cds_thrift_service_handler).
+-module(cds_thrift_handler).
 -behaviour(woody_server_thrift_handler).
+-behaviour(woody_event_handler).
 
 -include("cds_thrift.hrl").
 
--export([handle_function/4, handle_error/4]).
+%% woody_server_thrift_handler callbacks
+-export([handle_function/4]).
+-export([handle_error/4]).
+
+%% woody_event_handler callback
+-export([handle_event/3]).
+
 
 -spec handle_function(
     woody_t:func(),
@@ -47,3 +54,6 @@ handle_error(get_card_data_exception, Error, RpcId, _Opts) ->
     lager:info("[~p] got error from thrift: ~p", [RpcId, Error]);
 handle_error(put_card_data_exception, Error, RpcId, _Opts) ->
     lager:info("[~p] got error from thrift: ~p", [RpcId, Error]).
+
+handle_event(Event, RpcId, Meta) ->
+    lager:info("[~p] woody event ~p ~p~n", [RpcId, Event, Meta]).

@@ -1,4 +1,4 @@
--module(cds_shamir).
+-module(cds_keysharing).
 
 -export([share/3]).
 -export([recover/1]).
@@ -14,8 +14,9 @@
 share(Secret, Threshold, Count) ->
     try
         [convert(Share) || Share <- shamir:share(Secret, Threshold, Count)]
-    catch _Class:_Reason ->
-        throw(shamir_failed)
+    catch Class:Reason ->
+        _ = lager:error("keysharing failed with ~p ~p", [Class, Reason]),
+        throw(keysharing_failed)
     end.
 
 

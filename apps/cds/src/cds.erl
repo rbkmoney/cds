@@ -53,8 +53,8 @@ init([]) ->
     ThriftService = woody_server:child_spec(
         cds_thrift_service_sup,
         #{
-            handlers => [{"/v1/cds", {{cds_thrift, cds}, cds_thrift_service_handler, []}}],
-            event_handler => cds_thrift_event_handler,
+            handlers => [{"/v1/cds", {{cds_thrift, cds}, cds_thrift_handler, []}}],
+            event_handler => cds_thrift_handler,
             ip => {127, 0, 0, 1},
             port => 8022,
             net_opts => []
@@ -135,7 +135,7 @@ init_keyring(Threshold, Count) when Threshold =< Count ->
         MarshalledKeyring = cds_keyring:marshall(Keyring),
         EncryptedKeyring = cds_crypto:encrypt(MasterKey, MarshalledKeyring),
         ok = cds_keyring_storage:put(EncryptedKeyring),
-        cds_shamir:share(MasterKey, Threshold, Count)
+        cds_keysharing:share(MasterKey, Threshold, Count)
     after
         cds_keyring_storage:unlock()
     end.
@@ -196,14 +196,19 @@ decrypt(<<KeyId, Cipher/binary>>) ->
     {KeyId, Key} = cds_keyring_manager:get_key(KeyId),
     cds_crypto:decrypt(Key, Cipher).
 
--spec hash(binary()) -> cds_hash:hash().
+-spec hash(binary()) -> binary().
 hash(Plain) ->
     {_KeyId, Key} = cds_keyring_manager:get_current_key(),
-    cds_hash:hash(Plain, Key).
+    hash(Plain, Key).
 
--spec all_hashes(binary()) -> [cds_hash:hash()].
+-spec hash(binary(), binary()) -> binary().
+hash(Plain, Salt) ->
+    {N, R, P} = application:get_env(cds, scrypt_opts, {16384, 8, 1}),
+    scrypt:scrypt(Plain, Salt, N, R, P, 16).
+
+-spec all_hashes(binary()) -> [binary()].
 all_hashes(Plain) ->
-    [cds_hash:hash(Plain, Key) || {_KeyId, Key} <- cds_keyring_manager:get_all_keys()].
+    [hash(Plain, Key) || {_KeyId, Key} <- cds_keyring_manager:get_all_keys()].
 
 tokenize(Data) ->
     find_or_create_token(all_hashes(Data)).
@@ -218,44 +223,3 @@ find_or_create_token([Hash | Rest]) ->
         not_found ->
             find_or_create_token(Rest)
     end.
-
-
-
-%%
-%% Tests
-%%
--ifdef(TEST).
-
-prop_encryption() ->
-    ?FORALL({KeyId, Key, Data}, {byte(), binary(32), binary()}, ok =:= encryption_cycle(KeyId, Key, Data)).
-
-encryption_cycle(KeyId, Key, Data) ->
-    meck:new(cds_keyring_manager),
-    meck:expect(cds_keyring_manager, get_current_key, fun() -> {KeyId, Key} end),
-    meck:expect(cds_keyring_manager, get_key, fun(Id) when Id =:= KeyId -> {KeyId, Key} end),
-    Encrypted = encrypt(Data),
-    Data = decrypt(Encrypted),
-    meck:unload(cds_keyring_manager),
-    ok.
-
-encryption_test() ->
-    true = proper:quickcheck(prop_encryption()).
-
-
-prop_hashing() ->
-    ?FORALL({KeyId, Key, Data}, {byte(), binary(32), binary()}, ok =:= hashing_cycle(KeyId, Key, Data)).
-
-hashing_cycle(KeyId, Key, Data) ->
-    meck:new(cds_keyring_manager),
-    meck:expect(cds_keyring_manager, get_current_key, fun() -> {KeyId, Key} end),
-    meck:new(cds_hash),
-    meck:expect(cds_hash, hash, fun(Plain, Salt) when Salt =:= Key, Plain =:= Data -> <<"hash_stub">> end),
-    <<"hash_stub">> = hash(Data),
-    meck:unload(cds_keyring_manager),
-    meck:unload(cds_hash),
-    ok.
-
-hashing_test() ->
-    true = proper:quickcheck(prop_hashing()).
-
--endif.
