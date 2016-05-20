@@ -56,7 +56,10 @@ init([]) ->
     ThriftService = woody_server:child_spec(
         cds_thrift_service_sup,
         #{
-            handlers => [{"/v1/cds", {{cds_thrift, cds}, cds_thrift_handler, []}}],
+            handlers => [
+                {"/v1/storage", {{cds_thrift, 'Storage'}, cds_thrift_handler, []}},
+                {"/v1/keyring", {{cds_thrift, 'Keyring'}, cds_thrift_handler, []}}
+            ],
             event_handler => cds_thrift_handler,
             ip => ThriftHost,
             port => ThriftPort,

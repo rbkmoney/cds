@@ -3,7 +3,16 @@
 -include_lib("cds/include/cds_thrift.hrl").
 -compile(export_all).
 
--define(CREDIT_CARD, <<"1234-1234-1234-1234 12/18">>).
+-define(CVV, <<"777">>).
+-define(CREDIT_CARD(CVV), #'CardData'{
+    pan = <<"1234123412341234">>,
+    exp_date = #'ExpDate'{
+        month = 12,
+        year = 2019
+    },
+    cardholder_name = <<"Tony Stark">>, %% temporarily hardcoded instead of saved
+    cvv = CVV
+}).
 %%
 %% tests descriptions
 %%
@@ -54,17 +63,21 @@ init(_C) ->
 
 unlock(C) ->
     {init, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
-    #unlock_status{unlocked = false, more_keys_needed = 1} = cds_client:unlock(MasterKey1),
-    #unlock_status{unlocked = true} = cds_client:unlock(MasterKey2),
+    {more_keys_needed, 1} = cds_client:unlock(MasterKey1),
+    {unlocked, true} = cds_client:unlock(MasterKey2),
     ok.
 
 put(_C) ->
-    Token = cds_client:put(?CREDIT_CARD),
+    #'PutCardDataResult'{
+        bank_card = #'BankCard'{
+            token = Token
+        }
+    } = cds_client:put(?CREDIT_CARD(?CVV)),
     {save_config, Token}.
 
 get(C) ->
     {put, Token} = ?config(saved_config, C),
-    ?CREDIT_CARD = cds_client:get(Token),
+    ?CREDIT_CARD(<<>>) = cds_client:get(Token),
     ok.
 
 rotate(_C) ->
@@ -73,7 +86,7 @@ rotate(_C) ->
 
 lock(_C) ->
     ok = cds_client:lock(),
-    {locked} = (catch cds_client:put(?CREDIT_CARD)),
+    #'Locked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV))),
     ok.
 
 

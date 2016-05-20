@@ -1,4 +1,4 @@
 [submodule "apps/cds/damsel"]
 	path = apps/cds/damsel
-	url = https://github.com/kittee/damsel
+	url = "git@github.com:kittee/damsel.git"
 	branch = cds

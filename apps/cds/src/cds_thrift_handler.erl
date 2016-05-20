@@ -18,49 +18,68 @@
     woody_client:context(),
     woody_server_thrift_handler:handler_opts()
 ) -> ok | {ok, woody_server_thrift_handler:result()} | no_return().
-handle_function(init, {Threshold, Count}, _Context, _Opts) ->
+handle_function('Init', {Threshold, Count}, _Context, _Opts) ->
     try cds:init_keyring(Threshold, Count) of
         Shares ->
             {ok, Shares}
     catch
         already_exists ->
-            throw(#keyring_exists{})
+            throw(#'KeyringExists'{})
     end;
-handle_function(unlock, {Share}, _Context, _Opts) ->
+handle_function('Unlock', {Share}, _Context, _Opts) ->
     case cds:unlock_keyring(Share) of
         {more, More} ->
-            {ok, #unlock_status{unlocked = false, more_keys_needed = More}};
+            {ok, {more_keys_needed, More}};
         unlocked ->
-            {ok, #unlock_status{unlocked = true, more_keys_needed = 0}}
+            {ok, {unlocked, true}}
     end;
-handle_function(rotate, {}, _Context, _Opts) ->
+handle_function('Rotate', {}, _Context, _Opts) ->
     try cds:rotate_keyring() of
         ok ->
             ok
     catch
         locked ->
-            throw(#locked{})
+            throw(#'Locked'{})
     end;
-handle_function(lock, {}, _Context, _Opts) ->
+handle_function('Lock', {}, _Context, _Opts) ->
     ok = cds:lock_keyring(),
     ok;
-handle_function(get_card_data, {Token}, _Context, _Opts) ->
-    try cds:get(Token) of
-        CardData ->
-            {ok, CardData}
+handle_function('GetCardData', {Token}, _Context, _Opts) ->
+    try cds:get(base64:decode(Token)) of
+        MarshalledCardData ->
+            {ok, unmarshall_card_data(MarshalledCardData)}
     catch
         not_found ->
-            throw(#not_found{});
+            throw(#'NotFound'{});
         locked ->
-            throw(#locked{})
+            throw(#'Locked'{})
     end;
-handle_function(put_card_data, {CardData}, _Context, _Opts) ->
-    try cds:put(CardData) of
+handle_function('GetSessionCardData', {Token, Session}, _Context, _Opts) ->
+    try cds:get(base64:decode(Token)) of
+            MarshalledCardData ->
+                CardData = unmarshall_card_data(MarshalledCardData),
+                {ok, CardData#'CardData'{cvv = Session}}
+    catch
+        not_found ->
+            throw(#'NotFound'{});
+        locked ->
+            throw(#'Locked'{})
+    end;
+handle_function('PutCardData', {CardData}, _Context, _Opts) ->
+    %% TODO: store cardholder name, but hash only pan + expdate
+    MarshalledCardData = marshall_card_data(CardData),
+    try cds:put(MarshalledCardData) of
         Token ->
-            {ok, Token}
+            BankCard = #'BankCard'{
+                token = base64:encode(Token),
+                payment_system = visa,
+                bin = <<"123456">>,
+                masked_pan = <<"1234">>
+            },
+            {ok, #'PutCardDataResult'{bank_card = BankCard, session = CardData#'CardData'.cvv}}
     catch
         locked ->
-            throw(#locked{})
+            throw(#'Locked'{})
     end.
 
 -spec handle_error(
@@ -69,10 +88,37 @@ handle_function(put_card_data, {CardData}, _Context, _Opts) ->
     woody_t:rpc_id(),
     woody_server_thrift_handler:handler_opts()
 ) -> _.
-handle_error(get_card_data_exception, Error, RpcId, _Opts) ->
-    lager:info("[~p] got error from thrift: ~p", [RpcId, Error]);
-handle_error(put_card_data_exception, Error, RpcId, _Opts) ->
-    lager:info("[~p] got error from thrift: ~p", [RpcId, Error]).
+
+handle_error(Function, Error, RpcId, _Opts) ->
+    lager:info("[~p] (~p) got error from thrift: ~p", [RpcId, Function, Error]).
 
 handle_event(Event, RpcId, Meta) ->
     lager:info("[~p] woody event ~p ~p~n", [RpcId, Event, Meta]).
+
+%%
+%% internal
+%%
+
+marshall_card_data(CardData) ->
+    #'CardData'{
+        pan = Pan,
+        exp_date = #'ExpDate'{
+            month = Month,
+            year = Year
+        },
+        cardholder_name = _CardholderName,
+        cvv = _CVV
+    } = CardData,
+    %% TODO: validate
+    <<(size(Pan)), Pan/binary, Month:8, Year:16>>.
+
+unmarshall_card_data(<<PanSize, Pan:PanSize/binary, Month:8, Year:16>>) ->
+    #'CardData'{
+        pan = Pan,
+        exp_date = #'ExpDate'{
+            month = Month,
+            year = Year
+        },
+        cardholder_name = <<"Tony Stark">>,
+        cvv = <<>>
+    }.

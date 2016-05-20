@@ -2,6 +2,7 @@
 
 %% Storage operations
 -export([get/1]).
+-export([get_session/2]).
 -export([put/1]).
 -export([delete/1]).
 
@@ -22,32 +23,35 @@
 }).
 
 get(Token) ->
-    call(get_card_data, [Token]).
+    call('GetCardData', [Token]).
+
+get_session(Token, Session) ->
+    call('GetSessionCardData', [Token, Session]).
 
 put(Data) ->
-    call(put_card_data, [Data]).
+    call('PutCardData', [Data]).
 
 delete(Token) ->
-    call(delete, [Token]).
+    call('DeleteCardData', [Token]).
 
 init(Threshold, Number) ->
-    call(init, [Threshold, Number]).
+    call('Init', [Threshold, Number]).
 
 unlock(Share) ->
-    call(unlock, [Share]).
+    call('Unlock', [Share]).
 
 lock() ->
-    call(lock, []).
+    call('Lock', []).
 
 rotate() ->
-    call(rotate, []).
+    call('Rotate', []).
 
 
 call(Function, Args) ->
     Host = application:get_env(cds, thrift_host, "127.0.0.1"),
     Port = integer_to_list(application:get_env(cds, thrift_port, 8022)),
-    Call = {{cds_thrift, cds}, Function, Args},
-    Server = #{url => Host ++ ":" ++ Port ++ "/v1/cds"},
+    Call = {{cds_thrift, service(Function)}, Function, Args},
+    Server = #{url => Host ++ ":" ++ Port ++ path(Function)},
     try woody_client:call(?STATIC_CONTEXT, Call, Server) of
         {ok, _Context} ->
             ok;
@@ -56,3 +60,37 @@ call(Function, Args) ->
     catch {{exception, Exception}, _Context} ->
         throw(Exception)
     end.
+
+service('GetCardData') ->
+    'Storage';
+service('GetSessionCardData') ->
+    'Storage';
+service('PutCardData') ->
+    'Storage';
+service('DeleteCardData') ->
+    'Keyring';
+service('Init') ->
+    'Keyring';
+service('Unlock') ->
+    'Keyring';
+service('Lock') ->
+    'Keyring';
+service('Rotate') ->
+    'Keyring'.
+
+path('GetCardData') ->
+    "/v1/storage";
+path('GetSessionCardData') ->
+    "/v1/storage";
+path('PutCardData') ->
+    "/v1/storage";
+path('DeleteCardData') ->
+    "/v1/keyring";
+path('Init') ->
+    "/v1/keyring";
+path('Unlock') ->
+    "/v1/keyring";
+path('Lock') ->
+    "/v1/keyring";
+path('Rotate') ->
+    "/v1/keyring".
