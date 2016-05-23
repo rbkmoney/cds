@@ -1,4 +1,4 @@
-box: erlang:18
+box: kittee/erlang_thrift
 
 dev:
     steps:
