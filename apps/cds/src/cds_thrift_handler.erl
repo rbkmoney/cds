@@ -31,7 +31,7 @@ handle_function('Unlock', {Share}, _Context, _Opts) ->
         {more, More} ->
             {ok, {more_keys_needed, More}};
         unlocked ->
-            {ok, {unlocked, true}}
+            {ok, {ok, #'Ok'{}}}
     end;
 handle_function('Rotate', {}, _Context, _Opts) ->
     try cds:rotate_keyring() of
@@ -39,7 +39,7 @@ handle_function('Rotate', {}, _Context, _Opts) ->
             ok
     catch
         locked ->
-            throw(#'Locked'{})
+            throw(#'KeyringLocked'{})
     end;
 handle_function('Lock', {}, _Context, _Opts) ->
     ok = cds:lock_keyring(),
@@ -52,7 +52,7 @@ handle_function('GetCardData', {Token}, _Context, _Opts) ->
         not_found ->
             throw(#'NotFound'{});
         locked ->
-            throw(#'Locked'{})
+            throw(#'KeyringLocked'{})
     end;
 handle_function('GetSessionCardData', {Token, Session}, _Context, _Opts) ->
     try cds:get(base64:decode(Token)) of
@@ -63,7 +63,7 @@ handle_function('GetSessionCardData', {Token, Session}, _Context, _Opts) ->
         not_found ->
             throw(#'NotFound'{});
         locked ->
-            throw(#'Locked'{})
+            throw(#'KeyringLocked'{})
     end;
 handle_function('PutCardData', {CardData}, _Context, _Opts) ->
     %% TODO: store cardholder name, but hash only pan + expdate
@@ -79,7 +79,7 @@ handle_function('PutCardData', {CardData}, _Context, _Opts) ->
             {ok, #'PutCardDataResult'{bank_card = BankCard, session = CardData#'CardData'.cvv}}
     catch
         locked ->
-            throw(#'Locked'{})
+            throw(#'KeyringLocked'{})
     end.
 
 -spec handle_error(

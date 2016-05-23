@@ -64,7 +64,7 @@ init(_C) ->
 unlock(C) ->
     {init, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
     {more_keys_needed, 1} = cds_client:unlock(MasterKey1),
-    {unlocked, true} = cds_client:unlock(MasterKey2),
+    {ok, #'Ok'{}} = cds_client:unlock(MasterKey2),
     ok.
 
 put(_C) ->
@@ -86,7 +86,7 @@ rotate(_C) ->
 
 lock(_C) ->
     ok = cds_client:lock(),
-    #'Locked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV))),
+    #'KeyringLocked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV))),
     ok.
 
 
