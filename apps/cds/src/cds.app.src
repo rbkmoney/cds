@@ -11,6 +11,7 @@
         scrypt,
         riakc,
         woody,
+        shamir,
         cowboy, %% temporary kostyl'
         lager
     ]},

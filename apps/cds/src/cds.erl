@@ -51,8 +51,8 @@ stop() ->
 %% Supervisor callbacks
 %%
 init([]) ->
-    {ok, ThriftHost} = inet:parse_address(application:get_env(cds, thrift_host, "127.0.0.1")),
-    ThriftPort = application:get_env(cds, thrift_port, 8022),
+    {ok, ThriftHost} = inet:parse_address(application:get_env(cds, thrift_listen_host, "0.0.0.0")),
+    ThriftPort = application:get_env(cds, thrift_listen_port, 8022),
     ThriftService = woody_server:child_spec(
         cds_thrift_service_sup,
         #{

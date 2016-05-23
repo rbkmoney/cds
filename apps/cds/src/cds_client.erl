@@ -48,8 +48,8 @@ rotate() ->
 
 
 call(Function, Args) ->
-    Host = application:get_env(cds, thrift_host, "127.0.0.1"),
-    Port = integer_to_list(application:get_env(cds, thrift_port, 8022)),
+    Host = application:get_env(cds, thrift_client_host, "127.0.0.1"),
+    Port = integer_to_list(application:get_env(cds, thrift_client_port, 8022)),
     Call = {{cds_thrift, service(Function)}, Function, Args},
     Server = #{url => Host ++ ":" ++ Port ++ path(Function)},
     try woody_client:call(?STATIC_CONTEXT, Call, Server) of
