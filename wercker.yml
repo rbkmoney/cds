@@ -1,4 +1,8 @@
-box: rbkmoney/build_erlang
+box:
+    id: rbkmoney/build_erlang
+    username: $USERNAME
+    password: $PASSWORD
+    tag: latest
 
 dev:
     steps:
