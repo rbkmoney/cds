@@ -1,4 +1,4 @@
-box: kittee/erlang_thrift
+box: rbkmoney/build_erlang
 
 dev:
     steps:
