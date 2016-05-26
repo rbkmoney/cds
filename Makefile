@@ -27,7 +27,7 @@ start: devrel
 test:
 	$(REBAR) ct
 
-xref:
+xref: damsel
 	$(REBAR) xref
 
 clean:
