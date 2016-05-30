@@ -2,7 +2,7 @@
 -behaviour(woody_server_thrift_handler).
 -behaviour(woody_event_handler).
 
--include("cds_thrift.hrl").
+-include("cds_cds_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -45,9 +45,9 @@ handle_function('Lock', {}, _Context, _Opts) ->
     ok = cds:lock_keyring(),
     ok;
 handle_function('GetCardData', {Token}, _Context, _Opts) ->
-    try cds:get(base64:decode(Token)) of
-        MarshalledCardData ->
-            {ok, unmarshall_card_data(MarshalledCardData)}
+    try cds:get_card_data(base64:decode(Token)) of
+        CardData ->
+            {ok, CardData}
     catch
         not_found ->
             throw(#'NotFound'{});
@@ -55,10 +55,9 @@ handle_function('GetCardData', {Token}, _Context, _Opts) ->
             throw(#'KeyringLocked'{})
     end;
 handle_function('GetSessionCardData', {Token, Session}, _Context, _Opts) ->
-    try cds:get(base64:decode(Token)) of
-            MarshalledCardData ->
-                CardData = unmarshall_card_data(MarshalledCardData),
-                {ok, CardData#'CardData'{cvv = Session}}
+    try cds:get_session_card_data(base64:decode(Token), base64:decode(Session)) of
+            CardData ->
+                {ok, CardData}
     catch
         not_found ->
             throw(#'NotFound'{});
@@ -67,16 +66,15 @@ handle_function('GetSessionCardData', {Token, Session}, _Context, _Opts) ->
     end;
 handle_function('PutCardData', {CardData}, _Context, _Opts) ->
     %% TODO: store cardholder name, but hash only pan + expdate
-    MarshalledCardData = marshall_card_data(CardData),
-    try cds:put(MarshalledCardData) of
-        Token ->
+    try cds:put_card_data(CardData) of
+        {Token, Session} ->
             BankCard = #'BankCard'{
                 token = base64:encode(Token),
                 payment_system = visa,
-                bin = <<"123456">>,
-                masked_pan = <<"1234">>
+                bin = <<"not implemented yet">>,
+                masked_pan = <<"not implemented yet">>
             },
-            {ok, #'PutCardDataResult'{bank_card = BankCard, session = CardData#'CardData'.cvv}}
+            {ok, #'PutCardDataResult'{bank_card = BankCard, session = base64:encode(Session)}}
     catch
         locked ->
             throw(#'KeyringLocked'{})
@@ -94,31 +92,3 @@ handle_error(Function, Error, RpcId, _Opts) ->
 
 handle_event(Event, RpcId, Meta) ->
     lager:info("[~p] woody event ~p ~p~n", [RpcId, Event, Meta]).
-
-%%
-%% internal
-%%
-
-marshall_card_data(CardData) ->
-    #'CardData'{
-        pan = Pan,
-        exp_date = #'ExpDate'{
-            month = Month,
-            year = Year
-        },
-        cardholder_name = _CardholderName,
-        cvv = _CVV
-    } = CardData,
-    %% TODO: validate
-    <<(size(Pan)), Pan/binary, Month:8, Year:16>>.
-
-unmarshall_card_data(<<PanSize, Pan:PanSize/binary, Month:8, Year:16>>) ->
-    #'CardData'{
-        pan = Pan,
-        exp_date = #'ExpDate'{
-            month = Month,
-            year = Year
-        },
-        cardholder_name = <<"Tony Stark">>,
-        cvv = <<>>
-    }.

@@ -1,6 +1,6 @@
 -module(cds_tests_SUITE).
 -include_lib("common_test/include/ct.hrl").
--include_lib("cds/include/cds_thrift.hrl").
+-include_lib("cds/src/cds_cds_thrift.hrl").
 -compile(export_all).
 
 -define(CVV, <<"777">>).

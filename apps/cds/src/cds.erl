@@ -14,9 +14,11 @@
 -export([stop /1]).
 
 %% Storage operations
--export([get/1]).
--export([put/1]).
--export([delete/1]).
+-export([get_card_data/1]).
+-export([get_session_card_data/2]).
+-export([put_card_data/1]).
+-export([delete_card_data/2]).
+-export([delete_cvv/1]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -57,8 +59,8 @@ init([]) ->
         cds_thrift_service_sup,
         #{
             handlers => [
-                {"/v1/storage", {{cds_thrift, 'Storage'}, cds_thrift_handler, []}},
-                {"/v1/keyring", {{cds_thrift, 'Keyring'}, cds_thrift_handler, []}}
+                {"/v1/storage", {{cds_cds_thrift, 'Storage'}, cds_thrift_handler, []}},
+                {"/v1/keyring", {{cds_cds_thrift, 'Keyring'}, cds_thrift_handler, []}}
             ],
             event_handler => cds_thrift_handler,
             ip => ThriftHost,
@@ -99,23 +101,43 @@ stop(_State) ->
 %%
 %% Storage operations
 %%
--spec get(cds_crypto:token()) -> binary().
-get(Token) ->
-    decrypt(cds_storage:get(token, Token)).
+-spec get_card_data(cds_crypto:token()) -> cds_cds_thrift:'CardData'().
+get_card_data(Token) ->
+    Encrypted = cds_storage:get_card_data(Token),
+    Marshalled = decrypt(Encrypted),
+    cds_card_data:unmarshall(Marshalled).
 
--spec put(binary()) -> cds_crypto:token().
-put(Data) ->
-    Token = tokenize(Data),
-    ok = cds_storage:put(token, Token, encrypt(Data)),
-    ok = cds_storage:put(hash, hash(Data), Token),
-    Token.
+-spec get_session_card_data(cds_crypto:token(), cds_crypto:token()) -> cds_cds_thrift:'CardData'().
+get_session_card_data(Token, Session) ->
+    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
+    MarshalledCardData = decrypt(EncryptedCardData),
+    Cvv = decrypt(EncryptedCvv),
+    cds_card_data:unmarshall(MarshalledCardData, Cvv).
 
--spec delete(cds_crypto:token()) -> ok.
-delete(Token) ->
-    Data = get(Token),
-    ok = cds_storage:delete(token, Token),
-    ok = cds_storage:delete(hash, hash(Data)),
+-spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds_crypto:token(), cds_crypto:token()}.
+put_card_data(CardData) ->
+    {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
+    UniqueCardData = cds_card_data:unique(CardData),
+    Token = tokenize(UniqueCardData),
+    Session = cds_crypto:token(),
+    Hash = hash(UniqueCardData),
+    EncryptedCardData = encrypt(MarshalledCardData),
+    EncryptedCvv = encrypt(Cvv),
+    ok = cds_storage:put_card_data(Token, Session, Hash, EncryptedCardData, EncryptedCvv),
+    {Token, Session}.
+
+-spec delete_card_data(cds_crypto:token(), cds_crypto:token()) -> ok.
+delete_card_data(Token, Session) ->
+    CardData = get_card_data(Token),
+    UniqueCardData = cds_card_data:unique(CardData),
+    Hash = hash(UniqueCardData),
+    ok = cds_storage:delete_card_data(Token, Hash, Session),
     ok.
+-spec delete_cvv(cds_crypto:token()) -> ok.
+delete_cvv(Session) ->
+    ok = cds_storage:delete_card_data(Session),
+    ok.
+
 
 
 %%
@@ -227,7 +249,7 @@ tokenize(Data) ->
 find_or_create_token([]) ->
     cds_crypto:token();
 find_or_create_token([Hash | Rest]) ->
-    try cds_storage:get(hash, Hash) of
+    try cds_storage:get_token(Hash) of
         Token ->
             Token
     catch
