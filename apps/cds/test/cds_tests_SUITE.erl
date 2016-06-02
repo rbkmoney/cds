@@ -25,11 +25,11 @@ groups() ->
     [
         {basic_lifecycle, [sequence], [
             init,
+            lock,
             unlock,
             put,
             get,
-            rotate,
-            lock
+            rotate
         ]}
     ].
 %%
@@ -61,8 +61,14 @@ init(_C) ->
     3 = length(MasterKeys),
     {save_config, MasterKeys}.
 
+lock(C) ->
+    {init, MasterKeys} = ?config(saved_config, C),
+    ok = cds_client:lock(),
+    #'KeyringLocked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV))),
+    {save_config, MasterKeys}.
+
 unlock(C) ->
-    {init, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
+    {lock, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
     {more_keys_needed, 1} = cds_client:unlock(MasterKey1),
     {ok, #'Ok'{}} = cds_client:unlock(MasterKey2),
     ok.
@@ -84,10 +90,7 @@ rotate(_C) ->
     ok = cds_client:rotate(),
     ok.
 
-lock(_C) ->
-    ok = cds_client:lock(),
-    #'KeyringLocked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV))),
-    ok.
+
 
 
 %%

@@ -30,7 +30,7 @@ handle_function('Unlock', {Share}, _Context, _Opts) ->
     case cds:unlock_keyring(Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
-        unlocked ->
+        ok ->
             {ok, {ok, #'Ok'{}}}
     end;
 handle_function('Rotate', {}, _Context, _Opts) ->

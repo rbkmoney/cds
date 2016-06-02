@@ -8,24 +8,26 @@
 -export([get_current_key/0]).
 -export([unlock/1]).
 -export([lock/0]).
--export([update_keyring/1]).
--export([rotate_keyring/0]).
+-export([update/0]).
+-export([rotate/0]).
+-export([initialize/2]).
 -export([get_state/0]).
 
 %% gen_fsm.
 -export([init/1]).
 -export([locked/2]).
 -export([unlocked/2]).
+-export([not_initialized/2]).
 -export([handle_event/3]).
 -export([locked/3]).
 -export([unlocked/3]).
+-export([not_initialized/3]).
 -export([handle_sync_event/4]).
 -export([handle_info/3]).
 -export([terminate/3]).
 -export([code_change/4]).
 
 -define(FSM, ?MODULE).
--define(UNLOCK_TIMEOUT, 60*1000).
 
 -record(state, {
     masterkey,
@@ -51,7 +53,7 @@ get_all_keys() ->
 get_current_key() ->
     sync_send_event(get_current_key).
 
--spec unlock(binary()) -> {more, byte()} | unlocked.
+-spec unlock(binary()) -> {more, byte()} | ok.
 unlock(Share) ->
     sync_send_event({unlock, Share}).
 
@@ -59,13 +61,17 @@ unlock(Share) ->
 lock() ->
     sync_send_event(lock).
 
--spec update_keyring(binary()) -> ok.
-update_keyring(Keyring) ->
-    sync_send_event({update_keyring, Keyring}).
+-spec update() -> ok.
+update() ->
+    sync_send_event(update).
 
--spec rotate_keyring() -> binary().
-rotate_keyring() ->
-    sync_send_event(rotate_keyring).
+-spec rotate() -> ok.
+rotate() ->
+    sync_send_event(rotate).
+
+-spec initialize(integer(), integer()) -> [binary()].
+initialize(Threshold, Count) ->
+    sync_send_event({initialize, Threshold, Count}).
 
 -spec get_state() -> locked | unlocked.
 get_state() ->
@@ -99,10 +105,17 @@ sync_send_all_state_event(Event) ->
 %% gen_fsm.
 
 init([]) ->
-    {ok, locked, #state{}}.
+    try cds_keyring_storage:read() of
+        Keyring ->
+            {ok, locked, #state{keyring = Keyring}}
+    catch
+        not_found ->
+            {ok, not_initialized, #state{}}
+    end.
 
-locked(timeout, _StateData) ->
-    {next_state, locked, #state{}};
+not_initialized(_Event, StateData) ->
+    {next_state, not_initialized, StateData}.
+
 locked(_Event, StateData) ->
     {next_state, locked, StateData}.
 
@@ -112,64 +125,80 @@ unlocked(_Event, StateData) ->
 handle_event(_Event, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
-locked({update_keyring, Keyring}, _From, _StateData) ->
-    {reply, ok, locked, #state{keyring = Keyring}, ?UNLOCK_TIMEOUT};
-locked({unlock, _Share}, _From, #state{keyring = undefined} = _StateData) ->
-    {reply, {error, no_keyring}, locked, #state{}};
+not_initialized({initialize, Threshold, Count}, _From, StateData) ->
+    MasterKey = cds_crypto:key(),
+    Keyring = cds_keyring:new(),
+    Shares = cds_keysharing:share(MasterKey, Threshold, Count),
+    EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
+    try cds_keyring_storage:create(EncryptedKeyring) of
+        ok ->
+            {reply, {ok, Shares}, unlocked, StateData#state{masterkey = MasterKey, keyring = Keyring}}
+    catch
+        already_exists ->
+            {stop, normal, {error, already_initialized}, StateData}
+    end;
+not_initialized(_Event, _From, StateData) ->
+    {reply, {error, not_initialized}, not_initialized, StateData}.
+
+locked(update, _From, StateData) ->
+    try cds_keyring_storage:read() of
+        Keyring ->
+            {reply, ok, locked, StateData#state{keyring = Keyring}}
+    catch
+        not_found ->
+            {reply, ok, not_initialized, StateData}
+    end;
 locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             try
                 MasterKey = cds_keysharing:recover(maps:values(AllShares)),
-                DecryptedKeyring = cds_crypto:decrypt(MasterKey, Keyring),
-                UnmarshalledKeyring = cds_keyring:unmarshall(DecryptedKeyring),
-                {reply, {ok, unlocked}, unlocked, #state{keyring = UnmarshalledKeyring, masterkey = MasterKey}}
+                DecryptedKeyring = cds_keyring:decrypt(MasterKey, Keyring),
+                NewStateData = StateData#state{shares = #{}, keyring = DecryptedKeyring, masterkey = MasterKey},
+                {reply, ok, unlocked, NewStateData}
             catch Error ->
-                {reply, {error, Error}, locked, #state{}}
+                {stop, normal, {error, Error}, StateData}
             end;
         More ->
-            {reply, {ok, {more, Threshold - maps:size(More)}}, locked, StateData#state{shares = More}, ?UNLOCK_TIMEOUT}
+            {reply, {ok, {more, Threshold - maps:size(More)}}, locked, StateData#state{shares = More}}
     end;
-locked(_Event, _From, State) ->
-    {reply, {error, locked}, locked, State, ?UNLOCK_TIMEOUT}.
+locked(_Event, _From, StateData) ->
+    {reply, {error, locked}, locked, StateData}.
 
-unlocked(lock, _From, #state{masterkey = MasterKey, keyring = Keyring}) ->
-    try
-        MarshalledKeyring = cds_keyring:marshall(Keyring),
-        EncryptedKeyring = cds_crypto:encrypt(MasterKey, MarshalledKeyring),
-        {reply, ok, locked, #state{keyring = EncryptedKeyring}}
-    catch Error ->
-        {stop, lock_failed, {error, Error}, #state{}}
-    end;
-unlocked({update_keyring, Keyring}, _From, #state{masterkey = MasterKey} = StateData) ->
-    try
-        DecryptedKeyring = cds_crypto:decrypt(MasterKey, Keyring),
-        UnmarshalledKeyring = cds_keyring:unmarshall(DecryptedKeyring),
-        {reply, ok, unlocked, StateData#state{keyring = UnmarshalledKeyring}}
-    catch Error ->
-        {reply, {error, Error}, unlocked, StateData}
+unlocked(lock, _From, #state{masterkey = MasterKey, keyring = Keyring} = StateData) ->
+    EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
+    {reply, ok, locked, StateData#state{keyring = EncryptedKeyring, masterkey = undefined}};
+unlocked(update, _From, #state{masterkey = MasterKey} = StateData) ->
+    try cds_keyring_storage:read() of
+        Keyring ->
+            DecryptedKeyring = cds_keyring:decrypt(MasterKey, Keyring),
+            {reply, ok, unlocked, StateData#state{keyring = DecryptedKeyring}}
+    catch
+        not_found ->
+            {reply, ok, not_initialized, StateData#state{keyring = undefined, masterkey = undefined}}
     end;
 unlocked({get_key, KeyId}, _From, #state{keyring = #{keys := Keys}} = StateData) ->
-    try
-        Key = maps:get(KeyId, Keys),
-        {reply, {ok, {KeyId, Key}}, unlocked, StateData}
-    catch error:{badkey, KeyId} ->
-        {reply, {error, key_not_found}, unlocked, StateData}
+    try maps:get(KeyId, Keys) of
+        Key ->
+            {reply, {ok, {KeyId, Key}}, unlocked, StateData}
+    catch
+        error:{badkey, KeyId} ->
+            {reply, {error, not_found}, unlocked, StateData}
     end;
 unlocked(get_all_keys, _From, #state{keyring = #{keys := Keys}} = StateData) ->
     {reply, {ok, maps:to_list(Keys)}, unlocked, StateData};
 unlocked(get_current_key, _From, #state{keyring = #{current_key := CurrentKeyId, keys := Keys}} = StateData) ->
     CurrentKey = maps:get(CurrentKeyId, Keys),
     {reply, {ok, {CurrentKeyId, CurrentKey}}, unlocked, StateData};
-unlocked(rotate_keyring, _From, #state{keyring = Keyring, masterkey = MasterKey} = StateData) ->
-    try
-        NewKeyring = cds_keyring:rotate(Keyring),
-        MarshalledNewKeyring = cds_keyring:marshall(NewKeyring),
-        EncryptedNewKeyring = cds_crypto:encrypt(MasterKey, MarshalledNewKeyring),
-        {reply, {ok, EncryptedNewKeyring}, unlocked, StateData}
+unlocked(rotate, _From, #state{keyring = OldKeyring, masterkey = MasterKey} = StateData) ->
+    NewKeyring = cds_keyring:rotate(OldKeyring),
+    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
+    try cds_keyring_storage:update(EncryptedNewKeyring) of
+        ok ->
+            {reply, ok, unlocked, StateData#state{keyring = NewKeyring}}
     catch
-        Error ->
-            {reply, {error, Error}, unlocked, StateData}
+        conditional_check_failed ->
+            {reply, {error, out_of_date}, unlocked, StateData}
     end;
 unlocked(_Event, _From, StateData) ->
     {reply, ignored, unlocked, StateData}.
