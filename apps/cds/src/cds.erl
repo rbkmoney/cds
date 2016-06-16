@@ -35,6 +35,13 @@
 -endif.
 
 %%
+-export_type([token/0]).
+-export_type([session/0]).
+
+-type token() :: binary().
+-type session() :: binary().
+
+%%
 %% API
 %%
 -spec start() ->
@@ -100,39 +107,39 @@ stop(_State) ->
 %%
 %% Storage operations
 %%
--spec get_card_data(cds_crypto:token()) -> cds_cds_thrift:'CardData'().
+-spec get_card_data(cds:token()) -> cds_cds_thrift:'CardData'().
 get_card_data(Token) ->
     Encrypted = cds_storage:get_card_data(Token),
     Marshalled = decrypt(Encrypted),
     cds_card_data:unmarshall(Marshalled).
 
--spec get_session_card_data(cds_crypto:token(), cds_crypto:token()) -> cds_cds_thrift:'CardData'().
+-spec get_session_card_data(cds:token(), cds:session()) -> cds_cds_thrift:'CardData'().
 get_session_card_data(Token, Session) ->
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
     MarshalledCardData = decrypt(EncryptedCardData),
     Cvv = decrypt(EncryptedCvv),
     cds_card_data:unmarshall(MarshalledCardData, Cvv).
 
--spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds_crypto:token(), cds_crypto:token()}.
+-spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds:token(), cds:session()}.
 put_card_data(CardData) ->
     {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
     UniqueCardData = cds_card_data:unique(CardData),
-    Token = tokenize(UniqueCardData),
-    Session = cds_crypto:token(),
+    Token = find_or_create_token(all_hashes(UniqueCardData)),
+    Session = session(),
     Hash = hash(UniqueCardData),
     EncryptedCardData = encrypt(MarshalledCardData),
     EncryptedCvv = encrypt(Cvv),
     ok = cds_storage:put_card_data(Token, Session, Hash, EncryptedCardData, EncryptedCvv),
     {Token, Session}.
 
--spec delete_card_data(cds_crypto:token(), cds_crypto:token()) -> ok.
+-spec delete_card_data(cds:token(), cds:session()) -> ok.
 delete_card_data(Token, Session) ->
     CardData = get_card_data(Token),
     UniqueCardData = cds_card_data:unique(CardData),
     Hash = hash(UniqueCardData),
     ok = cds_storage:delete_card_data(Token, Hash, Session),
     ok.
--spec delete_cvv(cds_crypto:token()) -> ok.
+-spec delete_cvv(cds:session()) -> ok.
 delete_cvv(Session) ->
     ok = cds_storage:delete_cvv(Session),
     ok.
@@ -190,11 +197,8 @@ hash(Plain, Salt) ->
 all_hashes(Plain) ->
     [hash(Plain, Key) || {_KeyId, Key} <- cds_keyring_manager:get_all_keys()].
 
-tokenize(Data) ->
-    find_or_create_token(all_hashes(Data)).
-
 find_or_create_token([]) ->
-    cds_crypto:token();
+    token();
 find_or_create_token([Hash | Rest]) ->
     try cds_storage:get_token(Hash) of
         Token ->
@@ -203,3 +207,11 @@ find_or_create_token([Hash | Rest]) ->
         not_found ->
             find_or_create_token(Rest)
     end.
+
+-spec token() -> cds:token().
+token() ->
+    crypto:strong_rand_bytes(16).
+
+-spec session() -> cds:session().
+session() ->
+    crypto:strong_rand_bytes(16).

@@ -1,5 +1,5 @@
 box:
-    id: rbkmoney/build_erlang
+    id: rbkmoney/build
     username: $USERNAME
     password: $PASSWORD
     tag: latest
