@@ -1,43 +1,35 @@
 -module(cds_keyring_storage_env).
 -behaviour(cds_keyring_storage).
 
-
--export([get/0]).
--export([put/1]).
--export([lock/0]).
--export([unlock/0]).
+-export([create/1]).
+-export([read/0]).
+-export([update/1]).
 -export([delete/0]).
 
 -define(ENV_KEY, cds_keyring_storage_env).
 
-
--spec get() -> {ok, binary()} | {error, not_found}.
-get() ->
+-spec create(binary()) -> ok | {error, already_exists}.
+create(Keyring) ->
     case application:get_env(cds, ?ENV_KEY) of
-        {ok, Data} ->
-            {ok, Data};
+        undefined ->
+            ok = application:set_env(cds, ?ENV_KEY, Keyring);
+        {ok, _Something} ->
+            {error, already_exists}
+    end.
+
+-spec read() -> {ok, binary()} | {error, not_found}.
+read() ->
+    case application:get_env(cds, ?ENV_KEY) of
+        {ok, Keyring} ->
+            {ok, Keyring};
         undefined ->
             {error, not_found}
     end.
 
-
--spec put(binary()) -> ok.
-put(Keyring) ->
-    ok = application:set_env(cds, ?ENV_KEY, Keyring),
-    ok.
-
-
--spec lock() -> ok.
-lock() ->
-    ok.
-
-
--spec unlock() -> ok.
-unlock() ->
-    ok.
-
+-spec update(binary()) -> ok.
+update(Keyring) ->
+    ok = application:set_env(cds, ?ENV_KEY, Keyring).
 
 -spec delete() -> ok.
 delete() ->
-    ok = application:unset_env(cds, ?ENV_KEY),
-    ok.
+    ok = application:unset_env(cds, ?ENV_KEY).

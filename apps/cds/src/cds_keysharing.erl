@@ -24,7 +24,8 @@ share(Secret, Threshold, Count) ->
 recover(Shares) ->
     try
         shamir:recover([convert(Share) || Share <- Shares])
-    catch _Class:_Reason ->
+    catch Class:Reason ->
+        _ = lager:error("keysharing recover failed ~p ~p", [Class, Reason]),
         throw(shamir_failed)
     end.
 

@@ -1,14 +1,12 @@
 -module(cds_crypto).
 
 -export([key/0]).
--export([token/0]).
 -export([encrypt/2]).
 -export([decrypt/2]).
 
--export_type([key/0, token/0]).
+-export_type([key/0]).
 
 -type key() :: binary().
--type token() :: binary().
 
 %%internal
 
@@ -35,10 +33,6 @@
 -spec key() -> key().
 key() ->
     crypto:strong_rand_bytes(32).
-
--spec token() -> token().
-token() ->
-    crypto:strong_rand_bytes(16).
 
 -spec encrypt(key(), binary()) -> binary().
 encrypt(Key, Plain) ->

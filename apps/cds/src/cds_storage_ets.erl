@@ -4,9 +4,12 @@
 
 %% cds_storage behaviour
 -export([start/0]).
--export([get/2]).
--export([put/3]).
--export([delete/2]).
+-export([get_token/1]).
+-export([get_card_data/1]).
+-export([get_session_card_data/2]).
+-export([put_card_data/5]).
+-export([delete_card_data/3]).
+-export([delete_cvv/1]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -15,6 +18,10 @@
 -export([terminate/2]).
 -export([handle_info/2]).
 -export([code_change/3]).
+
+-define(TOKEN_TABLE, cds_ets_storage_token).
+-define(HASH_TABLE, cds_ets_storage_hash).
+-define(SESSION_TABLE, cds_ets_storage_session).
 
 %%
 %% cds_storage behaviour
@@ -29,33 +36,65 @@ start() ->
     {ok, _Child} = supervisor:start_child(cds, ChildSpec),
     ok.
 
--spec get(atom(), binary()) -> {ok, binary()} | {error, not_found}.
-get(Type, Key) ->
-    case ets:lookup(resolve_bucket(Type), Key) of
-        [{Key, Data}] ->
-            {ok, Data};
+-spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
+get_token(Hash) ->
+    case ets:lookup(?HASH_TABLE, Hash) of
+        [{Hash, Token}] ->
+            {ok, Token};
         [] ->
             {error, not_found}
     end.
 
--spec put(atom(), binary(), binary()) -> ok.
-put(Type, Key, Data) ->
-    true = ets:insert(resolve_bucket(Type), {Key, Data}),
+-spec get_card_data(binary()) -> {ok, binary()} | {error, not_found}.
+get_card_data(Token) ->
+    case ets:lookup(?TOKEN_TABLE, Token) of
+        [{Token, CardData}] ->
+            {ok, CardData};
+        [] ->
+            {error, not_found}
+    end.
+
+-spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
+get_session_card_data(Token, Session) ->
+    case ets:lookup(?SESSION_TABLE, Session) of
+        [{Session, Cvv}] ->
+            case ets:lookup(?TOKEN_TABLE, Token) of
+                [{Token, CardData}] ->
+                    {ok, {CardData, Cvv}};
+                [] ->
+                    {error, not_found}
+            end;
+        [] ->
+            {error, not_found}
+    end.
+
+-spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok.
+put_card_data(Token, Session, Hash, CardData, Cvv) ->
+    true = ets:insert(?TOKEN_TABLE, {Token, CardData}),
+    true = ets:insert(?HASH_TABLE, {Hash, Token}),
+    true = ets:insert(?SESSION_TABLE, {Session, Cvv}),
     ok.
 
--spec delete(atom(), binary()) -> ok.
-delete(Type, Key) ->
-    true = ets:delete(resolve_bucket(Type), Key),
+-spec delete_card_data(binary(), binary(), binary()) -> ok.
+delete_card_data(Token, Hash, Session) ->
+    true = ets:delete(?TOKEN_TABLE, Token),
+    true = ets:delete(?HASH_TABLE, Hash),
+    true = ets:delete(?SESSION_TABLE, Session),
     ok.
+
+-spec delete_cvv(binary()) -> ok.
+delete_cvv(Session) ->
+    true = ets:delete(?SESSION_TABLE, Session),
+    ok.
+
 %%
 %% gen_server behaviour
 %%
 
 init([]) ->
-    HashTable = resolve_bucket(hash),
-    TokenTable = resolve_bucket(token),
-    HashTable = ets:new(HashTable, [named_table, public]),
-    TokenTable = ets:new(TokenTable, [named_table, public]),
+    ?HASH_TABLE = ets:new(?HASH_TABLE, [named_table, public]),
+    ?TOKEN_TABLE = ets:new(?TOKEN_TABLE, [named_table, public]),
+    ?SESSION_TABLE = ets:new(?SESSION_TABLE, [named_table, public]),
     {ok, {}}.
 
 handle_call(_Request, _From, State) ->
@@ -72,13 +111,3 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-
-%%
-%% Internal
-%%
-
-resolve_bucket(hash) ->
-    cds_ets_storage_hashes;
-resolve_bucket(token) ->
-    cds_ets_storage_tokens.

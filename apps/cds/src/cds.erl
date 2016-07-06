@@ -14,9 +14,11 @@
 -export([stop /1]).
 
 %% Storage operations
--export([get/1]).
--export([put/1]).
--export([delete/1]).
+-export([get_card_data/1]).
+-export([get_session_card_data/2]).
+-export([put_card_data/1]).
+-export([delete_card_data/2]).
+-export([delete_cvv/1]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -24,7 +26,6 @@
 -export([update_keyring/0]).
 -export([rotate_keyring/0]).
 -export([lock_keyring/0]).
--export([destroy_keyring/0]).
 
 -compile({no_auto_import, [get/1]}).
 
@@ -32,6 +33,13 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -endif.
+
+%%
+-export_type([token/0]).
+-export_type([session/0]).
+
+-type token() :: binary().
+-type session() :: binary().
 
 %%
 %% API
@@ -57,8 +65,8 @@ init([]) ->
         cds_thrift_service_sup,
         #{
             handlers => [
-                {"/v1/storage", {{cds_thrift, 'Storage'}, cds_thrift_handler, []}},
-                {"/v1/keyring", {{cds_thrift, 'Keyring'}, cds_thrift_handler, []}}
+                {"/v1/storage", {{cds_cds_thrift, 'Storage'}, cds_thrift_handler, []}},
+                {"/v1/keyring", {{cds_cds_thrift, 'Keyring'}, cds_thrift_handler, []}}
             ],
             event_handler => cds_thrift_handler,
             ip => ThriftHost,
@@ -99,99 +107,67 @@ stop(_State) ->
 %%
 %% Storage operations
 %%
--spec get(cds_crypto:token()) -> binary().
-get(Token) ->
-    decrypt(cds_storage:get(token, Token)).
+-spec get_card_data(cds:token()) -> cds_cds_thrift:'CardData'().
+get_card_data(Token) ->
+    Encrypted = cds_storage:get_card_data(Token),
+    Marshalled = decrypt(Encrypted),
+    cds_card_data:unmarshall(Marshalled).
 
--spec put(binary()) -> cds_crypto:token().
-put(Data) ->
-    Token = tokenize(Data),
-    ok = cds_storage:put(token, Token, encrypt(Data)),
-    ok = cds_storage:put(hash, hash(Data), Token),
-    Token.
+-spec get_session_card_data(cds:token(), cds:session()) -> cds_cds_thrift:'CardData'().
+get_session_card_data(Token, Session) ->
+    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
+    MarshalledCardData = decrypt(EncryptedCardData),
+    Cvv = decrypt(EncryptedCvv),
+    cds_card_data:unmarshall(MarshalledCardData, Cvv).
 
--spec delete(cds_crypto:token()) -> ok.
-delete(Token) ->
-    Data = get(Token),
-    ok = cds_storage:delete(token, Token),
-    ok = cds_storage:delete(hash, hash(Data)),
+-spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds:token(), cds:session()}.
+put_card_data(CardData) ->
+    {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
+    UniqueCardData = cds_card_data:unique(CardData),
+    Token = find_or_create_token(all_hashes(UniqueCardData)),
+    Session = session(),
+    Hash = hash(UniqueCardData),
+    EncryptedCardData = encrypt(MarshalledCardData),
+    EncryptedCvv = encrypt(Cvv),
+    ok = cds_storage:put_card_data(Token, Session, Hash, EncryptedCardData, EncryptedCvv),
+    {Token, Session}.
+
+-spec delete_card_data(cds:token(), cds:session()) -> ok.
+delete_card_data(Token, Session) ->
+    CardData = get_card_data(Token),
+    UniqueCardData = cds_card_data:unique(CardData),
+    Hash = hash(UniqueCardData),
+    ok = cds_storage:delete_card_data(Token, Hash, Session),
     ok.
+-spec delete_cvv(cds:session()) -> ok.
+delete_cvv(Session) ->
+    ok = cds_storage:delete_cvv(Session),
+    ok.
+
 
 
 %%
 %% Keyring operations
 %%
--spec unlock_keyring(binary()) -> {more, byte()} | unlocked.
+-spec unlock_keyring(binary()) -> {more, byte()} | ok.
 unlock_keyring(Share) ->
     cds_keyring_manager:unlock(Share).
 
 -spec init_keyring(integer(), integer()) -> [binary()].
 init_keyring(Threshold, Count) when Threshold =< Count ->
-    try
-        ok = cds_keyring_storage:lock(),
-        ok = try cds_keyring_storage:get() of
-            _Keyring ->
-                throw(already_exists)
-        catch
-            not_found ->
-                ok
-        end,
-        MasterKey = cds_crypto:key(),
-        Keyring = cds_keyring:new(),
-        MarshalledKeyring = cds_keyring:marshall(Keyring),
-        EncryptedKeyring = cds_crypto:encrypt(MasterKey, MarshalledKeyring),
-        ok = cds_keyring_storage:put(EncryptedKeyring),
-        Shares = cds_keysharing:share(MasterKey, Threshold, Count),
-        cds_keyring_manager:update_keyring(EncryptedKeyring),
-        Shares
-    after
-        cds_keyring_storage:unlock()
-    end.
+    cds_keyring_manager:initialize(Threshold, Count).
 
 -spec update_keyring() -> ok.
 update_keyring() ->
-    Keyring = cds_keyring_storage:get(),
-    cds_keyring_manager:update_keyring(Keyring).
+    cds_keyring_manager:update().
 
-%% TODO? backup and automatic rollback on fail
 -spec rotate_keyring() -> ok.
 rotate_keyring() ->
-    try
-        ok = cds_keyring_storage:lock(),
-        CurrentKeyring = cds_keyring_storage:get(),
-        ok = cds_keyring_manager:update_keyring(CurrentKeyring),
-        NewKeyring = cds_keyring_manager:rotate_keyring(),
-        ok = cds_keyring_storage:put(NewKeyring),
-        NewKeyring = cds_keyring_storage:get(), %% double-check
-        ok = cds_keyring_manager:update_keyring(NewKeyring)
-    after
-        cds_keyring_storage:unlock()
-    end.
+    cds_keyring_manager:rotate().
 
+-spec lock_keyring() -> ok.
 lock_keyring() ->
     cds_keyring_manager:lock().
-
--spec destroy_keyring() -> ok.
-destroy_keyring() ->
-    try
-        ok = cds_keyring_storage:lock(),
-        ok = try cds_keyring_storage:delete() of
-            ok ->
-                ok
-        catch
-            not_found ->
-                ok
-        end,
-        ok = try cds_keyring_manager:lock() of
-            ok ->
-                ok
-        catch
-            locked ->
-                ok
-        end
-    after
-        cds_keyring_storage:unlock()
-    end.
 
 %%
 %% Internal
@@ -221,16 +197,21 @@ hash(Plain, Salt) ->
 all_hashes(Plain) ->
     [hash(Plain, Key) || {_KeyId, Key} <- cds_keyring_manager:get_all_keys()].
 
-tokenize(Data) ->
-    find_or_create_token(all_hashes(Data)).
-
 find_or_create_token([]) ->
-    cds_crypto:token();
+    token();
 find_or_create_token([Hash | Rest]) ->
-    try cds_storage:get(hash, Hash) of
+    try cds_storage:get_token(Hash) of
         Token ->
             Token
     catch
         not_found ->
             find_or_create_token(Rest)
     end.
+
+-spec token() -> cds:token().
+token() ->
+    crypto:strong_rand_bytes(16).
+
+-spec session() -> cds:session().
+session() ->
+    crypto:strong_rand_bytes(16).

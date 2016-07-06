@@ -1,32 +1,27 @@
 -module(cds_keyring_storage).
 
--callback get() -> {ok, binary()} | {error, not_found}.
--callback put(binary()) -> ok.
--callback lock() -> ok | {error, locked}.
--callback unlock() -> ok.
+-callback create(binary()) -> ok | {error, already_exists}.
+-callback read() -> {ok, binary()} | {error, not_found}.
+-callback update(binary()) -> ok.
 -callback delete() -> ok.
 
--export([get/0]).
--export([put/1]).
--export([lock/0]).
--export([unlock/0]).
+-export([create/1]).
+-export([read/0]).
+-export([update/1]).
 -export([delete/0]).
 
--spec get() -> binary().
-get() ->
-    cds_backend:call(keyring_storage, get, []).
 
--spec put(binary()) -> ok.
-put(Keyring) ->
-    cds_backend:call(keyring_storage, put, [Keyring]).
+-spec create(binary()) -> ok.
+create(Keyring) ->
+    cds_backend:call(keyring_storage, create, [Keyring]).
 
--spec lock() -> ok.
-lock() ->
-    cds_backend:call(keyring_storage, lock, []).
+-spec read() -> binary().
+read() ->
+    cds_backend:call(keyring_storage, read, []).
 
--spec unlock() -> ok.
-unlock() ->
-    cds_backend:call(keyring_storage, unlock, []).
+-spec update(binary()) -> ok.
+update(Keyring) ->
+    cds_backend:call(keyring_storage, update, [Keyring]).
 
 -spec delete() -> ok.
 delete() ->

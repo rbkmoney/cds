@@ -2,6 +2,8 @@
 
 -export([new/0]).
 -export([rotate/1]).
+-export([encrypt/2]).
+-export([decrypt/2]).
 -export([marshall/1]).
 -export([unmarshall/1]).
 
@@ -31,6 +33,13 @@ rotate(#{current_key := CurrentKeyId, keys := Keys}) ->
             throw(keyring_full)
     end.
 
+-spec encrypt(cds_crypto:key(), keyring()) -> binary().
+encrypt(MasterKey, Keyring) ->
+    cds_crypto:encrypt(MasterKey, marshall(Keyring)).
+
+-spec decrypt(cds_crypto:key(), binary()) -> keyring().
+decrypt(MasterKey, EncryptedKeyring) ->
+    unmarshall(cds_crypto:decrypt(MasterKey, EncryptedKeyring)).
 
 -spec marshall(keyring()) -> binary().
 marshall(#{current_key := CurrentKey, keys := Keys}) ->

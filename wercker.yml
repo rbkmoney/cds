@@ -1,4 +1,8 @@
-box: kittee/erlang_thrift
+box:
+    id: rbkmoney/build
+    username: $USERNAME
+    password: $PASSWORD
+    tag: latest
 
 dev:
     steps:

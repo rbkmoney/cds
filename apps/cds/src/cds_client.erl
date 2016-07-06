@@ -12,16 +12,6 @@
 -export([lock/0]).
 -export([rotate/0]).
 
--define(STATIC_CONTEXT, #{
-    event_handler => cds_thrift_handler,
-    parent_id => <<"undefined">>,
-    root_rpc => true,
-    rpc_id => undefined,
-    seq => 0,
-    span_id => <<"kek">>,
-    trace_id => <<"kek">>
-}).
-
 get(Token) ->
     call('GetCardData', [Token]).
 
@@ -50,9 +40,10 @@ rotate() ->
 call(Function, Args) ->
     Host = application:get_env(cds, thrift_client_host, "127.0.0.1"),
     Port = integer_to_list(application:get_env(cds, thrift_client_port, 8022)),
-    Call = {{cds_thrift, service(Function)}, Function, Args},
+    Call = {{cds_cds_thrift, service(Function)}, Function, Args},
     Server = #{url => Host ++ ":" ++ Port ++ path(Function)},
-    try woody_client:call(?STATIC_CONTEXT, Call, Server) of
+    Context = woody_client:new_context(woody_client:make_id(<<"cds_client">>), cds_thrift_handler),
+    try woody_client:call(Context, Call, Server) of
         {ok, _Context} ->
             ok;
         {{ok, Response}, _Context} ->
