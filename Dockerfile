@@ -1,9 +1,6 @@
-FROM buildpack-deps:jessie
-
-MAINTAINER kittee
-
-COPY _build/prod/rel/cds /usr/local/cds
-
-EXPOSE 8022
-
-CMD ["/usr/local/cds/bin/cds", "foreground"]
+FROM rbkmoney/service_erlang:latest
+MAINTAINER Igor Savchuk <i.savchuk@rbkmoney.com>
+COPY _build/prod/rel/cds /opt/cds
+CMD ["/opt/cds/bin/cds", "foreground"]
+LABEL service_version="semver"
+WORKDIR /opt/cds
