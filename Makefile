@@ -24,13 +24,10 @@ $(SUBTARGETS): %/.git: %
 
 submodules: $(SUBTARGETS)
 
-deps: rebar-update
-	$(REBAR) deps
-
 rebar-update:
 	$(REBAR) update
 
-compile: submodules deps
+compile: submodules rebar-update
 	$(REBAR) compile
 
 xref: submodules
