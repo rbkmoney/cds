@@ -1,34 +1,52 @@
 REBAR := $(shell which rebar3 2>/dev/null || which ./rebar3)
-DOCKER := $(shell which docker)
-GIT := $(shell which git)
-PACKER := $(shell which packer)
-PWD := $(shell pwd)
-RELNAME = cds
+SUBMODULES = apps/cds/damsel
+SUBTARGETS = $(patsubst %,%/.git,$(SUBMODULES))
 
-.PHONY: all compile devrel start test clean distclean dialyze damsel
+ORG_NAME := rbkmoney
+BASE_IMAGE := "$(ORG_NAME)/build:latest"
+RELNAME := cds
 
-all: compile
+TAG = latest
+IMAGE_NAME = "$(ORG_NAME)/$(RELNAME):$(TAG)"
 
-compile: damsel
-	$(REBAR) compile
+CALL_ANYWHERE := submodules rebar-update compile xref lint dialyze start devrel release clean distclean
 
-damsel: $(GIT)
-	$(GIT) submodule update --init apps/cds/damsel
+CALL_W_CONTAINER := $(CALL_ANYWHERE) test
+
+include utils.mk
+
+.PHONY: $(CALL_W_CONTAINER) all containerize push $(UTIL_TARGETS)
+
+# CALL_ANYWHERE
+$(SUBTARGETS): %/.git: %
+	git submodule update --init $<
+	touch $@
+
+submodules: $(SUBTARGETS)
 
 rebar-update:
 	$(REBAR) update
 
-devrel:
-	$(REBAR) release
+compile: submodules
+	$(REBAR) compile
 
-start: devrel
+xref: submodules
+	$(REBAR) xref
+
+lint: compile
+	elvis rock
+
+dialyze:
+	$(REBAR) dialyzer
+
+start: submodules
 	$(REBAR) run
 
-test:
-	$(REBAR) ct
+devrel: submodules
+	$(REBAR) release
 
-xref: damsel
-	$(REBAR) xref
+release: distclean
+	$(REBAR) as prod release
 
 clean:
 	$(REBAR) clean
@@ -37,14 +55,15 @@ distclean:
 	$(REBAR) clean -a
 	rm -rfv _build _builds _cache _steps _temp
 
-dialyze:
-	$(REBAR) dialyzer
+# CALL_W_CONTAINER
+test: submodules
+	$(REBAR) ct
 
-release: $(DOCKER) distclean ~/.docker/config.json
-	$(DOCKER) run --rm -v ~/.ssh:/root/.ssh -v $(PWD):$(PWD) --workdir $(PWD) rbkmoney/build_erlang rebar3 as prod release
+# OTHER
+all: compile
 
-containerize: $(PACKER) release ./packer.json
-	$(PACKER) build packer.json
+containerize: w_container_release
+	$(DOCKER) build --force-rm --tag $(IMAGE_NAME) .
 
-~/.docker/config.json:
-	test -f ~/.docker/config.json || (echo "Please run: docker login" ; exit 1)
+push: containerize
+	$(DOCKER) push "$(IMAGE_NAME)"

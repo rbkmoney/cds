@@ -1,0 +1,8 @@
+version: '1'
+services:
+  cds:
+    image: rbkmoney/build:latest
+    volumes:
+      - .:/code
+    working_dir: /code
+    command: /opt/cds/bin/cds foreground
