@@ -5,10 +5,10 @@
 
 -define(CVV, <<"777">>).
 -define(CREDIT_CARD(CVV), #'CardData'{
-    pan = <<"1234123412341234">>,
+    pan = <<"5321301234567892">>,
     exp_date = #'ExpDate'{
         month = 12,
-        year = 2019
+        year = 3000
     },
     cardholder_name = <<"Tony Stark">>, %% temporarily hardcoded instead of saved
     cvv = CVV
@@ -19,7 +19,8 @@
 all() ->
     [
         {group, basic_lifecycle},
-        {group, keyring_errors}
+        {group, keyring_errors},
+        card_data_validation
     ].
 
 groups() ->
@@ -115,6 +116,19 @@ get_card_data_keyring_locked(_C) ->
 get_session_card_data_keyring_locked(_C) ->
     #'KeyringLocked'{} = (catch cds_client:get_session(<<"No matter what">>, <<"No matter what">>)).
 
+
+card_data_validation(_C) ->
+    #'CardData'{pan = <<IIN:6/binary, _:6/binary, Mask/binary>>} = ValidCard = ?CREDIT_CARD(?CVV),
+    {mastercard, IIN, Mask} = cds_cd:validate(ValidCard),
+    %%length
+    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{pan = <<"53213012345678905">>})),
+    %%luhn
+    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{pan = <<"5321301234567890">>})),
+    %%expiration
+    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{exp_date = #'ExpDate'{month = 1, year = 2000}})),
+    %%cvv length
+    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{cvv = <<"12">>})),
+    ok.
 %%
 %% helpers
 %%
@@ -125,5 +139,12 @@ clear_start() ->
 
 test_configuration() ->
     application:set_env(cds, keyring_storage, cds_keyring_storage_env),
-    application:set_env(cds, storage, cds_storage_ets).
-
+    application:set_env(cds, storage, cds_storage_ets),
+    application:set_env(cds, iin_map, #{<<"53">> => mastercard}),
+    application:set_env(cds, validation_parameters, #{
+        mastercard => #{
+            length => [16],
+            cvv_length => [3],
+            luhn => true
+        }
+    }).

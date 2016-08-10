@@ -64,7 +64,7 @@ handle_function('GetSessionCardData', {Token, Session}, Context, _Opts) ->
             throw({#'KeyringLocked'{}, Context})
     end;
 handle_function('PutCardData', {CardData}, Context, _Opts) ->
-    try {cds_cn:validate(CardData), cds:put_card_data(CardData)} of
+    try {cds_cd:validate(CardData), cds:put_card_data(CardData)} of
         {{PaymentSystem, BIN, MaskedPan}, {Token, Session}} ->
             BankCard = #'BankCard'{
                 token = base64:encode(Token),

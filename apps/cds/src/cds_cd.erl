@@ -13,14 +13,10 @@ validate(#'CardData'{pan = <<IIN:6/binary, _Skip:6/binary, Masked/binary>> = CN,
         unknown ->
             throw(invalid_card_data);
         PaymentSystem ->
-            #'CardValidationData'{
-                length = Length,
-                cvv_length = CvvLength,
-                luhn = LuhnCheckNeeded
-            } = get_validation_data(PaymentSystem),
+            #{length := Length, cvv_length := CvvLength, luhn := Luhn} = validation_parameters(PaymentSystem),
             ok = assert(lists:member(size(CN), Length)),
             ok = assert(lists:member(size(CVV), CvvLength)),
-            ok = assert(luhn_check(LuhnCheckNeeded, CN)),
+            ok = assert(luhn_check(Luhn, CN)),
             ok = assert(date_valid(ExpDate)),
             {PaymentSystem, IIN, Masked}
     end.
@@ -58,25 +54,24 @@ luhn_valid(<<N, Rest/binary>>, Sum) when size(Rest) rem 2 =:= 1 ->
 luhn_valid(<<N, Rest/binary>>, Sum) ->
     luhn_valid(Rest, Sum + N - $0).
 
-detect_ps(IIN) ->
-    #'IINMapObject'{data = IINMap} = dmt:checkout_object({head, #'Head'{}}, #'IINMapRef'{}),
-    detect_ps(IIN, IINMap).
-
-detect_ps(<<>>, _IINMap) ->
+detect_ps(<<>>) ->
     unknown;
-detect_ps(IIN, IINMap) ->
-    case maps:find(IIN, IINMap) of
-        {ok, PaymentSystem} ->
+detect_ps(IIN) ->
+    case application:get_env(cds, iin_map, #{}) of
+        #{IIN := PaymentSystem} ->
             PaymentSystem;
-        error ->
-            detect_ps(binary:part(IIN, {0, size(IIN) - 1}), IINMap)
+        _ ->
+            detect_ps(binary:part(IIN, {0, size(IIN) - 1}))
     end.
-
-get_validation_data(PaymentSystem) ->
-    DomainRef = #'CardValidationDataRef'{payment_system = PaymentSystem},
-    #'CardValidationDataObject'{data = ValidationData} = dmt:checkout_object({head, #'Head'{}}, DomainRef),
-    ValidationData.
 
 date_valid(#'ExpDate'{year = ExpYear, month = ExpMonth}) ->
     {{YearNow, MonthNow, _D}, _T} = calendar:universal_time(),
     {ExpYear, ExpMonth} >= {YearNow, MonthNow}.
+
+validation_parameters(PaymentSystem) ->
+    case application:get_env(cds, validation_parameters, #{}) of
+        #{PaymentSystem := ValidationParameters} ->
+            ValidationParameters;
+        _ ->
+            error(validation_parameters_not_found)
+    end.
