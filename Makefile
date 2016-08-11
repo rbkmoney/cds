@@ -20,6 +20,7 @@ BUILD_IMAGE_TAG := 530114ab63a7ff0379a2220169a0be61d3f7c64c
 
 CALL_ANYWHERE := all submodules rebar-update compile xref lint dialyze test start devrel release clean distclean
 
+DOCKER_RUN_OPTS = -v $$HOME/.cache:$$HOME/.cache
 # Hint: 'test' might be a candidate for CALL_W_CONTAINER-only target
 CALL_W_CONTAINER := $(CALL_ANYWHERE)
 
