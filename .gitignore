@@ -8,9 +8,10 @@ erl_crash.dump
 .DS_Store
 *_thrift.[eh]rl
 
-# wercker
-/_builds/
-/_cache/
-/_projects/
-/_steps/
-/_temp/
+#jenkins
+\#*
+.\#*
+.tags*
+Dockerfile
+docker-compose.yml
+
