@@ -18,11 +18,7 @@ BASE_IMAGE_TAG := 170b7dd12d62431303f8bb514abe2b43468223a1
 
 BUILD_IMAGE_TAG := 530114ab63a7ff0379a2220169a0be61d3f7c64c
 
-CALL_ANYWHERE := all submodules rebar-update compile xref lint dialyze test start devrel release clean distclean
-
-DOCKER_RUN_OPTS = -v $$HOME/.cache:$$HOME/.cache
-# Hint: 'test' might be a candidate for CALL_W_CONTAINER-only target
-CALL_W_CONTAINER := $(CALL_ANYWHERE)
+CALL_W_CONTAINER := all submodules rebar-update compile xref lint dialyze test start devrel release clean distclean
 
 .PHONY: $(CALL_W_CONTAINER)
 
@@ -70,3 +66,4 @@ distclean:
 
 test: submodules
 	$(REBAR) ct
+
