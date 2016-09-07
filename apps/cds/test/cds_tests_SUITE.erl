@@ -119,15 +119,15 @@ get_session_card_data_keyring_locked(_C) ->
 
 card_data_validation(_C) ->
     #'CardData'{pan = <<IIN:6/binary, _:6/binary, Mask/binary>>} = ValidCard = ?CREDIT_CARD(?CVV),
-    {mastercard, IIN, Mask} = cds_cd:validate(ValidCard),
+    {mastercard, IIN, Mask} = cds_card_data:validate(ValidCard),
     %%length
-    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{pan = <<"53213012345678905">>})),
+    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{pan = <<"53213012345678905">>})),
     %%luhn
-    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{pan = <<"5321301234567890">>})),
+    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{pan = <<"5321301234567890">>})),
     %%expiration
-    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{exp_date = #'ExpDate'{month = 1, year = 2000}})),
+    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{exp_date = #'ExpDate'{month = 1, year = 2000}})),
     %%cvv length
-    invalid_card_data = (catch cds_cd:validate(ValidCard#'CardData'{cvv = <<"12">>})),
+    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{cvv = <<"12">>})),
     ok.
 %%
 %% helpers

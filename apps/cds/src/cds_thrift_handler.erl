@@ -64,15 +64,16 @@ handle_function('GetSessionCardData', {Token, Session}, Context, _Opts) ->
             throw({#'KeyringLocked'{}, Context})
     end;
 handle_function('PutCardData', {CardData}, Context, _Opts) ->
-    try {cds_cd:validate(CardData), cds:put_card_data(CardData)} of
-        {{PaymentSystem, BIN, MaskedPan}, {Token, Session}} ->
-            BankCard = #'BankCard'{
-                token = base64:encode(Token),
-                payment_system = PaymentSystem,
-                bin = BIN,
-                masked_pan = MaskedPan
-            },
-            {{ok, #'PutCardDataResult'{bank_card = BankCard, session = base64:encode(Session)}}, Context}
+    try
+        {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
+        {Token, Session} = cds:put_card_data(CardData),
+        BankCard = #'BankCard'{
+            token = base64:encode(Token),
+            payment_system = PaymentSystem,
+            bin = BIN,
+            masked_pan = MaskedPan
+        },
+        {{ok, #'PutCardDataResult'{bank_card = BankCard, session = base64:encode(Session)}}, Context}
     catch
         invalid_card_data ->
             throw({#'InvalidCardData'{}, Context});
