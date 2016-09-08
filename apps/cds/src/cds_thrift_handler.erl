@@ -44,7 +44,7 @@ handle_function('Lock', {}, Context, _Opts) ->
     ok = cds:lock_keyring(),
     {ok, Context};
 handle_function('GetCardData', {Token}, Context, _Opts) ->
-    try cds:get_card_data(base64:decode(Token)) of
+    try cds:get_card_data(base62_decode(Token)) of
         CardData ->
             {{ok, CardData}, Context}
     catch
@@ -54,7 +54,7 @@ handle_function('GetCardData', {Token}, Context, _Opts) ->
             throw({#'KeyringLocked'{}, Context})
     end;
 handle_function('GetSessionCardData', {Token, Session}, Context, _Opts) ->
-    try cds:get_session_card_data(base64:decode(Token), base64:decode(Session)) of
+    try cds:get_session_card_data(base62_decode(Token), base62_decode(Session)) of
             CardData ->
                 {{ok, CardData}, Context}
     catch
@@ -68,12 +68,12 @@ handle_function('PutCardData', {CardData}, Context, _Opts) ->
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
         {Token, Session} = cds:put_card_data(CardData),
         BankCard = #'BankCard'{
-            token = base64:encode(Token),
+            token = base62_encode(Token),
             payment_system = PaymentSystem,
             bin = BIN,
             masked_pan = MaskedPan
         },
-        {{ok, #'PutCardDataResult'{bank_card = BankCard, session = base64:encode(Session)}}, Context}
+        {{ok, #'PutCardDataResult'{bank_card = BankCard, session = base62_encode(Session)}}, Context}
     catch
         invalid_card_data ->
             throw({#'InvalidCardData'{}, Context});
@@ -90,3 +90,11 @@ handle_event(EventType, RpcID, #{status := error, class := Class, reason := Reas
 
 handle_event(EventType, RpcID, EventMeta) ->
     lager:debug(maps:to_list(RpcID), "[server] ~s: ~p", [EventType, EventMeta]).
+
+% local
+
+base62_encode(Data) ->
+    genlib_format:format_int_base(binary:decode_unsigned(Data), 62).
+
+base62_decode(Data) ->
+    binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)).

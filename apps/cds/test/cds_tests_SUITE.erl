@@ -139,12 +139,4 @@ clear_start() ->
 
 test_configuration() ->
     application:set_env(cds, keyring_storage, cds_keyring_storage_env),
-    application:set_env(cds, storage, cds_storage_ets),
-    application:set_env(cds, iin_map, #{<<"53">> => mastercard}),
-    application:set_env(cds, validation_parameters, #{
-        mastercard => #{
-            length => [16],
-            cvv_length => [3],
-            luhn => true
-        }
-    }).
+    application:set_env(cds, storage, cds_storage_ets).

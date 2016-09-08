@@ -1,20 +1,20 @@
 -module(cds_iin_config).
 
+-export([detect_ps/1]).
 -export([get_validation_by_ps/1]).
 -export([get_ps_by_iin/1]).
 
 -type payment_system() :: atom().
--type validation_algo() :: luhn.
+-type validation_algo() ::
+    {length, card_number, [pos_integer()]} |
+    {length, cvv, [pos_integer()]} |
+    luhn.
 
--type validation_params() :: #{
-    length => [pos_integer()],
-    cvv_length => [pos_integer()],
-    validation => [validation_algo()]
-}.
+-type validation() :: [validation_algo()].
 
 -export_type([payment_system/0]).
 
--spec get_validation_by_ps(payment_system()) -> {ok, validation_params()} | error.
+-spec get_validation_by_ps(payment_system()) -> {ok, validation()} | error.
 get_validation_by_ps(PaymentSystem) ->
     case get_validation_map() of
         #{PaymentSystem := ValidationParams} ->
@@ -31,65 +31,75 @@ get_ps_by_iin(IIN) ->
         _ -> error
     end.
 
+-spec detect_ps(IIN :: binary) -> payment_system() | unknown.
+detect_ps(<<>>) ->
+    unknown;
+detect_ps(IIN) ->
+    case cds_iin_config:get_ps_by_iin(IIN) of
+        {ok, PaymentSystem} ->
+            PaymentSystem;
+        error ->
+            detect_ps(binary:part(IIN, {0, size(IIN) - 1}))
+    end.
+
 % local
 
 get_validation_map() ->
     #{
-        visaelectron => #{
-            length => [16],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        maestro => #{
-            length => [12, 13, 14, 15, 16, 17, 18, 19],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        forbrugsforeningen => #{
-            length => [16],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        dankort => #{
-            length => [16],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        visa => #{
-            length => [13, 16],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        mastercard => #{
-            length => [16],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        amex => #{
-            length => [15],
-            cvv_length => [3, 4],
-            validation => [luhn]
-        },
-        dinersclub => #{
-            length => [14],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        discover => #{
-            length => [16],
-            cvv_length => [3],
-            validation => [luhn]
-        },
-        unionpay => #{
-            length => [16, 17, 18, 19],
-            cvv_length => [3],
-            validation => []
-        },
-        jcb => #{
-            length => [16],
-            cvv_length => [3],
-            validation => [luhn]
-        }
+        visaelectron => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        maestro => [
+            {length, card_number, [12, 13, 14, 15, 16, 17, 18, 19]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        forbrugsforeningen => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        dankort => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        visa => [
+            {length, card_number, [13, 16]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        mastercard => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        amex => [
+            {length, card_number, [15]},
+            {length, cvv, [3, 4]},
+            luhn
+        ],
+        dinersclub => [
+            {length, card_number, [14]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        discover => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
+        ],
+        unionpay => [
+            {length, card_number, [16, 17, 18, 19]},
+            {length, cvv, [3]}
+        ],
+        jcb => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
+        ]
     }.
 
 get_inn_map() ->
