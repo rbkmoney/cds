@@ -18,7 +18,8 @@
 %%
 all() ->
     [
-        {group, basic_lifecycle}
+        {group, basic_lifecycle},
+        {group, keyring_errors}
     ].
 
 groups() ->
@@ -30,19 +31,17 @@ groups() ->
             put,
             get,
             rotate
+        ]},
+        {keyring_errors, [parallel], [
+            init_keyring_exists,
+            rotate_keyring_locked,
+            get_card_data_keyring_locked,
+            get_session_card_data_keyring_locked
         ]}
     ].
 %%
 %% starting/stopping
 %%
-init_per_suite(C) ->
-    test_configuration(),
-    {ok, Apps} = application:ensure_all_started(cds),
-    [{apps, Apps}|C].
-
-end_per_suite(C) ->
-    [application_stop(App) || App <- proplists:get_value(apps, C)].
-
 application_stop(App=sasl) ->
     %% hack for preventing sasl deadlock
     %% http://erlang.org/pipermail/erlang-questions/2014-May/079012.html
@@ -52,6 +51,20 @@ application_stop(App=sasl) ->
     ok;
 application_stop(App) ->
     application:stop(App).
+
+init_per_group(keyring_errors, C) ->
+    {ok, Apps} = clear_start(),
+    cds_client:init(2,3),
+    ok = cds_client:lock(),
+    [{apps, Apps} | C];
+
+init_per_group(_, C) ->
+    {ok, Apps} = clear_start(),
+    [{apps, Apps} | C].
+
+end_per_group(_, C) ->
+    cds_keyring_storage_env:delete(),
+    [application_stop(App) || App <- proplists:get_value(apps, C)].
 
 %%
 %% tests
@@ -90,12 +103,25 @@ rotate(_C) ->
     ok = cds_client:rotate(),
     ok.
 
+init_keyring_exists(_C) ->
+    #'KeyringExists'{} = (catch cds_client:init(2,3)).
 
+rotate_keyring_locked(_C) ->
+    #'KeyringLocked'{} = (catch cds_client:rotate()).
 
+get_card_data_keyring_locked(_C) ->
+    #'KeyringLocked'{} = (catch cds_client:get(<<"No matter what">>)).
+
+get_session_card_data_keyring_locked(_C) ->
+    #'KeyringLocked'{} = (catch cds_client:get_session(<<"No matter what">>, <<"No matter what">>)).
 
 %%
 %% helpers
 %%
+
+clear_start() ->
+    test_configuration(),
+    application:ensure_all_started(cds).
 
 test_configuration() ->
     application:set_env(cds, keyring_storage, cds_keyring_storage_env),

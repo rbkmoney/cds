@@ -22,7 +22,7 @@ handle_function('Init', {Threshold, Count}, Context, _Opts) ->
         Shares ->
             {{ok, Shares}, Context}
     catch
-        already_exists ->
+        Exists when Exists =:= already_exists; Exists =:= locked ->
             throw({#'KeyringExists'{}, Context})
     end;
 handle_function('Unlock', {Share}, Context, _Opts) ->

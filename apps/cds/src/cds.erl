@@ -109,12 +109,14 @@ stop(_State) ->
 %%
 -spec get_card_data(cds:token()) -> cds_cds_thrift:'CardData'().
 get_card_data(Token) ->
+    ok = keyring_available(),
     Encrypted = cds_storage:get_card_data(Token),
     Marshalled = decrypt(Encrypted),
     cds_card_data:unmarshall(Marshalled).
 
 -spec get_session_card_data(cds:token(), cds:session()) -> cds_cds_thrift:'CardData'().
 get_session_card_data(Token, Session) ->
+    ok = keyring_available(),
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
     MarshalledCardData = decrypt(EncryptedCardData),
     Cvv = decrypt(EncryptedCvv),
@@ -122,6 +124,7 @@ get_session_card_data(Token, Session) ->
 
 -spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds:token(), cds:session()}.
 put_card_data(CardData) ->
+    ok = keyring_available(),
     {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
     UniqueCardData = cds_card_data:unique(CardData),
     Token = find_or_create_token(all_hashes(UniqueCardData)),
@@ -134,6 +137,7 @@ put_card_data(CardData) ->
 
 -spec delete_card_data(cds:token(), cds:session()) -> ok.
 delete_card_data(Token, Session) ->
+    ok = keyring_available(),
     CardData = get_card_data(Token),
     UniqueCardData = cds_card_data:unique(CardData),
     Hash = hash(UniqueCardData),
@@ -141,6 +145,7 @@ delete_card_data(Token, Session) ->
     ok.
 -spec delete_cvv(cds:session()) -> ok.
 delete_cvv(Session) ->
+    ok = keyring_available(),
     ok = cds_storage:delete_cvv(Session),
     ok.
 
@@ -215,3 +220,12 @@ token() ->
 -spec session() -> cds:session().
 session() ->
     crypto:strong_rand_bytes(16).
+
+-spec keyring_available() -> ok | no_return().
+keyring_available() ->
+    case cds_keyring_manager:get_state() of
+        locked ->
+            throw(locked);
+        unlocked ->
+            ok
+    end.
