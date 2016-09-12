@@ -6,8 +6,7 @@
 
 -type payment_system() :: atom().
 -type validation_algo() ::
-    {length, card_number, [pos_integer()]} |
-    {length, cvv, [pos_integer()]} |
+    {length, card_number |  cvv, [pos_integer()]} |
     luhn.
 
 -type validation() :: [validation_algo()].
@@ -31,7 +30,7 @@ get_ps_by_iin(IIN) ->
         _ -> error
     end.
 
--spec detect_ps(IIN :: binary) -> payment_system() | unknown.
+-spec detect_ps(IIN :: binary()) -> payment_system() | unknown.
 detect_ps(<<>>) ->
     unknown;
 detect_ps(IIN) ->
@@ -99,6 +98,11 @@ get_validation_map() ->
             {length, card_number, [16]},
             {length, cvv, [3]},
             luhn
+        ],
+        nspkmir => [
+            {length, card_number, [16]},
+            {length, cvv, [3]},
+            luhn
         ]
     }.
 
@@ -161,5 +165,6 @@ get_inn_map() ->
         <<"2200">> => nspkmir,
         <<"2201">> => nspkmir,
         <<"2202">> => nspkmir,
-        <<"2203">> => nspkmir
+        <<"2203">> => nspkmir,
+        <<"2204">> => nspkmir
     }.

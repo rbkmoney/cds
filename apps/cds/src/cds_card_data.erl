@@ -110,7 +110,7 @@ luhn_valid(<<N, Rest/binary>>, Sum) when size(Rest) rem 2 =:= 1 ->
 luhn_valid(<<N, Rest/binary>>, Sum) ->
     luhn_valid(Rest, Sum + N - $0).
 
--spec date_valid(#'ExpDate'{}, {calendar:year(), calendar:month()}) -> true | false.
+-spec date_valid(#'ExpDate'{}, {non_neg_integer(), 1..12}) -> true | false.
 date_valid(#'ExpDate'{year = ExpYear, month = ExpMonth}, CurrentDate) ->
     {ExpYear, ExpMonth} >= CurrentDate.
 

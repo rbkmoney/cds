@@ -31,3 +31,4 @@ A service that does cds
 
 ##TODO
 - Move validation map and iin map in a separate config file instead of keeping in an erlang module.
+- Move compiled thrift files from cds app folder somewhere else.
