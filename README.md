@@ -28,3 +28,7 @@ A service that does cds
 [2]: http://erlang.org/doc/man/shell.html
 [3]: https://github.com/erlware/relx
 [4]: https://docs.docker.com/machine/install-machine/
+
+##TODO
+- Move validation map and iin map in a separate config file instead of keeping in an erlang module.
+- Move compiled thrift files from cds app folder somewhere else.
