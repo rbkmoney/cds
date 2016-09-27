@@ -13,7 +13,8 @@
         woody,
         shamir,
         cowboy, %% temporary kostyl'
-        lager
+        lager,
+        lager_logstash_formatter
     ]},
     {env, []},
     {modules, []},
