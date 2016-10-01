@@ -57,6 +57,10 @@ application_stop(App=sasl) ->
 application_stop(App) ->
     application:stop(App).
 
+init_per_suite(C) ->
+    timer:sleep(30000), %% wait for riak cluster to stabilize
+    C.
+
 init_per_group(keyring_errors, C) ->
     {ok, Apps} = clear_start(),
     cds_client:init(2,3),
@@ -149,7 +153,16 @@ clear_start() ->
 
 test_configuration() ->
     application:set_env(cds, keyring_storage, cds_keyring_storage_env),
-    application:set_env(cds, storage, cds_storage_ets).
+    application:set_env(cds, storage, cds_storage_riak),
+    application:set_env(cds, cds_storage_riak, #{
+        conn_params => [
+            {riak1, "riak1", 8087},
+            {riak2, "riak2", 8087},
+            {riak3, "riak3", 8087},
+            {riak4, "riak4", 8087},
+            {riak5, "riak5", 8087}
+        ]
+    }).
 
 get_card_data_samples() ->
     Samples = [

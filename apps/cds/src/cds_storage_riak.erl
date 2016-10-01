@@ -19,7 +19,7 @@
 
 -spec start() -> ok.
 start() ->
-    {ok, #{conn_params := ConnParams}} = application:get_env(cds, cds_riak_storage),
+    {ok, #{conn_params := ConnParams}} = application:get_env(cds, cds_storage_riak),
     lists:foreach(fun start_pool/1, ConnParams).
 
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
