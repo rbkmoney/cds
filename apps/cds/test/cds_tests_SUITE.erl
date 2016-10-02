@@ -101,6 +101,7 @@ put(_C) ->
             token = Token
         }
     } = cds_client:put(?CREDIT_CARD(?CVV)),
+    timer:sleep(10000), %% wait a sec
     {save_config, Token}.
 
 get(C) ->
