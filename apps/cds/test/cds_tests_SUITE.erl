@@ -58,7 +58,7 @@ application_stop(App) ->
     application:stop(App).
 
 init_per_suite(C) ->
-    timer:sleep(30000), %% wait for riak cluster to stabilize
+    timer:sleep(60000), %% wait for riak cluster to stabilize
     C.
 
 init_per_group(keyring_errors, C) ->
