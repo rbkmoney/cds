@@ -24,7 +24,7 @@ services:
       - DOCKER_RIAK_BACKEND=bitcask
       - DOCKER_RIAK_STRONG_CONSISTENCY=off
   riak2:
-    image: hectcastro/riak
+    image: dr.rbkmoney.com/rbkmoney/riak:cds
     links:
       - riak1:seed
     environment:
@@ -33,7 +33,7 @@ services:
       - DOCKER_RIAK_BACKEND=bitcask
       - DOCKER_RIAK_STRONG_CONSISTENCY=off
   riak3:
-    image: hectcastro/riak
+    image: dr.rbkmoney.com/rbkmoney/riak:cds
     links:
       - riak1:seed
     environment:
@@ -42,7 +42,7 @@ services:
       - DOCKER_RIAK_BACKEND=bitcask
       - DOCKER_RIAK_STRONG_CONSISTENCY=off
   riak4:
-    image: hectcastro/riak
+    image: dr.rbkmoney.com/rbkmoney/riak:cds
     links:
       - riak1:seed
     environment:
@@ -51,7 +51,7 @@ services:
       - DOCKER_RIAK_BACKEND=bitcask
       - DOCKER_RIAK_STRONG_CONSISTENCY=off
   riak5:
-    image: hectcastro/riak
+    image: dr.rbkmoney.com/rbkmoney/riak:cds
     links:
       - riak1:seed
     environment:
