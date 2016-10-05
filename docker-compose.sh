@@ -17,7 +17,7 @@ services:
       - riak4
       - riak5
   riak1:
-    image: hectcastro/riak
+    image: dr.rbkmoney.com/rbkmoney/riak:cds
     environment:
       - DOCKER_RIAK_CLUSTER_SIZE=5
       - DOCKER_RIAK_AUTOMATIC_CLUSTERING=1
