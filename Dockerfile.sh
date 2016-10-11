@@ -3,7 +3,8 @@ cat <<EOF
 FROM $BASE_IMAGE
 MAINTAINER Igor Savchuk <i.savchuk@rbkmoney.com>
 COPY _build/prod/rel/cds /opt/cds
-CMD /opt/cds/bin/cds foreground
+COPY containerpilot.json /etc/containerpilot.json
+CMD /bin/containerpilot -config file:///etc/containerpilot.json /opt/cds/bin/cds foreground
 EXPOSE 8022
 # A bit of magic below to get a proper branch name
 # even when the HEAD is detached (Hey Jenkins!
