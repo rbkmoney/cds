@@ -13,18 +13,19 @@ services:
     depends_on:
       - riakdb
   riakdb:
-    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4
+    image: dr.rbkmoney.com/rbkmoney/riak-kv:a5de2b08925bcf676a0b30b202dac122d0da5769
     ports:
       - "8087:8087"
       - "8098:8098"
     environment:
+      - SERVICE_NAME=riakdb
       - CLUSTER_NAME=riakkv
     labels:
       - "com.basho.riak.cluster.name=riakkv"
     volumes:
       - schemas:/etc/riak/schemas
   member:
-    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4
+    image: dr.rbkmoney.com/rbkmoney/riak-kv:a5de2b08925bcf676a0b30b202dac122d0da5769
     ports:
       - "8087"
       - "8098"
@@ -35,6 +36,7 @@ services:
     depends_on:
       - riakdb
     environment:
+      - SERVICE_NAME=member
       - CLUSTER_NAME=riakkv
       - COORDINATOR_NODE=riakdb
 

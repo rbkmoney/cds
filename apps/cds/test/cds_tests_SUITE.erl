@@ -157,17 +157,7 @@ test_configuration() ->
     application:set_env(cds, storage, cds_storage_riak),
     application:set_env(cds, cds_storage_riak, #{
         conn_params => [
-            {riakdb, "riakdb", 8087},
-            %% here we just rely on good fortune
-            %% since theres no way yet to get different hostnames
-            %% for scaled containers from docker-compose
-            %% see https://github.com/docker/compose/issues/677
-            %% mabe we just can specify each container in
-            %% docker-compose.sh instead of using scale
-            {member1, "member", 8087},
-            {member2, "member", 8087},
-            {member3, "member", 8087},
-            {member4, "member", 8087}
+            {riakdb, "riakdb", 8087}
         ]
     }).
 

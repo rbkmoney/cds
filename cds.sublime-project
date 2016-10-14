@@ -3,13 +3,9 @@
 	[
 		{
 			"path": ".",
-			"file_exclude_patterns":
-			[
-				"*.beam"
-			],
 			"folder_exclude_patterns":
 			[
-				"_projects"
+				"_build"
 			]
 		}
 	]
