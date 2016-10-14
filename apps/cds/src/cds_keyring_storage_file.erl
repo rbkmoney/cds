@@ -14,7 +14,7 @@ create(Keyring) ->
     case filelib:is_regular(Path) of
         false ->
             ok = filelib:ensure_dir(Path),
-            ok = file:write_file(Path, Keyring);
+            ok = atomic_write(Path, Keyring);
         true ->
             {error, already_exists}
     end.
@@ -33,7 +33,7 @@ read() ->
 update(Keyring) ->
     Path = application:get_env(cds, keyring_path, ?DEFAULT_KEYRING_PATH),
     ok = filelib:ensure_dir(Path),
-    ok = file:write_file(Path, Keyring).
+    ok = atomic_write(Path, Keyring).
 
 -spec delete() -> ok.
 delete() ->
@@ -45,3 +45,10 @@ delete() ->
             ok
     end.
 
+atomic_write(Path, Keyring) ->
+    TmpPath = tmp_keyring_path(Path),
+    ok = file:write_file(TmpPath, Keyring),
+    file:rename(TmpPath, Path).
+
+tmp_keyring_path(Path) ->
+    Path ++ "_tmp".
