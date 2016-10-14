@@ -51,4 +51,4 @@ atomic_write(Path, Keyring) ->
     file:rename(TmpPath, Path).
 
 tmp_keyring_path(Path) ->
-    Path ++ "_tmp".
+    genlib:to_list(Path) ++ ".tmp".
