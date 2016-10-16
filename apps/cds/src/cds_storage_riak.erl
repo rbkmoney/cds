@@ -20,7 +20,8 @@
 -spec start() -> ok.
 start() ->
     {ok, #{conn_params := ConnParams}} = application:get_env(cds, cds_storage_riak),
-    lists:foreach(fun start_pool/1, ConnParams).
+    start_pool(ConnParams),
+    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
 get_token(Hash) ->
@@ -93,10 +94,9 @@ delete_cvv(Session) ->
 %% Internal
 %%
 
-start_pool({Name, Host, Port}) ->
+start_pool({Host, Port}) ->
     PoolConfig = [
-        {name, Name},
-        {group, riak},
+        {name, riak},
         {max_count, 5},
         {init_count, 2},
         {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
@@ -124,7 +124,7 @@ batch_delete(Args) ->
     batch_request(delete, Args, ok).
 
 batch_request(Method, Args, Acc) ->
-    Client = pooler:take_group_member(riak),
+    Client = pooler:take_member(riak),
     batch_request(Method, Client, Args, Acc).
 
 batch_request(_Method, Client, [], Acc) ->
@@ -150,4 +150,13 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
         Class:Exception ->
             pooler:return_group_member(riak, Client, fail),
             erlang:raise(Class, Exception, erlang:get_stacktrace())
+    end.
+
+set_bucket(Bucket) ->
+    Client = pooler:take_member(riak),
+    case riakc_pb_socket:set_bucket(Client, Bucket, [{last_write_wins, true}]) of
+        ok ->
+            pooler:return_group_member(riak, Client, ok);
+        _Error ->
+            pooler:return_group_member(riak, Client, fail)
     end.
