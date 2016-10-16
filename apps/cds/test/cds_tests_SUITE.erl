@@ -58,7 +58,6 @@ application_stop(App) ->
     application:stop(App).
 
 init_per_suite(C) ->
-    timer:sleep(60000), %% wait for riak cluster to stabilize
     C.
 
 init_per_group(keyring_errors, C) ->
@@ -101,7 +100,6 @@ put(_C) ->
             token = Token
         }
     } = cds_client:put(?CREDIT_CARD(?CVV)),
-    timer:sleep(10000), %% wait a sec
     {save_config, Token}.
 
 get(C) ->
