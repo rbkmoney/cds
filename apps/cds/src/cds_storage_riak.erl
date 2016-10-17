@@ -13,7 +13,7 @@
 -define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
--define(CONN_WAIT, 5000).
+-define(CONN_WAIT, {5, sec}).
 %%
 %% cds_storage behaviour
 %%
@@ -98,11 +98,12 @@ delete_cvv(Session) ->
 start_pool({Host, Port}) ->
     PoolConfig = [
         {name, riak},
-        {max_count, 5},
-        {init_count, 2},
+        {max_count, 10},
+        {init_count, 5},
         {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
     ],
-    pooler:new_pool(PoolConfig).
+    {ok, _Pid} = pooler:new_pool(PoolConfig),
+    ok.
 
 get(Bucket, Key) ->
     case batch_get([[Bucket, Key]]) of
@@ -125,7 +126,7 @@ batch_delete(Args) ->
     batch_request(delete, Args, ok).
 
 batch_request(Method, Args, Acc) ->
-    Client = pooler:take_member(riak),
+    Client = pooler:take_member(riak, ?CONN_WAIT),
     batch_request(Method, Client, Args, Acc).
 
 batch_request(_Method, Client, [], Acc) ->

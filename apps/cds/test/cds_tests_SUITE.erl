@@ -58,7 +58,6 @@ application_stop(App) ->
     application:stop(App).
 
 init_per_suite(C) ->
-    timer:sleep(10000), %% wait for riak cluster to stabilize
     C.
 
 init_per_group(keyring_errors, C) ->
@@ -155,9 +154,7 @@ test_configuration() ->
     application:set_env(cds, keyring_storage, cds_keyring_storage_env),
     application:set_env(cds, storage, cds_storage_riak),
     application:set_env(cds, cds_storage_riak, #{
-        conn_params => [
-            {riakdb, "riakdb", 8087}
-        ]
+        conn_params => {"riakdb", 8087}
     }).
 
 get_card_data_samples() ->
