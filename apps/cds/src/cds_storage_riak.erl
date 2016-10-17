@@ -136,7 +136,7 @@ batch_request(_Method, Client, [], Acc) ->
             {ok, lists:reverse(Acc)}
     end;
 batch_request(Method, Client, [Args | Rest], Acc) ->
-    case apply(riakc_pb_socket, Method, [Client | Args]) of
+    try apply(riakc_pb_socket, Method, [Client | Args]) of
         ok when Acc =:= ok ->
             batch_request(Method, Client, Rest, Acc);
         {ok, Response} when is_list(Acc) ->
@@ -144,4 +144,13 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
         Error ->
             pooler:return_group_member(riak, Client, fail),
             Error
+    catch
+        Class:Exception ->
+            pooler:return_group_member(riak, Client, fail),
+            _ = lager:error("riak request ~p with ~p ~s", [
+                Class,
+                Exception,
+                genlib_format:format_stacktrace(erlang:get_stacktrace())
+            ]),
+            erlang:Class(Exception)
     end.
