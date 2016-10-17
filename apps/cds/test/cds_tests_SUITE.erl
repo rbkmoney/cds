@@ -155,7 +155,14 @@ test_configuration() ->
     application:set_env(cds, storage, cds_storage_riak),
     application:set_env(cds, cds_storage_riak, #{
         conn_params => {"riakdb", 8087}
-    }).
+    }),
+    application:set_env(lager, async_threshold, 1),
+    application:set_env(lager, async_threshold_window, 0),
+    application:set_env(lager, error_logger_hwm, 600),
+    application:set_env(lager, suppress_application_start_stop, true),
+    application:set_env(lager, handlers, [
+        {lager_common_test_backend, [debug, false]}
+    ]).
 
 get_card_data_samples() ->
     Samples = [
