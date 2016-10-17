@@ -154,7 +154,7 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
 
 set_bucket(Bucket) ->
     Client = pooler:take_member(riak),
-    case riakc_pb_socket:set_bucket(Client, Bucket, [{last_write_wins, true}]) of
+    case riakc_pb_socket:set_bucket(Client, Bucket, [{allow_mult, false}]) of
         ok ->
             pooler:return_group_member(riak, Client, ok);
         _Error ->
