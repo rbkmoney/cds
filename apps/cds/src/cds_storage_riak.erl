@@ -13,6 +13,7 @@
 -define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
+-define(CONN_WAIT, 5000).
 %%
 %% cds_storage behaviour
 %%
@@ -153,10 +154,11 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
     end.
 
 set_bucket(Bucket) ->
-    Client = pooler:take_member(riak),
+    Client = pooler:take_member(riak, ?CONN_WAIT),
     case riakc_pb_socket:set_bucket(Client, Bucket, [{allow_mult, false}]) of
         ok ->
             pooler:return_group_member(riak, Client, ok);
-        _Error ->
-            pooler:return_group_member(riak, Client, fail)
+        Error ->
+            pooler:return_group_member(riak, Client, fail),
+            Error
     end.
