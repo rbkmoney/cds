@@ -58,6 +58,7 @@ application_stop(App) ->
     application:stop(App).
 
 init_per_suite(C) ->
+    timer:sleep(10000), %% sleep again ;(
     C.
 
 init_per_group(keyring_errors, C) ->
