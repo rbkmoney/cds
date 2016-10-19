@@ -133,7 +133,7 @@ batch_request(Method, Args, Acc) ->
     batch_request(Method, Client, Args, Acc).
 
 batch_request(_Method, Client, [], Acc) ->
-    pooler:return_member(riak, Client, ok),
+    ok = pooler:return_member(riak, Client, ok),
     case Acc of
         ok ->
             ok;
@@ -148,7 +148,7 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             {ok, Response} when is_list(Acc) ->
                 batch_request(Method, Client, Rest, [Response | Acc]);
             Error ->
-                pooler:return_member(riak, Client, fail),
+                ok = pooler:return_member(riak, Client, fail),
                 Error
         end
     catch
