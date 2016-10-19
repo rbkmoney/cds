@@ -136,7 +136,7 @@ batch_request(_Method, Client, [], Acc) ->
             {ok, lists:reverse(Acc)}
     end;
 batch_request(Method, Client, [Args | Rest], Acc) ->
-    try 
+    try
         case apply(riakc_pb_socket, Method, [Client | Args]) of
             ok when Acc =:= ok ->
                 batch_request(Method, Client, Rest, Acc);
