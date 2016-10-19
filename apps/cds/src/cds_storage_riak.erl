@@ -136,14 +136,16 @@ batch_request(_Method, Client, [], Acc) ->
             {ok, lists:reverse(Acc)}
     end;
 batch_request(Method, Client, [Args | Rest], Acc) ->
-    try apply(riakc_pb_socket, Method, [Client | Args]) of
-        ok when Acc =:= ok ->
-            batch_request(Method, Client, Rest, Acc);
-        {ok, Response} when is_list(Acc) ->
-            batch_request(Method, Client, Rest, [Response | Acc]);
-        Error ->
-            pooler:return_group_member(riak, Client, fail),
-            Error
+    try 
+        case apply(riakc_pb_socket, Method, [Client | Args]) of
+            ok when Acc =:= ok ->
+                batch_request(Method, Client, Rest, Acc);
+            {ok, Response} when is_list(Acc) ->
+                batch_request(Method, Client, Rest, [Response | Acc]);
+            Error ->
+                pooler:return_group_member(riak, Client, fail),
+                Error
+        end
     catch
         Class:Exception ->
             pooler:return_group_member(riak, Client, fail),
