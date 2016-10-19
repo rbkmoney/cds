@@ -147,10 +147,5 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
     catch
         Class:Exception ->
             pooler:return_group_member(riak, Client, fail),
-            _ = lager:error("riak request ~p with ~p ~s", [
-                Class,
-                Exception,
-                genlib_format:format_stacktrace(erlang:get_stacktrace())
-            ]),
-            erlang:Class(Exception)
+            erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
