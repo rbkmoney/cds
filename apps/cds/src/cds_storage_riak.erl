@@ -13,7 +13,7 @@
 -define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
--define(CONN_WAIT, {5, sec}).
+-define(POOLER_TIMEOUT, {5, sec}).
 %%
 %% cds_storage behaviour
 %%
@@ -116,6 +116,9 @@ get(Bucket, Key) ->
 delete(Bucket, Key) ->
     batch_delete([[Bucket, Key]]).
 
+set_bucket(Bucket) ->
+    batch_request(set_bucket, [[Bucket, [{allow_mult, false}]]], ok).
+
 batch_get(Args) ->
     batch_request(get, Args, []).
 
@@ -126,11 +129,11 @@ batch_delete(Args) ->
     batch_request(delete, Args, ok).
 
 batch_request(Method, Args, Acc) ->
-    Client = pooler:take_member(riak, ?CONN_WAIT),
+    Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
     batch_request(Method, Client, Args, Acc).
 
 batch_request(_Method, Client, [], Acc) ->
-    pooler:return_group_member(riak, Client, ok),
+    pooler:return_member(riak, Client, ok),
     case Acc of
         ok ->
             ok;
@@ -145,21 +148,11 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             {ok, Response} when is_list(Acc) ->
                 batch_request(Method, Client, Rest, [Response | Acc]);
             Error ->
-                pooler:return_group_member(riak, Client, fail),
+                pooler:return_member(riak, Client, fail),
                 Error
         end
     catch
         Class:Exception ->
             pooler:return_group_member(riak, Client, fail),
             erlang:raise(Class, Exception, erlang:get_stacktrace())
-    end.
-
-set_bucket(Bucket) ->
-    Client = pooler:take_member(riak, ?CONN_WAIT),
-    case riakc_pb_socket:set_bucket(Client, Bucket, [{allow_mult, false}]) of
-        ok ->
-            pooler:return_group_member(riak, Client, ok);
-        Error ->
-            pooler:return_group_member(riak, Client, fail),
-            Error
     end.
