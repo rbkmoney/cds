@@ -13,14 +13,16 @@
 -define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
+-define(POOLER_TIMEOUT, {5, sec}).
 %%
 %% cds_storage behaviour
 %%
 
 -spec start() -> ok.
 start() ->
-    {ok, #{conn_params := ConnParams}} = application:get_env(cds, cds_riak_storage),
-    lists:foreach(fun start_pool/1, ConnParams).
+    {ok, #{conn_params := ConnParams}} = application:get_env(cds, cds_storage_riak),
+    start_pool(ConnParams),
+    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
 get_token(Hash) ->
@@ -93,15 +95,15 @@ delete_cvv(Session) ->
 %% Internal
 %%
 
-start_pool({Name, Host, Port}) ->
+start_pool({Host, Port}) ->
     PoolConfig = [
-        {name, Name},
-        {group, riak},
-        {max_count, 5},
-        {init_count, 2},
+        {name, riak},
+        {max_count, 10},
+        {init_count, 5},
         {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
     ],
-    pooler:new_pool(PoolConfig).
+    {ok, _Pid} = pooler:new_pool(PoolConfig),
+    ok.
 
 get(Bucket, Key) ->
     case batch_get([[Bucket, Key]]) of
@@ -114,6 +116,9 @@ get(Bucket, Key) ->
 delete(Bucket, Key) ->
     batch_delete([[Bucket, Key]]).
 
+set_bucket(Bucket) ->
+    batch_request(set_bucket, [[Bucket, [{allow_mult, false}]]], ok).
+
 batch_get(Args) ->
     batch_request(get, Args, []).
 
@@ -124,11 +129,11 @@ batch_delete(Args) ->
     batch_request(delete, Args, ok).
 
 batch_request(Method, Args, Acc) ->
-    Client = pooler:take_group_member(riak),
+    Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
     batch_request(Method, Client, Args, Acc).
 
 batch_request(_Method, Client, [], Acc) ->
-    pooler:return_group_member(riak, Client, ok),
+    ok = pooler:return_member(riak, Client, ok),
     case Acc of
         ok ->
             ok;
@@ -136,12 +141,18 @@ batch_request(_Method, Client, [], Acc) ->
             {ok, lists:reverse(Acc)}
     end;
 batch_request(Method, Client, [Args | Rest], Acc) ->
-    case apply(riakc_pb_socket, Method, [Client | Args]) of
-        ok when Acc =:= ok ->
-            batch_request(Method, Client, Rest, Acc);
-        {ok, Response} when is_list(Acc) ->
-            batch_request(Method, Client, Rest, [Response | Acc]);
-        Error ->
+    try
+        case apply(riakc_pb_socket, Method, [Client | Args]) of
+            ok when Acc =:= ok ->
+                batch_request(Method, Client, Rest, Acc);
+            {ok, Response} when is_list(Acc) ->
+                batch_request(Method, Client, Rest, [Response | Acc]);
+            Error ->
+                ok = pooler:return_member(riak, Client, fail),
+                Error
+        end
+    catch
+        Class:Exception ->
             pooler:return_group_member(riak, Client, fail),
-            Error
+            erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
