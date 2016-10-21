@@ -143,6 +143,7 @@ get_inn_map() ->
         <<"25">> => mastercard,
         <<"26">> => mastercard,
         <<"27">> => mastercard,
+        <<"500000">> => mastercard, %% needed for tinkoff test card
 
         <<"34">> => amex,
         <<"37">> => amex,
