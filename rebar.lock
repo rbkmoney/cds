@@ -13,7 +13,7 @@
  {<<"lager">>,{pkg,<<"lager">>,<<"3.0.2">>},0},
  {<<"lager_logstash_formatter">>,
   {git,"git@github.com:rbkmoney/lager_logstash_formatter.git",
-       {ref,"ea2967f656d344429a71e59b5acaff4c234ad15b"}},
+       {ref,"562ec7a42020e2fed4bd80fee9bb585eb634befb"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},2},
  {<<"mimerl">>,{pkg,<<"mimerl">>,<<"1.0.2">>},2},
