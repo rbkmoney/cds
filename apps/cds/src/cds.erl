@@ -59,19 +59,18 @@ stop() ->
 %% Supervisor callbacks
 %%
 init([]) ->
-    {ok, ThriftHost} = inet:parse_address(application:get_env(cds, thrift_listen_host, "0.0.0.0")),
-    ThriftPort = application:get_env(cds, thrift_listen_port, 8022),
-    ThriftService = woody_server:child_spec(
+    {ok, IP} = inet:parse_address(application:get_env(cds, ip, "::")),
+    Port = application:get_env(cds, port, 8022),
+    Service = woody_server:child_spec(
         cds_thrift_service_sup,
         #{
             handlers => [
-                {"/v1/storage", {{cds_cds_thrift, 'Storage'}, cds_thrift_handler, []}},
-                {"/v1/keyring", {{cds_cds_thrift, 'Keyring'}, cds_thrift_handler, []}}
+                {"/v1/storage", {{cds_cds_thrift, 'Storage'}, {cds_thrift_handler, []}}},
+                {"/v1/keyring", {{cds_cds_thrift, 'Keyring'}, {cds_thrift_handler, []}}}
             ],
             event_handler => cds_thrift_handler,
-            ip => ThriftHost,
-            port => ThriftPort,
-            net_opts => []
+            ip => IP,
+            port => Port
         }
     ),
     KeyringManager = #{
@@ -79,7 +78,7 @@ init([]) ->
         start => {cds_keyring_manager, start_link, []}
     },
     Procs = [
-        ThriftService,
+        Service,
         KeyringManager
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.

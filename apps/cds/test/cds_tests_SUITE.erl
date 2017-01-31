@@ -92,7 +92,7 @@ lock(C) ->
 unlock(C) ->
     {lock, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
     {more_keys_needed, 1} = cds_client:unlock(MasterKey1),
-    {ok, #'Ok'{}} = cds_client:unlock(MasterKey2),
+    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2),
     ok.
 
 put(_C) ->

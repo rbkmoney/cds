@@ -38,18 +38,18 @@ rotate() ->
 
 
 call(Function, Args) ->
-    Host = application:get_env(cds, thrift_client_host, "127.0.0.1"),
-    Port = integer_to_list(application:get_env(cds, thrift_client_port, 8022)),
-    Call = {{cds_cds_thrift, service(Function)}, Function, Args},
-    Server = #{url => Host ++ ":" ++ Port ++ path(Function)},
-    Context = woody_client:new_context(woody_client:make_id(<<"cds_client">>), cds_thrift_handler),
-    try woody_client:call(Context, Call, Server) of
-        {ok, _Context} ->
-            ok;
-        {{ok, Response}, _Context} ->
-            Response
-    catch {{exception, Exception}, _Context} ->
-        throw(Exception)
+    IP = application:get_env(cds, ip, "::1"),
+    Port = integer_to_list(application:get_env(cds, port, 8022)),
+    Request = {{cds_cds_thrift, service(Function)}, Function, Args},
+    CallOpts = #{
+        url => "http://" ++ "[" ++ IP ++ "]:" ++ Port ++ path(Function),
+        event_handler => cds_thrift_handler
+    },
+    case woody_client:call(Request, CallOpts) of
+        {ok, Result} ->
+            Result;
+        {exception, Exception} ->
+            throw(Exception)
     end.
 
 service('GetCardData') ->
