@@ -3,6 +3,11 @@
 -include_lib("cds/src/cds_cds_thrift.hrl").
 -compile(export_all).
 
+-define(config(K, C), begin element(2, lists:keyfind(K, 1, C)) end).
+-define(root_url(C), ?config(root_url, C)).
+
+%%
+
 -define(CVV, <<"777">>).
 -define(CREDIT_CARD(CVV), #'CardData'{
     pan = <<"5321301234567892">>,
@@ -13,6 +18,7 @@
     cardholder_name = <<"Tony Stark">>, %% temporarily hardcoded instead of saved
     cvv = CVV
 }).
+
 %%
 %% tests descriptions
 %%
@@ -47,82 +53,75 @@ groups() ->
 %%
 %% starting/stopping
 %%
-application_stop(App=sasl) ->
-    %% hack for preventing sasl deadlock
-    %% http://erlang.org/pipermail/erlang-questions/2014-May/079012.html
-    error_logger:delete_report_handler(cth_log_redirect),
-    application:stop(App),
-    error_logger:add_report_handler(cth_log_redirect),
-    ok;
-application_stop(App) ->
-    application:stop(App).
-
 init_per_suite(C) ->
     timer:sleep(10000), %% sleep again ;(
     C.
 
 init_per_group(keyring_errors, C) ->
-    {ok, Apps} = clear_start(),
-    cds_client:init(2,3),
-    ok = cds_client:lock(),
-    [{apps, Apps} | C];
-
+    C1 = start_clear(),
+    _MasterKeys = cds_client:init(2, 3, ?root_url(C1)),
+    ok = cds_client:lock(?root_url(C1)),
+    C1 ++ C;
 init_per_group(_, C) ->
-    {ok, Apps} = clear_start(),
-    [{apps, Apps} | C].
+    C1 = start_clear(),
+    C1 ++ C.
 
 end_per_group(_, C) ->
     cds_keyring_storage_env:delete(),
-    [application_stop(App) || App <- proplists:get_value(apps, C)].
+    [ok = application:stop(App) || App <- ?config(apps, C)].
 
 %%
 %% tests
 %%
-init(_C) ->
-    MasterKeys = cds_client:init(2,3),
+init(C) ->
+    MasterKeys = cds_client:init(2, 3, ?root_url(C)),
     3 = length(MasterKeys),
     {save_config, MasterKeys}.
 
 lock(C) ->
     {init, MasterKeys} = ?config(saved_config, C),
-    ok = cds_client:lock(),
-    #'KeyringLocked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV))),
+    ok = cds_client:lock(?root_url(C)),
+    #'KeyringLocked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV), ?root_url(C))),
     {save_config, MasterKeys}.
 
 unlock(C) ->
     {lock, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
-    {more_keys_needed, 1} = cds_client:unlock(MasterKey1),
-    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2),
+    {more_keys_needed, 1} = cds_client:unlock(MasterKey1, ?root_url(C)),
+    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, ?root_url(C)),
     ok.
 
-put(_C) ->
+put(C) ->
     #'PutCardDataResult'{
         bank_card = #'BankCard'{
             token = Token
         }
-    } = cds_client:put(?CREDIT_CARD(?CVV)),
+    } = cds_client:put(?CREDIT_CARD(?CVV), ?root_url(C)),
     {save_config, Token}.
 
 get(C) ->
     {put, Token} = ?config(saved_config, C),
-    ?CREDIT_CARD(<<>>) = cds_client:get(Token),
+    ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)),
     ok.
 
-rotate(_C) ->
-    ok = cds_client:rotate(),
+rotate(C) ->
+    ok = cds_client:rotate(?root_url(C)),
     ok.
 
-init_keyring_exists(_C) ->
-    #'KeyringExists'{} = (catch cds_client:init(2,3)).
+init_keyring_exists(C) ->
+    #'KeyringExists'{} = (catch cds_client:init(2, 3, ?root_url(C))).
 
-rotate_keyring_locked(_C) ->
-    #'KeyringLocked'{} = (catch cds_client:rotate()).
+rotate_keyring_locked(C) ->
+    #'KeyringLocked'{} = (catch cds_client:rotate(?root_url(C))).
 
-get_card_data_keyring_locked(_C) ->
-    #'KeyringLocked'{} = (catch cds_client:get(<<"No matter what">>)).
+get_card_data_keyring_locked(C) ->
+    #'KeyringLocked'{} = (catch cds_client:get(<<"No matter what">>, ?root_url(C))).
 
-get_session_card_data_keyring_locked(_C) ->
-    #'KeyringLocked'{} = (catch cds_client:get_session(<<"No matter what">>, <<"No matter what">>)).
+get_session_card_data_keyring_locked(C) ->
+    #'KeyringLocked'{} = (catch cds_client:get_session(
+        <<"No matter what">>,
+        <<"No matter what">>,
+        ?root_url(C))
+    ).
 
 
 full_card_data_validation(_C) ->
@@ -147,52 +146,58 @@ payment_system_detection(_C) ->
 %% helpers
 %%
 
-clear_start() ->
-    test_configuration(),
-    application:ensure_all_started(cds).
-
-test_configuration() ->
-    application:set_env(cds, keyring_storage, cds_keyring_storage_env),
-    application:set_env(cds, storage, cds_storage_riak),
-    application:set_env(cds, cds_storage_riak, #{
-        conn_params => {"riakdb", 8087}
-    }),
-    application:set_env(lager, async_threshold, 1),
-    application:set_env(lager, async_threshold_window, 0),
-    application:set_env(lager, error_logger_hwm, 600),
-    application:set_env(lager, suppress_application_start_stop, true),
-    application:set_env(lager, handlers, [
-        {lager_common_test_backend, [debug, false]}
-    ]).
+start_clear() ->
+    IP = "::1",
+    Port = 8022,
+    RootUrl = "http://[" ++ IP ++ "]:" ++ integer_to_list(Port),
+    Apps =
+        genlib_app:start_application_with(lager, [
+            {async_threshold, 1},
+            {async_threshold_window, 0},
+            {error_logger_hwm, 600},
+            {suppress_application_start_stop, true},
+            {handlers, [
+                {lager_common_test_backend, [debug, false]}
+            ]}
+        ]) ++
+        genlib_app:start_application_with(cds, [
+            {ip, "::1"},
+            {port, 8022},
+            {keyring_storage, cds_keyring_storage_env},
+            {storage, cds_storage_riak},
+            {cds_storage_riak, #{
+                conn_params => {"riakdb", 8087}
+            }}
+        ]),
+    [{apps, Apps}, {root_url, RootUrl}].
 
 get_card_data_samples() ->
     Samples = [
-        {amex, <<"378282246310005">>, <<"228">>},
-        {amex, <<"371449635398431">>, <<"3434">>},
-        {amex, <<"378734493671000">>, <<"228">>},
-        {dinersclub, <<"30569309025904">>, <<"228">>},
-        {dinersclub, <<"38520000023237">>, <<"228">>},
-        {dinersclub, <<"36213154429663">>, <<"228">>},
-        {discover, <<"6011111111111117">>, <<"228">>},
-        {discover, <<"6011000990139424">>, <<"228">>},
-        {jcb, <<"3530111333300000">>, <<"228">>},
-        {jcb, <<"3566002020360505">>, <<"228">>},
-        {mastercard, <<"5555555555554444">>, <<"228">>},
-        {mastercard, <<"5105105105105100">>, <<"228">>},
-        {visa, <<"4716219619821724">>, <<"228">>},
-        {visa, <<"4929221444411666">>, <<"228">>},
-        {visa, <<"4929003096554179">>, <<"228">>},
-        {visaelectron, <<"4508085628009599">>, <<"228">>},
-        {visaelectron, <<"4508964269455370">>, <<"228">>},
-        {visaelectron, <<"4026524202025897">>, <<"228">>},
-        {unionpay, <<"6279227608204863">>, <<"228">>},
-        {unionpay, <<"6238464198841867">>, <<"228">>},
-        {unionpay, <<"6263242460178483">>, <<"228">>},
-        {dankort, <<"5019717010103742">>, <<"228">>},
-        {nspkmir, <<"2202243736741990">>, <<"228">>},
-        {forbrugsforeningen, <<"6007220000000004">>, <<"228">>}
+        {amex               , <<"378282246310005">>  , <<"228">>  },
+        {amex               , <<"371449635398431">>  , <<"3434">> },
+        {amex               , <<"378734493671000">>  , <<"228">>  },
+        {dinersclub         , <<"30569309025904">>   , <<"228">>  },
+        {dinersclub         , <<"38520000023237">>   , <<"228">>  },
+        {dinersclub         , <<"36213154429663">>   , <<"228">>  },
+        {discover           , <<"6011111111111117">> , <<"228">>  },
+        {discover           , <<"6011000990139424">> , <<"228">>  },
+        {jcb                , <<"3530111333300000">> , <<"228">>  },
+        {jcb                , <<"3566002020360505">> , <<"228">>  },
+        {mastercard         , <<"5555555555554444">> , <<"228">>  },
+        {mastercard         , <<"5105105105105100">> , <<"228">>  },
+        {visa               , <<"4716219619821724">> , <<"228">>  },
+        {visa               , <<"4929221444411666">> , <<"228">>  },
+        {visa               , <<"4929003096554179">> , <<"228">>  },
+        {visaelectron       , <<"4508085628009599">> , <<"228">>  },
+        {visaelectron       , <<"4508964269455370">> , <<"228">>  },
+        {visaelectron       , <<"4026524202025897">> , <<"228">>  },
+        {unionpay           , <<"6279227608204863">> , <<"228">>  },
+        {unionpay           , <<"6238464198841867">> , <<"228">>  },
+        {unionpay           , <<"6263242460178483">> , <<"228">>  },
+        {dankort            , <<"5019717010103742">> , <<"228">>  },
+        {nspkmir            , <<"2202243736741990">> , <<"228">>  },
+        {forbrugsforeningen , <<"6007220000000004">> , <<"228">>  }
     ],
-
     [
         begin
         {
