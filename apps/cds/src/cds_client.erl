@@ -1,55 +1,52 @@
 -module(cds_client).
 
 %% Storage operations
--export([get/1]).
--export([get_session/2]).
--export([put/1]).
--export([delete/1]).
+-export([get/2]).
+-export([get_session/3]).
+-export([put/2]).
+-export([delete/2]).
 
 %% Keyring operations
--export([init/2]).
--export([unlock/1]).
--export([lock/0]).
--export([rotate/0]).
+-export([init/3]).
+-export([unlock/2]).
+-export([lock/1]).
+-export([rotate/1]).
 
-get(Token) ->
-    call('GetCardData', [Token]).
+get(Token, RootUrl) ->
+    call('GetCardData', [Token], RootUrl).
 
-get_session(Token, Session) ->
-    call('GetSessionCardData', [Token, Session]).
+get_session(Token, Session, RootUrl) ->
+    call('GetSessionCardData', [Token, Session], RootUrl).
 
-put(Data) ->
-    call('PutCardData', [Data]).
+put(Data, RootUrl) ->
+    call('PutCardData', [Data], RootUrl).
 
-delete(Token) ->
-    call('DeleteCardData', [Token]).
+delete(Token, RootUrl) ->
+    call('DeleteCardData', [Token], RootUrl).
 
-init(Threshold, Number) ->
-    call('Init', [Threshold, Number]).
+init(Threshold, Number, RootUrl) ->
+    call('Init', [Threshold, Number], RootUrl).
 
-unlock(Share) ->
-    call('Unlock', [Share]).
+unlock(Share, RootUrl) ->
+    call('Unlock', [Share], RootUrl).
 
-lock() ->
-    call('Lock', []).
+lock(RootUrl) ->
+    call('Lock', [], RootUrl).
 
-rotate() ->
-    call('Rotate', []).
+rotate(RootUrl) ->
+    call('Rotate', [], RootUrl).
 
-
-call(Function, Args) ->
-    Host = application:get_env(cds, thrift_client_host, "127.0.0.1"),
-    Port = integer_to_list(application:get_env(cds, thrift_client_port, 8022)),
-    Call = {{cds_cds_thrift, service(Function)}, Function, Args},
-    Server = #{url => Host ++ ":" ++ Port ++ path(Function)},
-    Context = woody_client:new_context(woody_client:make_id(<<"cds_client">>), cds_thrift_handler),
-    try woody_client:call(Context, Call, Server) of
-        {ok, _Context} ->
-            ok;
-        {{ok, Response}, _Context} ->
-            Response
-    catch {{exception, Exception}, _Context} ->
-        throw(Exception)
+call(Function, Args, RootUrl) ->
+    Request = {{cds_cds_thrift, service(Function)}, Function, Args},
+    CallOpts = #{
+        url => RootUrl ++ path(Function),
+        event_handler => cds_thrift_handler
+    },
+    case woody_client:call(Request, CallOpts) of
+        {ok, Result} ->
+            Result;
+        {exception, Exception} ->
+            throw(Exception)
     end.
 
 service('GetCardData') ->
