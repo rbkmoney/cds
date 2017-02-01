@@ -3,6 +3,7 @@ cat <<EOF
 version: '2'
 
 services:
+
   ${SERVICE_NAME}:
     image: ${BUILD_IMAGE}
     volumes:
@@ -12,20 +13,23 @@ services:
     command: /sbin/init
     depends_on:
       - riakdb
+
   riakdb:
     image: dr.rbkmoney.com/rbkmoney/riak-kv:a5de2b08925bcf676a0b30b202dac122d0da5769
+    entrypoint: "sh -c \$\$RIAK_HOME/riak-cluster.sh"
     ports:
       - "8087:8087"
       - "8098:8098"
     environment:
-      - SERVICE_NAME=riakdb
       - CLUSTER_NAME=riakkv
     labels:
       - "com.basho.riak.cluster.name=riakkv"
     volumes:
       - schemas:/etc/riak/schemas
+
   member:
     image: dr.rbkmoney.com/rbkmoney/riak-kv:a5de2b08925bcf676a0b30b202dac122d0da5769
+    entrypoint: "sh -c \$\$RIAK_HOME/riak-cluster.sh"
     ports:
       - "8087"
       - "8098"
@@ -36,7 +40,6 @@ services:
     depends_on:
       - riakdb
     environment:
-      - SERVICE_NAME=member
       - CLUSTER_NAME=riakkv
       - COORDINATOR_NODE=riakdb
 
