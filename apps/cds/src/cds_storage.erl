@@ -15,6 +15,7 @@
 -export([put_card_data/5]).
 -export([delete_card_data/3]).
 -export([delete_cvv/1]).
+-export([get_sessions_keys/3]).
 
 -spec start() -> ok.
 start() ->
@@ -43,3 +44,11 @@ delete_card_data(Token, Hash, Session) ->
 -spec delete_cvv(binary()) -> ok.
 delete_cvv(Session) ->
     cds_backend:call(storage, delete_cvv, [Session]).
+
+-spec get_sessions_keys(
+    non_neg_integer(),
+    pos_integer(),
+    pos_integer() | undefined
+) -> {ok, [term()]} | {error, Reason :: term()}.
+get_sessions_keys(From, To, Limit) ->
+    cds_backend:call(storage, get_sessions_keys, [From, To, Limit]).

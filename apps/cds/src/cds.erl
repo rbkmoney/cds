@@ -77,9 +77,14 @@ init([]) ->
         id => cds_keyring_manager,
         start => {cds_keyring_manager, start_link, []}
     },
+    SessionCleaner = #{
+        id => cds_session_cleaner,
+        start => {cds_session_cleaner, start_link, []}
+    },
     Procs = [
         Service,
-        KeyringManager
+        KeyringManager,
+        SessionCleaner
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.
 

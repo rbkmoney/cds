@@ -26,7 +26,8 @@ all() ->
     [
         {group, basic_lifecycle},
         {group, keyring_errors},
-        {group, card_data_validation}
+        {group, card_data_validation},
+        {group, session_management}
     ].
 
 groups() ->
@@ -48,6 +49,12 @@ groups() ->
         {card_data_validation, [parallel], [
             full_card_data_validation,
             payment_system_detection
+        ]},
+        {session_management, [sequence], [
+            init,
+            lock,
+            unlock,
+            session_cleaning
         ]}
     ].
 %%
@@ -142,6 +149,26 @@ payment_system_detection(_C) ->
         {Target, _, _} = cds_card_data:validate(Sample)
     || {Target, Sample} <- get_card_data_samples()].
 
+session_cleaning(C) ->
+    #'PutCardDataResult'{
+        bank_card = #'BankCard'{
+            token = Token
+        },
+        session = Session
+    } = cds_client:put(?CREDIT_CARD(?CVV), ?root_url(C)),
+
+    ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)),
+    ?CREDIT_CARD(?CVV) = cds_client:get_session(Token, Session, ?root_url(C)),
+    timer:sleep(6000),
+    ok = try
+        cds_client:get_session(Token, Session, ?root_url(C)),
+        error
+    catch
+        throw:'CardDataNotFound' ->
+          ok
+    end,
+    ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)).
+
 %%
 %% helpers
 %%
@@ -156,15 +183,16 @@ start_clear() ->
             {async_threshold_window, 0},
             {error_logger_hwm, 600},
             {suppress_application_start_stop, true},
+            {crash_log, false},
             {handlers, [
-                {lager_common_test_backend, [debug, false]}
+                {lager_common_test_backend, [debug, true]}
             ]}
         ]) ++
         genlib_app:start_application_with(cds, [
             {ip, "::1"},
             {port, 8022},
             {keyring_storage, cds_keyring_storage_env},
-            {storage, cds_storage_riak},
+            {storage, cds_storage_ets},
             {cds_storage_riak, #{
                 conn_params => {"riakdb", 8087}
             }}

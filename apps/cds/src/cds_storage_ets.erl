@@ -10,6 +10,7 @@
 -export([put_card_data/5]).
 -export([delete_card_data/3]).
 -export([delete_cvv/1]).
+-export([get_sessions_keys/3]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -57,7 +58,7 @@ get_card_data(Token) ->
 -spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 get_session_card_data(Token, Session) ->
     case ets:lookup(?SESSION_TABLE, Session) of
-        [{Session, Cvv}] ->
+        [{Session, Cvv, _CreatedAt}] ->
             case ets:lookup(?TOKEN_TABLE, Token) of
                 [{Token, CardData}] ->
                     {ok, {CardData, Cvv}};
@@ -72,7 +73,7 @@ get_session_card_data(Token, Session) ->
 put_card_data(Token, Session, Hash, CardData, Cvv) ->
     true = ets:insert(?TOKEN_TABLE, {Token, CardData}),
     true = ets:insert(?HASH_TABLE, {Hash, Token}),
-    true = ets:insert(?SESSION_TABLE, {Session, Cvv}),
+    true = ets:insert(?SESSION_TABLE, {Session, Cvv, genlib_time:unow()}),
     ok.
 
 -spec delete_card_data(binary(), binary(), binary()) -> ok.
@@ -86,6 +87,27 @@ delete_card_data(Token, Hash, Session) ->
 delete_cvv(Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
+
+-spec get_sessions_keys(
+    non_neg_integer(),
+    pos_integer(),
+    pos_integer() | undefined
+) -> {ok, [term()]}.
+get_sessions_keys(From, To, Limit) ->
+    MatchSpec = [{{'$1', '_', '$3'}, [{'andalso', {'>=', '$3', From}, {'=<', '$3', To}}], ['$1']}],
+    Result = case Limit of
+        undefined -> ets:select(?SESSION_TABLE, MatchSpec);
+        Limit -> ets:select(?SESSION_TABLE, MatchSpec, Limit)
+    end,
+    PrepareMatch = fun(Match) -> [ID || ID <- Match] end,
+    case Result of
+        Match when is_list(Match) ->
+            {ok, PrepareMatch(Match)};
+        {Match, _Continuation} ->
+            {ok, PrepareMatch(Match)};
+        '$end_of_table' ->
+            {ok, []}
+    end.
 
 %%
 %% gen_server behaviour
