@@ -20,39 +20,52 @@
 -define(DEFAULT_LIMIT, 5000).
 -define(DEFAULT_SESSION_LIFETIME, 3600).
 
+
 -type state() :: #{
     timer := reference()
 }.
 
 start_link() ->
-    gen_server:start_link({local, ?SERVICE}, ?MODULE, [], []).
+    gen_server:start_link(?MODULE, [], []).
 
--spec init(_) -> {ok | state()}.
+-spec init(_) -> {ok, state()}.
 
 init(_Args) ->
-    lager:info("Starting cleaner..."),
+    CurrentConfig = #{
+        timeout => get_timeout(),
+        limit => get_limit(),
+        session_lifetime => get_session_lifetime()
+    },
+    _ = lager:info("Starting session cleaner with config: ~p", [CurrentConfig]),
     {ok, init_state(get_timeout())}.
 
-handle_call(_Request, _From, State) ->
+handle_call(Request, From, State) ->
+    _ = lager:debug("Got unrecognized call from ~p: ", [From, Request]),
     {reply, ok, State}.
 
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    _ = lager:debug("Got unrecognized cast: ", [Msg]),
     {noreply, State}.
 
 handle_info(clean_timeout, State) ->
+    _ = lager:info("Starting session cleaning", []),
+
     To = genlib_time:unow() - get_session_lifetime(),
     NewState = case clean_sessions(0, To, get_limit()) of
         ok ->
+            _ = lager:info("Cleaned all the sessions"),
             State#{timer => set_timer(get_timeout())};
         {ok, has_more} ->
+            _ = lager:info("Cleaned some sessions. Need to repeat"),
             State#{timer => set_timer(0)};
-        {error, _Error} ->
-            %% @TODO Report error
+        {error, Error} ->
+            _ = lager:error("Cleaning error: ~p", [Error]),
             State#{timer => set_timer(get_timeout())}
     end,
     {noreply, NewState};
 
-handle_info(_, State) ->
+handle_info(Msg, State) ->
+    _ = lager:debug("Got unrecognized info: ", [Msg]),
     {noreply, State}.
 
 terminate(_Reason, _State) ->
@@ -64,7 +77,9 @@ code_change(_OldVsn, State, _Extra) ->
 clean_sessions(From, To, Limit) ->
     try
         Keys = cds_storage:get_sessions_keys(From, To, Limit),
-        case length(Keys) of
+        KeyLength = length(Keys),
+        _ = lager:info("Got ~p keys to clean", [KeyLength]),
+        case KeyLength of
             0 ->
                 ok;
             _ ->
@@ -81,7 +96,7 @@ init_state(Timeout) -> #{
 }.
 
 set_timer(Timeout) ->
-    erlang:send_after(Timeout, ?SERVICE, clean_timeout).
+    erlang:send_after(Timeout, self(), clean_timeout).
 
 get_timeout() ->
     maps:get(timeout, get_config(), ?DEFAULT_TIMEOUT).

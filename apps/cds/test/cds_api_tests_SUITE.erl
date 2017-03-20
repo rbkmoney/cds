@@ -1,4 +1,5 @@
--module(cds_tests_SUITE).
+-module(cds_api_tests_SUITE).
+
 -include_lib("common_test/include/ct.hrl").
 -include_lib("cds/src/cds_cds_thrift.hrl").
 -compile(export_all).
@@ -19,19 +20,25 @@
     cvv = CVV
 }).
 
+
 %%
 %% tests descriptions
 %%
 all() ->
     [
-        {group, basic_lifecycle},
-        {group, keyring_errors},
-        {group, card_data_validation},
-        {group, session_management}
+        {group, riak_storage_backend},
+        {group, ets_storage_backend}
     ].
 
 groups() ->
-    [
+ [
+        {riak_storage_backend, [], [{group, general_flow}]},
+        {ets_storage_backend, [], [{group, general_flow}]},
+        {general_flow, [], [
+            {group, basic_lifecycle},
+            {group, keyring_errors},
+            {group, session_management}
+        ]},
         {basic_lifecycle, [sequence], [
             init,
             lock,
@@ -45,10 +52,6 @@ groups() ->
             rotate_keyring_locked,
             get_card_data_keyring_locked,
             get_session_card_data_keyring_locked
-        ]},
-        {card_data_validation, [parallel], [
-            full_card_data_validation,
-            payment_system_detection
         ]},
         {session_management, [sequence], [
             init,
@@ -64,18 +67,65 @@ init_per_suite(C) ->
     timer:sleep(10000), %% sleep again ;(
     C.
 
+init_per_group(riak_storage_backend, C) ->
+    Storage = [
+        {storage, cds_storage_riak},
+        {cds_storage_riak, #{
+            conn_params => {"riakdb", 8087}
+        }}
+    ],
+    [{storage_config, Storage} | C];
+
+init_per_group(ets_storage_backend, C) ->
+    Storage = [
+        {storage, cds_storage_ets}
+    ],
+    [{storage_config, Storage} | C];
+
+init_per_group(general_flow, C) ->
+    C;
+
 init_per_group(keyring_errors, C) ->
-    C1 = start_clear(),
+    C1 = start_clear(?config(storage_config, C)),
     _MasterKeys = cds_client:init(2, 3, ?root_url(C1)),
     ok = cds_client:lock(?root_url(C1)),
     C1 ++ C;
+
+init_per_group(session_management, C) ->
+    _ = application:load(cds),
+    CleanerConf = genlib_app:env(cds, session_cleaner, #{}),
+    application:set_env(
+        cds,
+        session_cleaner,
+        CleanerConf#{
+            session_lifetime => 3,
+            timeout => 1000
+        }
+    ),
+    C1 = [{session_cleaner_config, CleanerConf} | C],
+    C1 ++ start_clear(?config(storage_config, C1)) ++ C;
+
 init_per_group(_, C) ->
-    C1 = start_clear(),
+    C1 = start_clear(?config(storage_config, C)),
     C1 ++ C.
 
+end_per_group(session_management, C) ->
+    application:set_env(
+        cds,
+        session_cleaner,
+        ?config(session_cleaner_config, C)
+    ),
+    stop_clear(C);
+
+end_per_group(Group, C) when
+    Group =:= ets_storage_backend;
+    Group =:= riak_storage_backend;
+    Group =:= general_flow
+ ->
+    C;
+
 end_per_group(_, C) ->
-    cds_keyring_storage_env:delete(),
-    [ok = application:stop(App) || App <- ?config(apps, C)].
+    stop_clear(C).
 
 %%
 %% tests
@@ -130,25 +180,6 @@ get_session_card_data_keyring_locked(C) ->
         ?root_url(C))
     ).
 
-
-full_card_data_validation(_C) ->
-    #'CardData'{pan = <<IIN:6/binary, _:6/binary, Mask/binary>>} = ValidCard = ?CREDIT_CARD(?CVV),
-    {mastercard, IIN, Mask} = cds_card_data:validate(ValidCard),
-    %%length
-    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{pan = <<"53213012345678905">>})),
-    %%luhn
-    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{pan = <<"5321301234567890">>})),
-    %%expiration
-    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{exp_date = #'ExpDate'{month = 1, year = 2000}})),
-    %%cvv length
-    invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{cvv = <<"12">>})),
-    ok.
-
-payment_system_detection(_C) ->
-    [
-        {Target, _, _} = cds_card_data:validate(Sample)
-    || {Target, Sample} <- get_card_data_samples()].
-
 session_cleaning(C) ->
     #'PutCardDataResult'{
         bank_card = #'BankCard'{
@@ -159,12 +190,17 @@ session_cleaning(C) ->
 
     ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)),
     ?CREDIT_CARD(?CVV) = cds_client:get_session(Token, Session, ?root_url(C)),
-    timer:sleep(6000),
+
+    #{
+        session_lifetime := Lifetime,
+        timeout := Timeout
+    } = genlib_app:env(cds, session_cleaner),
+    timer:sleep((Lifetime + 1) * 1000 + Timeout),
     ok = try
-        cds_client:get_session(Token, Session, ?root_url(C)),
+        _ = cds_client:get_session(Token, Session, ?root_url(C)),
         error
     catch
-        throw:'CardDataNotFound' ->
+        throw:#'CardDataNotFound'{} ->
           ok
     end,
     ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)).
@@ -173,7 +209,7 @@ session_cleaning(C) ->
 %% helpers
 %%
 
-start_clear() ->
+start_clear(Storage) ->
     IP = "::1",
     Port = 8022,
     RootUrl = "http://[" ++ IP ++ "]:" ++ integer_to_list(Port),
@@ -191,46 +227,11 @@ start_clear() ->
         genlib_app:start_application_with(cds, [
             {ip, "::1"},
             {port, 8022},
-            {keyring_storage, cds_keyring_storage_env},
-            {storage, cds_storage_ets},
-            {cds_storage_riak, #{
-                conn_params => {"riakdb", 8087}
-            }}
-        ]),
+            {keyring_storage, cds_keyring_storage_env}
+        ] ++ Storage),
     [{apps, Apps}, {root_url, RootUrl}].
 
-get_card_data_samples() ->
-    Samples = [
-        {amex               , <<"378282246310005">>  , <<"228">>  },
-        {amex               , <<"371449635398431">>  , <<"3434">> },
-        {amex               , <<"378734493671000">>  , <<"228">>  },
-        {dinersclub         , <<"30569309025904">>   , <<"228">>  },
-        {dinersclub         , <<"38520000023237">>   , <<"228">>  },
-        {dinersclub         , <<"36213154429663">>   , <<"228">>  },
-        {discover           , <<"6011111111111117">> , <<"228">>  },
-        {discover           , <<"6011000990139424">> , <<"228">>  },
-        {jcb                , <<"3530111333300000">> , <<"228">>  },
-        {jcb                , <<"3566002020360505">> , <<"228">>  },
-        {mastercard         , <<"5555555555554444">> , <<"228">>  },
-        {mastercard         , <<"5105105105105100">> , <<"228">>  },
-        {visa               , <<"4716219619821724">> , <<"228">>  },
-        {visa               , <<"4929221444411666">> , <<"228">>  },
-        {visa               , <<"4929003096554179">> , <<"228">>  },
-        {visaelectron       , <<"4508085628009599">> , <<"228">>  },
-        {visaelectron       , <<"4508964269455370">> , <<"228">>  },
-        {visaelectron       , <<"4026524202025897">> , <<"228">>  },
-        {unionpay           , <<"6279227608204863">> , <<"228">>  },
-        {unionpay           , <<"6238464198841867">> , <<"228">>  },
-        {unionpay           , <<"6263242460178483">> , <<"228">>  },
-        {dankort            , <<"5019717010103742">> , <<"228">>  },
-        {nspkmir            , <<"2202243736741990">> , <<"228">>  },
-        {forbrugsforeningen , <<"6007220000000004">> , <<"228">>  }
-    ],
-    [
-        begin
-        {
-            Target,
-            #'CardData'{pan = Pan, cvv = CVV, exp_date = #'ExpDate'{month = 1, year = 3000}}
-        }
-        end
-    || {Target, Pan, CVV} <- Samples].
+stop_clear(C) ->
+    _ = (catch cds_keyring_storage_env:delete()),
+    [ok = application:stop(App) || App <- ?config(apps, C)],
+    C.

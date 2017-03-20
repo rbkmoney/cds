@@ -8,10 +8,13 @@ erl_crash.dump
 .DS_Store
 *_thrift.[eh]rl
 
-#jenkins
+# jenkins
 \#*
 .\#*
 .tags*
 Dockerfile
 docker-compose.yml
+
+# compile
+compile_commands.json
 

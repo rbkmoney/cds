@@ -102,13 +102,14 @@ delete_cvv(Session) ->
     pos_integer() | undefined
 ) -> {ok, [term()]} | {error, Reason :: term()}.
 get_sessions_keys(From, To, Limit) ->
-    case get_index_range(
+    P = get_index_range(
             ?SESSION_BUCKET,
             ?SESSION_CREATED_AT_INDEX,
             From,
             To,
             [{max_results, Limit}]
-    ) of
+    ),
+    case P of
         {ok, #index_results_v1{keys = Keys}} when Keys =/= undefined ->
             {ok, Keys};
         {ok, _} ->
@@ -158,7 +159,7 @@ batch_delete(Args) ->
     batch_request(delete, Args, ok).
 
 batch_get_index_range(Args) ->
-    batch_request(get_index_range, Args, []).
+    batch_request(get_index_range, Args, ok).
 
 batch_request(Method, Args, Acc) ->
     Client = pooler:take_member(riak, ?POOLER_TIMEOUT),

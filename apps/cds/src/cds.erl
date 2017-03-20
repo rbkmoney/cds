@@ -78,8 +78,9 @@ init([]) ->
         start => {cds_keyring_manager, start_link, []}
     },
     SessionCleaner = #{
-        id => cds_session_cleaner,
-        start => {cds_session_cleaner, start_link, []}
+        id => cds_session_cleaner_sup,
+        start => {cds_session_cleaner_sup, start_link, []},
+        type => supervisor
     },
     Procs = [
         Service,

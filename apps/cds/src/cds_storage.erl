@@ -21,27 +21,27 @@
 start() ->
     cds_backend:call(storage, start, []).
 
--spec get_token(binary()) -> binary().
+-spec get_token(binary()) -> binary() | no_return().
 get_token(Hash) ->
     cds_backend:call(storage, get_token, [Hash]).
 
--spec get_card_data(binary()) -> binary().
+-spec get_card_data(binary()) -> binary() | no_return().
 get_card_data(Token) ->
     cds_backend:call(storage, get_card_data, [Token]).
 
--spec get_session_card_data(binary(), binary()) -> {binary(), binary()}.
+-spec get_session_card_data(binary(), binary()) -> {binary(), binary()} | no_return().
 get_session_card_data(Token, Session) ->
     cds_backend:call(storage, get_session_card_data, [Token, Session]).
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok.
+-spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, Cvv) ->
     cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv]).
 
--spec delete_card_data(binary(), binary(), binary()) -> ok.
+-spec delete_card_data(binary(), binary(), binary()) -> ok | no_return().
 delete_card_data(Token, Hash, Session) ->
     cds_backend:call(storage, delete_card_data, [Token, Hash, Session]).
 
--spec delete_cvv(binary()) -> ok.
+-spec delete_cvv(binary()) -> ok | no_return().
 delete_cvv(Session) ->
     cds_backend:call(storage, delete_cvv, [Session]).
 
@@ -49,6 +49,6 @@ delete_cvv(Session) ->
     non_neg_integer(),
     pos_integer(),
     pos_integer() | undefined
-) -> {ok, [term()]} | {error, Reason :: term()}.
+) -> [term()] | no_return().
 get_sessions_keys(From, To, Limit) ->
     cds_backend:call(storage, get_sessions_keys, [From, To, Limit]).
