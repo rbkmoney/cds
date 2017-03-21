@@ -8,7 +8,10 @@
   0},
  {<<"goldrush">>,{pkg,<<"goldrush">>,<<"0.1.7">>},1},
  {<<"hackney">>,{pkg,<<"hackney">>,<<"1.6.2">>},1},
- {<<"hamcrest">>,{pkg,<<"hamcrest">>,<<"0.1.2">>},2},
+ {<<"hamcrest">>,
+  {git,"https://github.com/basho/hamcrest-erlang.git",
+       {ref,"98bc7aa19ea081478c816824aa05fc5a48acae66"}},
+  2},
  {<<"idna">>,{pkg,<<"idna">>,<<"1.2.0">>},2},
  {<<"jsx">>,{pkg,<<"jsx">>,<<"2.8.0">>},1},
  {<<"lager">>,{pkg,<<"lager">>,<<"3.2.4">>},0},
@@ -31,7 +34,7 @@
   1},
  {<<"riakc">>,
   {git,"https://github.com/rbkmoney/riak-erlang-client.git",
-       {ref,"f3e64014d90c261880f5b06113bb604a6d5df495"}},
+       {ref,"4cb766f5a6b7fd13c9622b1deed9028647fd25c7"}},
   0},
  {<<"scrypt">>,
   {git,"https://github.com/tonyg/erlang-scrypt",
@@ -52,7 +55,7 @@
   1},
  {<<"woody">>,
   {git,"git@github.com:rbkmoney/woody_erlang.git",
-       {ref,"b5ae9ae3abc8da470f68d2e2ca15ccc606801225"}},
+       {ref,"2f264f97c6434806ac6a6c8405824fdf00432dbe"}},
   0}]}.
 [
 {pkg_hash,[
@@ -61,7 +64,6 @@
  {<<"cowlib">>, <<"9D769A1D062C9C3AC753096F868CA121E2730B9A377DE23DEC0F7E08B1DF84EE">>},
  {<<"goldrush">>, <<"349A351D17C71C2FDAA18A6C2697562ABE136FEC945F147B381F0CF313160228">>},
  {<<"hackney">>, <<"96A0A5E7E65B7ACAD8031D231965718CC70A9B4131A8B033B7543BBD673B8210">>},
- {<<"hamcrest">>, <<"2F06FAD05983CE98A7832C4A7A508AAB935B68865FDF607D30A030C129EC1365">>},
  {<<"idna">>, <<"AC62EE99DA068F43C50DC69ACF700E03A62A348360126260E87F2B54ECED86B2">>},
  {<<"jsx">>, <<"749BEC6D205C694AE1786D62CEA6CC45A390437E24835FD16D12D74F07097727">>},
  {<<"lager">>, <<"A6DEB74DAE7927F46BD13255268308EF03EB206EC784A94EAF7C1C0F3B811615">>},

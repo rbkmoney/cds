@@ -70,7 +70,7 @@ get_session_card_data(Token, Session) ->
 put_card_data(Token, Session, Hash, CardData, Cvv) ->
     TokenObj = riakc_obj:new(?TOKEN_BUCKET, Token, CardData),
     HashObj = riakc_obj:new(?HASH_BUCKET, Hash, Token),
-    SessionObj = prepare_session_obj(Session, Cvv),
+    {ok, SessionObj} = prepare_session_obj(Session, Cvv),
     case batch_put([[TokenObj], [HashObj], [SessionObj]]) of
         ok ->
             ok;
@@ -191,13 +191,17 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
     end.
 
 prepare_session_obj(Session, Cvv) ->
-    Obj = riakc_obj:new(?SESSION_BUCKET, Session, Cvv),
-    MD1 = riakc_obj:get_update_metadata(Obj),
-    MD2 = riakc_obj:set_secondary_index(
-        MD1,
-        [{?SESSION_CREATED_AT_INDEX, [current_time()]}]
-    ),
-    riakc_obj:update_metadata(Obj, MD2).
+    case riakc_obj:new(?SESSION_BUCKET, Session, Cvv)  of
+        Error = {error, _} ->
+            Error;
+        Obj ->
+            MD1 = riakc_obj:get_update_metadata(Obj),
+            MD2 = riakc_obj:set_secondary_index(
+                MD1,
+                [{?SESSION_CREATED_AT_INDEX, [current_time()]}]
+            ),
+            {ok, riakc_obj:update_metadata(Obj, MD2)}
+    end.
 
 current_time() ->
     genlib_time:unow().

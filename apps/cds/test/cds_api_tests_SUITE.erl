@@ -229,7 +229,7 @@ start_clear(Storage) ->
             {port, 8022},
             {keyring_storage, cds_keyring_storage_env}
         ] ++ Storage),
-    [{apps, Apps}, {root_url, RootUrl}].
+    [{apps, Apps}, {root_url, genlib:to_binary(RootUrl)}].
 
 stop_clear(C) ->
     _ = (catch cds_keyring_storage_env:delete()),
