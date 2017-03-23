@@ -9,7 +9,7 @@
 -export([get_token/1]).
 -export([get_card_data/1]).
 -export([get_session_card_data/2]).
--export([put_card_data/5]).
+-export([put_card_data/6]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
@@ -71,11 +71,11 @@ get_session_card_data(Token, Session) ->
             {error, not_found}
     end.
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok.
-put_card_data(Token, Session, Hash, CardData, Cvv) ->
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok.
+put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
     true = ets:insert(?TOKEN_TABLE, {Token, CardData}),
     true = ets:insert(?HASH_TABLE, {Hash, Token}),
-    true = ets:insert(?SESSION_TABLE, {Session, Cvv, genlib_time:unow()}),
+    true = ets:insert(?SESSION_TABLE, {Session, Cvv, CreatedAt}),
     ok.
 
 -spec delete_card_data(binary(), binary(), binary()) -> ok.

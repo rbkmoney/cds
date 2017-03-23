@@ -4,7 +4,7 @@
 -callback get_token(binary()) -> {ok, binary()} | {error, not_found}.
 -callback get_card_data(binary()) -> {ok, binary()} | {error, not_found}.
 -callback get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
--callback put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok.
+-callback put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok.
 -callback delete_card_data(binary(), binary(), binary()) -> ok.
 -callback delete_session(binary()) -> ok.
 -callback get_sessions_created_between(
@@ -17,7 +17,7 @@
 -export([get_token/1]).
 -export([get_card_data/1]).
 -export([get_session_card_data/2]).
--export([put_card_data/5]).
+-export([put_card_data/6]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
@@ -38,9 +38,9 @@ get_card_data(Token) ->
 get_session_card_data(Token, Session) ->
     cds_backend:call(storage, get_session_card_data, [Token, Session]).
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, Cvv) ->
-    cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv]).
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok | no_return().
+put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
+    cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv, CreatedAt]).
 
 -spec delete_card_data(binary(), binary(), binary()) -> ok | no_return().
 delete_card_data(Token, Hash, Session) ->

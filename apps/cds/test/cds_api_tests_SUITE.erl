@@ -93,7 +93,7 @@ init_per_group(session_management, C) ->
             #{
                 session_lifetime => 3,
                 batch_size => 1000,
-                timeout => 1000
+                interval => 1000
             }
         }
     ],
@@ -182,9 +182,9 @@ session_cleaning(C) ->
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
-        timeout := Timeout
+        interval := Interval
     }}] = config(session_cleaning_config, C),
-    timer:sleep((Lifetime + 1) * 1000 + Timeout),
+    timer:sleep((Lifetime + 1) * 1000 + Interval),
     ok = try
         _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
         error

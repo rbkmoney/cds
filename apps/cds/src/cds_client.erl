@@ -41,7 +41,7 @@ delete_card_data(Token, RootUrl) ->
 init(Threshold, Number, RootUrl) ->
     call('Init', [Threshold, Number], RootUrl).
 
--spec unlock(binary(), woody:url()) -> result().
+-spec unlock(cds:masterkey_share(), woody:url()) -> result().
 
 unlock(Share, RootUrl) ->
     call('Unlock', [Share], RootUrl).

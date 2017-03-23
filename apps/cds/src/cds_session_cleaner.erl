@@ -16,7 +16,7 @@
 -export([code_change/3]).
 
 -define(SERVICE, ?MODULE).
--define(DEFAULT_TIMEOUT, 3000).
+-define(DEFAULT_INTERVAL, 3000).
 -define(DEFAULT_BATCH_SIZE, 5000).
 -define(DEFAULT_SESSION_LIFETIME, 3600).
 
@@ -32,7 +32,7 @@ start_link() ->
 
 init(_Args) ->
     _ = lager:info("Starting session cleaner...", []),
-    {ok, init_state(get_timeout())}.
+    {ok, init_state(get_interval())}.
 
 handle_call(Request, From, State) ->
     _ = lager:error("Got unrecognized call from ~p: ", [From, Request]),
@@ -49,13 +49,13 @@ handle_info(clean_timeout, State) ->
     NewState = case clean_sessions(0, To, get_batch_size()) of
         {ok, done} ->
             _ = lager:info("Cleaned all the sessions"),
-            State#{timer => set_timer(get_timeout())};
+            State#{timer => set_timer(get_interval())};
         {ok, more} ->
             _ = lager:info("Cleaned some sessions. Need to repeat"),
             State#{timer => set_timer(0)};
         {error, Error} ->
             _ = lager:error("Cleaning error: ~p", [Error]),
-            State#{timer => set_timer(get_timeout())}
+            State#{timer => set_timer(get_interval())}
     end,
     {noreply, NewState};
 
@@ -77,14 +77,14 @@ code_change(_OldVsn, State, _Extra) ->
 
 clean_sessions(From, To, BatchSize) ->
     try
-        Keys = cds_storage:get_sessions_created_between(From, To, BatchSize),
-        KeysLength = length(Keys),
-        _ = lager:info("Got ~p keys to clean", [KeysLength]),
-        _ = [cds_storage:delete_session(ID) || ID <- Keys],
-        case KeysLength of
-            0 ->
+        Sessions = cds_storage:get_sessions_created_between(From, To, BatchSize),
+        SessionsLength = length(Sessions),
+        _ = lager:info("Got ~p sessions to clean", [SessionsLength]),
+        _ = [cds_storage:delete_session(ID) || ID <- Sessions],
+        case BatchSize of
+            undefined ->
                 {ok, done};
-            _ when is_integer(BatchSize), KeysLength < BatchSize ->
+            _ when SessionsLength < BatchSize ->
                 {ok, done};
             _ ->
                 {ok, more}
@@ -94,15 +94,15 @@ clean_sessions(From, To, BatchSize) ->
             {error, Reason}
     end.
 
-init_state(Timeout) -> #{
-    timer => set_timer(Timeout)
+init_state(Interval) -> #{
+    timer => set_timer(Interval)
 }.
 
-set_timer(Timeout) ->
-    erlang:send_after(Timeout, self(), clean_timeout).
+set_timer(Interval) ->
+    erlang:send_after(Interval, self(), clean_timeout).
 
-get_timeout() ->
-    maps:get(timeout, get_config(), ?DEFAULT_TIMEOUT).
+get_interval() ->
+    maps:get(interval, get_config(), ?DEFAULT_INTERVAL).
 
 get_batch_size() ->
     maps:get(batch_size, get_config(), ?DEFAULT_BATCH_SIZE).

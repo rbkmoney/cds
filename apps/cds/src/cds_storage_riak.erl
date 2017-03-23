@@ -5,7 +5,7 @@
 -export([get_token/1]).
 -export([get_card_data/1]).
 -export([get_session_card_data/2]).
--export([put_card_data/5]).
+-export([put_card_data/6]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
@@ -74,11 +74,11 @@ get_session_card_data(Token, Session) ->
             error(Reason)
     end.
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, Cvv) ->
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok | no_return().
+put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
     TokenObj = riakc_obj:new(?TOKEN_BUCKET, Token, CardData),
     HashObj = riakc_obj:new(?HASH_BUCKET, Hash, Token),
-    SessionObj = prepare_session_obj(Session, Cvv, current_time()),
+    SessionObj = prepare_session_obj(Session, Cvv, CreatedAt),
     case batch_put([[TokenObj], [HashObj], [SessionObj]]) of
         ok ->
             ok;
@@ -215,6 +215,3 @@ prepare_session_obj(Session, Cvv, CurrentTime) ->
             ),
             riakc_obj:update_metadata(Obj, MD2)
     end.
-
-current_time() ->
-    genlib_time:unow().
