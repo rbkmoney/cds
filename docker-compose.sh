@@ -1,6 +1,6 @@
 #!/bin/bash
 cat <<EOF
-version: '2'
+version: '2.1'
 
 services:
 
@@ -13,7 +13,8 @@ services:
     working_dir: $PWD
     command: /sbin/init
     depends_on:
-      - riakdb
+      riakdb:
+        condition: service_healthy
 
   riakdb:
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
@@ -23,6 +24,11 @@ services:
       - "com.basho.riak.cluster.name=riakkv"
     volumes:
       - ./riak_user.conf:/etc/riak/user.conf:ro
+    healthcheck:
+      test: "riak-admin test"
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   member:
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1

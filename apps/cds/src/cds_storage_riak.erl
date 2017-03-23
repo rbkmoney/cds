@@ -7,8 +7,8 @@
 -export([get_session_card_data/2]).
 -export([put_card_data/5]).
 -export([delete_card_data/3]).
--export([delete_cvv/1]).
--export([get_sessions_keys/3]).
+-export([delete_session/1]).
+-export([get_sessions_created_between/3]).
 
 -include_lib("riakc/include/riakc.hrl").
 
@@ -29,7 +29,9 @@ start() ->
     start_pool(ConnParams),
     lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
--spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
+-spec get_token(binary()) -> {ok, binary()} |
+    {error, not_found} |
+    no_return().
 get_token(Hash) ->
     case get(?HASH_BUCKET, Hash) of
         {ok, TokenObj} ->
@@ -41,7 +43,10 @@ get_token(Hash) ->
             error(Reason)
     end.
 
--spec get_card_data(binary()) -> {ok, binary()} | {error, not_found}.
+-spec get_card_data(binary()) ->
+    {ok, binary()} |
+    {error, not_found} |
+    no_return().
 get_card_data(Token) ->
     case get(?TOKEN_BUCKET, Token) of
         {ok, CardDataObj} ->
@@ -53,7 +58,10 @@ get_card_data(Token) ->
             error(Reason)
     end.
 
--spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
+-spec get_session_card_data(binary(), binary()) ->
+    {ok, {binary(), binary()}} |
+    {error, not_found} |
+    no_return().
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
         {ok, [CvvObj, CardDataObj]} ->
@@ -66,11 +74,11 @@ get_session_card_data(Token, Session) ->
             error(Reason)
     end.
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok.
+-spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, Cvv) ->
     TokenObj = riakc_obj:new(?TOKEN_BUCKET, Token, CardData),
     HashObj = riakc_obj:new(?HASH_BUCKET, Hash, Token),
-    {ok, SessionObj} = prepare_session_obj(Session, Cvv),
+    SessionObj = prepare_session_obj(Session, Cvv, current_time()),
     case batch_put([[TokenObj], [HashObj], [SessionObj]]) of
         ok ->
             ok;
@@ -78,7 +86,7 @@ put_card_data(Token, Session, Hash, CardData, Cvv) ->
             error(Reason)
     end.
 
--spec delete_card_data(binary(), binary(), binary()) -> ok.
+-spec delete_card_data(binary(), binary(), binary()) -> ok | no_return().
 delete_card_data(Token, Hash, Session) ->
     case batch_delete([[?TOKEN_BUCKET, Token], [?HASH_BUCKET, Hash], [?SESSION_BUCKET, Session]]) of
         ok ->
@@ -87,8 +95,8 @@ delete_card_data(Token, Hash, Session) ->
             error(Reason)
     end.
 
--spec delete_cvv(binary()) -> ok.
-delete_cvv(Session) ->
+-spec delete_session(binary()) -> ok | no_return().
+delete_session(Session) ->
     case delete(?SESSION_BUCKET, Session) of
         ok ->
             ok;
@@ -96,18 +104,23 @@ delete_cvv(Session) ->
             error(Reason)
     end.
 
--spec get_sessions_keys(
+-spec get_sessions_created_between(
     non_neg_integer(),
-    pos_integer(),
-    pos_integer() | undefined
-) -> {ok, [term()]} | {error, Reason :: term()}.
-get_sessions_keys(From, To, Limit) ->
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> {ok, [binary()]} | no_return().
+get_sessions_created_between(From, To, Limit) ->
+    Options = case Limit of
+        undefined -> [];
+        _ -> [{max_results, Limit}]
+    end,
+
     P = get_index_range(
-            ?SESSION_BUCKET,
-            ?SESSION_CREATED_AT_INDEX,
-            From,
-            To,
-            [{max_results, Limit}]
+        ?SESSION_BUCKET,
+        ?SESSION_CREATED_AT_INDEX,
+        From,
+        To,
+        Options
     ),
     case P of
         {ok, #index_results_v1{keys = Keys}} when Keys =/= undefined ->
@@ -190,17 +203,17 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
-prepare_session_obj(Session, Cvv) ->
+prepare_session_obj(Session, Cvv, CurrentTime) ->
     case riakc_obj:new(?SESSION_BUCKET, Session, Cvv)  of
         Error = {error, _} ->
-            Error;
+            error(Error);
         Obj ->
             MD1 = riakc_obj:get_update_metadata(Obj),
             MD2 = riakc_obj:set_secondary_index(
                 MD1,
-                [{?SESSION_CREATED_AT_INDEX, [current_time()]}]
+                [{?SESSION_CREATED_AT_INDEX, [CurrentTime]}]
             ),
-            {ok, riakc_obj:update_metadata(Obj, MD2)}
+            riakc_obj:update_metadata(Obj, MD2)
     end.
 
 current_time() ->

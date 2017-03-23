@@ -1,10 +1,10 @@
 -module(cds_client).
 
 %% Storage operations
--export([get/2]).
--export([get_session/3]).
--export([put/2]).
--export([delete/2]).
+-export([get_card_data/2]).
+-export([get_session_card_data/3]).
+-export([put_card_data/2]).
+-export([delete_card_data/2]).
 
 %% Keyring operations
 -export([init/3]).
@@ -16,32 +16,32 @@
     {exception, woody_error:business_error()} |
     no_return().
 
--spec get(_, woody:url()) -> result().
+-spec get_card_data(cds:token(), woody:url()) -> result().
 
-get(Token, RootUrl) ->
+get_card_data(Token, RootUrl) ->
     call('GetCardData', [Token], RootUrl).
 
--spec get_session(_, _, woody:url()) -> result().
+-spec get_session_card_data(cds:token(), cds:session(), woody:url()) -> result().
 
-get_session(Token, Session, RootUrl) ->
+get_session_card_data(Token, Session, RootUrl) ->
     call('GetSessionCardData', [Token, Session], RootUrl).
 
--spec put(_, woody:url()) -> result().
+-spec put_card_data(cds_cds_thrift:'CardData'(), woody:url()) -> result().
 
-put(Data, RootUrl) ->
+put_card_data(Data, RootUrl) ->
     call('PutCardData', [Data], RootUrl).
 
--spec delete(_, woody:url()) -> result().
+-spec delete_card_data(cds:token(), woody:url()) -> result().
 
-delete(Token, RootUrl) ->
+delete_card_data(Token, RootUrl) ->
     call('DeleteCardData', [Token], RootUrl).
 
--spec init(_, _, woody:url()) -> result().
+-spec init(integer(), integer(), woody:url()) -> result().
 
 init(Threshold, Number, RootUrl) ->
     call('Init', [Threshold, Number], RootUrl).
 
--spec unlock(_, woody:url()) -> result().
+-spec unlock(binary(), woody:url()) -> result().
 
 unlock(Share, RootUrl) ->
     call('Unlock', [Share], RootUrl).

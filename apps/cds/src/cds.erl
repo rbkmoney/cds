@@ -18,7 +18,7 @@
 -export([get_session_card_data/2]).
 -export([put_card_data/1]).
 -export([delete_card_data/2]).
--export([delete_cvv/1]).
+-export([delete_session/1]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -148,10 +148,10 @@ delete_card_data(Token, Session) ->
     Hash = hash(UniqueCardData),
     ok = cds_storage:delete_card_data(Token, Hash, Session),
     ok.
--spec delete_cvv(cds:session()) -> ok.
-delete_cvv(Session) ->
+-spec delete_session(cds:session()) -> ok.
+delete_session(Session) ->
     ok = keyring_available(),
-    ok = cds_storage:delete_cvv(Session),
+    ok = cds_storage:delete_session(Session),
     ok.
 
 

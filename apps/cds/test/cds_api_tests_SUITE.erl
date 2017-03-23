@@ -4,9 +4,6 @@
 -include_lib("cds/src/cds_cds_thrift.hrl").
 -compile(export_all).
 
--define(config(K, C), begin element(2, lists:keyfind(K, 1, C)) end).
--define(root_url(C), ?config(root_url, C)).
-
 %%
 
 -define(CVV, <<"777">>).
@@ -27,7 +24,9 @@
 all() ->
     [
         {group, riak_storage_backend},
-        {group, ets_storage_backend}
+        {group, ets_storage_backend},
+        {group, keyring_errors}
+
     ].
 
 groups() ->
@@ -36,15 +35,14 @@ groups() ->
         {ets_storage_backend, [], [{group, general_flow}]},
         {general_flow, [], [
             {group, basic_lifecycle},
-            {group, keyring_errors},
             {group, session_management}
         ]},
         {basic_lifecycle, [sequence], [
             init,
             lock,
             unlock,
-            put,
-            get,
+            put_card_data,
+            get_card_data,
             rotate
         ]},
         {keyring_errors, [parallel], [
@@ -63,9 +61,6 @@ groups() ->
 %%
 %% starting/stopping
 %%
-init_per_suite(C) ->
-    timer:sleep(10000), %% sleep again ;(
-    C.
 
 init_per_group(riak_storage_backend, C) ->
     Storage = [
@@ -77,45 +72,39 @@ init_per_group(riak_storage_backend, C) ->
     [{storage_config, Storage} | C];
 
 init_per_group(ets_storage_backend, C) ->
-    Storage = [
+    StorageConfig = [
         {storage, cds_storage_ets}
     ],
-    [{storage_config, Storage} | C];
+    [{storage_config, StorageConfig} | C];
 
 init_per_group(general_flow, C) ->
     C;
 
 init_per_group(keyring_errors, C) ->
-    C1 = start_clear(?config(storage_config, C)),
-    _MasterKeys = cds_client:init(2, 3, ?root_url(C1)),
-    ok = cds_client:lock(?root_url(C1)),
+    C1 = start_clear(C),
+    _MasterKeys = cds_client:init(2, 3, root_url(C1)),
+    ok = cds_client:lock(root_url(C1)),
     C1 ++ C;
 
 init_per_group(session_management, C) ->
-    _ = application:load(cds),
-    CleanerConf = genlib_app:env(cds, session_cleaner, #{}),
-    application:set_env(
-        cds,
-        session_cleaner,
-        CleanerConf#{
-            session_lifetime => 3,
-            timeout => 1000
+    CleanConfig = [
+        {
+            session_cleaning,
+            #{
+                session_lifetime => 3,
+                batch_size => 1000,
+                timeout => 1000
+            }
         }
-    ),
-    C1 = [{session_cleaner_config, CleanerConf} | C],
-    C1 ++ start_clear(?config(storage_config, C1)) ++ C;
+    ],
+
+    C1 = [{session_cleaning_config, CleanConfig} | C],
+    C2 = start_clear(C1),
+    C1 ++ C2;
 
 init_per_group(_, C) ->
-    C1 = start_clear(?config(storage_config, C)),
+    C1 = start_clear(C),
     C1 ++ C.
-
-end_per_group(session_management, C) ->
-    application:set_env(
-        cds,
-        session_cleaner,
-        ?config(session_cleaner_config, C)
-    ),
-    stop_clear(C);
 
 end_per_group(Group, C) when
     Group =:= ets_storage_backend;
@@ -131,53 +120,53 @@ end_per_group(_, C) ->
 %% tests
 %%
 init(C) ->
-    MasterKeys = cds_client:init(2, 3, ?root_url(C)),
+    MasterKeys = cds_client:init(2, 3, root_url(C)),
     3 = length(MasterKeys),
     {save_config, MasterKeys}.
 
 lock(C) ->
-    {init, MasterKeys} = ?config(saved_config, C),
-    ok = cds_client:lock(?root_url(C)),
-    #'KeyringLocked'{} = (catch cds_client:put(?CREDIT_CARD(?CVV), ?root_url(C))),
+    {init, MasterKeys} = config(saved_config, C),
+    ok = cds_client:lock(root_url(C)),
+    #'KeyringLocked'{} = (catch cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C))),
     {save_config, MasterKeys}.
 
 unlock(C) ->
-    {lock, [MasterKey1, MasterKey2, _MasterKey3]} = ?config(saved_config, C),
-    {more_keys_needed, 1} = cds_client:unlock(MasterKey1, ?root_url(C)),
-    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, ?root_url(C)),
+    {lock, [MasterKey1, MasterKey2, _MasterKey3]} = config(saved_config, C),
+    {more_keys_needed, 1} = cds_client:unlock(MasterKey1, root_url(C)),
+    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, root_url(C)),
     ok.
 
-put(C) ->
+put_card_data(C) ->
     #'PutCardDataResult'{
         bank_card = #'BankCard'{
             token = Token
         }
-    } = cds_client:put(?CREDIT_CARD(?CVV), ?root_url(C)),
+    } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
     {save_config, Token}.
 
-get(C) ->
-    {put, Token} = ?config(saved_config, C),
-    ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)),
+get_card_data(C) ->
+    {put_card_data, Token} = config(saved_config, C),
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
     ok.
 
 rotate(C) ->
-    ok = cds_client:rotate(?root_url(C)),
+    ok = cds_client:rotate(root_url(C)),
     ok.
 
 init_keyring_exists(C) ->
-    #'KeyringExists'{} = (catch cds_client:init(2, 3, ?root_url(C))).
+    #'KeyringExists'{} = (catch cds_client:init(2, 3, root_url(C))).
 
 rotate_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_client:rotate(?root_url(C))).
+    #'KeyringLocked'{} = (catch cds_client:rotate(root_url(C))).
 
 get_card_data_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_client:get(<<"No matter what">>, ?root_url(C))).
+    #'KeyringLocked'{} = (catch cds_client:get_card_data(<<"No matter what">>, root_url(C))).
 
 get_session_card_data_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_client:get_session(
+    #'KeyringLocked'{} = (catch cds_client:get_session_card_data(
         <<"No matter what">>,
         <<"No matter what">>,
-        ?root_url(C))
+        root_url(C))
     ).
 
 session_cleaning(C) ->
@@ -186,33 +175,35 @@ session_cleaning(C) ->
             token = Token
         },
         session = Session
-    } = cds_client:put(?CREDIT_CARD(?CVV), ?root_url(C)),
+    } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
 
-    ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)),
-    ?CREDIT_CARD(?CVV) = cds_client:get_session(Token, Session, ?root_url(C)),
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
+    ?CREDIT_CARD(?CVV) = cds_client:get_session_card_data(Token, Session, root_url(C)),
 
-    #{
+    [{session_cleaning, #{
         session_lifetime := Lifetime,
         timeout := Timeout
-    } = genlib_app:env(cds, session_cleaner),
+    }}] = config(session_cleaning_config, C),
     timer:sleep((Lifetime + 1) * 1000 + Timeout),
     ok = try
-        _ = cds_client:get_session(Token, Session, ?root_url(C)),
+        _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
         error
     catch
         throw:#'CardDataNotFound'{} ->
-          ok
+            ok
     end,
-    ?CREDIT_CARD(<<>>) = cds_client:get(Token, ?root_url(C)).
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
 
 %%
 %% helpers
 %%
 
-start_clear(Storage) ->
+start_clear(Config) ->
     IP = "::1",
     Port = 8022,
     RootUrl = "http://[" ++ IP ++ "]:" ++ integer_to_list(Port),
+    StorageConfig = config(storage_config, Config, []),
+    CleanConfig = config(session_cleaning_config, Config, []),
     Apps =
         genlib_app:start_application_with(lager, [
             {async_threshold, 1},
@@ -228,10 +219,22 @@ start_clear(Storage) ->
             {ip, "::1"},
             {port, 8022},
             {keyring_storage, cds_keyring_storage_env}
-        ] ++ Storage),
+        ] ++ StorageConfig ++ CleanConfig),
     [{apps, Apps}, {root_url, genlib:to_binary(RootUrl)}].
 
 stop_clear(C) ->
     _ = (catch cds_keyring_storage_env:delete()),
-    [ok = application:stop(App) || App <- ?config(apps, C)],
+    [ok = application:stop(App) || App <- config(apps, C)],
     C.
+
+config(Key, Config) -> config(Key, Config, undefined).
+
+config(Key, Config, Default) ->
+    case lists:keysearch(Key, 1, Config) of
+    {value, {Key, Val}} ->
+        Val;
+    _ ->
+        Default
+    end.
+
+root_url(C) -> config(root_url, C).

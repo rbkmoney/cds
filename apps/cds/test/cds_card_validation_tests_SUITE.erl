@@ -1,12 +1,8 @@
 -module(cds_card_validation_tests_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("cds/src/cds_cds_thrift.hrl").
 
 -compile(export_all).
-
--define(config(K, C), begin element(2, lists:keyfind(K, 1, C)) end).
--define(root_url(C), ?config(root_url, C)).
 
 %%
 
@@ -19,7 +15,7 @@ all() ->
     ].
 
 groups() ->
- [
+    [
         {card_data_validation, [parallel], [
             full_card_data_validation,
             payment_system_detection

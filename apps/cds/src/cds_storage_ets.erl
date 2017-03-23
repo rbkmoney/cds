@@ -2,6 +2,8 @@
 -behaviour(cds_storage).
 -behaviour(gen_server).
 
+-include_lib("stdlib/include/ms_transform.hrl").
+
 %% cds_storage behaviour
 -export([start/0]).
 -export([get_token/1]).
@@ -9,8 +11,8 @@
 -export([get_session_card_data/2]).
 -export([put_card_data/5]).
 -export([delete_card_data/3]).
--export([delete_cvv/1]).
--export([get_sessions_keys/3]).
+-export([delete_session/1]).
+-export([get_sessions_created_between/3]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -83,28 +85,34 @@ delete_card_data(Token, Hash, Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
--spec delete_cvv(binary()) -> ok.
-delete_cvv(Session) ->
+-spec delete_session(binary()) -> ok.
+delete_session(Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
--spec get_sessions_keys(
+-spec get_sessions_created_between(
     non_neg_integer(),
-    pos_integer(),
-    pos_integer() | undefined
-) -> {ok, [term()]}.
-get_sessions_keys(From, To, Limit) ->
-    MatchSpec = [{{'$1', '_', '$3'}, [{'andalso', {'>=', '$3', From}, {'=<', '$3', To}}], ['$1']}],
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> {ok, [binary()]}.
+get_sessions_created_between(From, To, Limit) ->
+    MatchSpec =  ets:fun2ms(
+        fun({Session, _, CreatedAt}) when
+            CreatedAt >= From;
+            CreatedAt =< To
+        ->
+            Session
+        end
+    ),
     Result = case Limit of
         undefined -> ets:select(?SESSION_TABLE, MatchSpec);
         Limit -> ets:select(?SESSION_TABLE, MatchSpec, Limit)
     end,
-    PrepareMatch = fun(Match) -> [ID || ID <- Match] end,
     case Result of
         Match when is_list(Match) ->
-            {ok, PrepareMatch(Match)};
+            {ok, Match};
         {Match, _Continuation} ->
-            {ok, PrepareMatch(Match)};
+            {ok, Match};
         '$end_of_table' ->
             {ok, []}
     end.
