@@ -1,10 +1,10 @@
 -module(cds_client).
 
 %% Storage operations
--export([get/2]).
--export([get_session/3]).
--export([put/2]).
--export([delete/2]).
+-export([get_card_data/2]).
+-export([get_session_card_data/3]).
+-export([put_card_data/2]).
+-export([delete_card_data/2]).
 
 %% Keyring operations
 -export([init/3]).
@@ -12,34 +12,57 @@
 -export([lock/1]).
 -export([rotate/1]).
 
-get(Token, RootUrl) ->
+-type result() :: woody:result() |
+    {exception, woody_error:business_error()} |
+    no_return().
+
+-spec get_card_data(cds:token(), woody:url()) -> result().
+
+get_card_data(Token, RootUrl) ->
     call('GetCardData', [Token], RootUrl).
 
-get_session(Token, Session, RootUrl) ->
+-spec get_session_card_data(cds:token(), cds:session(), woody:url()) -> result().
+
+get_session_card_data(Token, Session, RootUrl) ->
     call('GetSessionCardData', [Token, Session], RootUrl).
 
-put(Data, RootUrl) ->
+-spec put_card_data(cds_cds_thrift:'CardData'(), woody:url()) -> result().
+
+put_card_data(Data, RootUrl) ->
     call('PutCardData', [Data], RootUrl).
 
-delete(Token, RootUrl) ->
+-spec delete_card_data(cds:token(), woody:url()) -> result().
+
+delete_card_data(Token, RootUrl) ->
     call('DeleteCardData', [Token], RootUrl).
+
+-spec init(integer(), integer(), woody:url()) -> result().
 
 init(Threshold, Number, RootUrl) ->
     call('Init', [Threshold, Number], RootUrl).
 
+-spec unlock(cds:masterkey_share(), woody:url()) -> result().
+
 unlock(Share, RootUrl) ->
     call('Unlock', [Share], RootUrl).
+
+-spec lock(woody:url()) -> result().
 
 lock(RootUrl) ->
     call('Lock', [], RootUrl).
 
+-spec rotate(woody:url()) -> result().
+
 rotate(RootUrl) ->
     call('Rotate', [], RootUrl).
 
+-spec call(atom(), list(), woody:url()) -> result().
+
 call(Function, Args, RootUrl) ->
     Request = {{cds_cds_thrift, service(Function)}, Function, Args},
+    Path = genlib:to_binary(path(Function)),
     CallOpts = #{
-        url => RootUrl ++ path(Function),
+        url => <<RootUrl/binary, Path/binary>>,
         event_handler => cds_thrift_handler
     },
     case woody_client:call(Request, CallOpts) of

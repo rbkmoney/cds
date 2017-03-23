@@ -2,14 +2,17 @@
 -behaviour(cds_storage).
 -behaviour(gen_server).
 
+-include_lib("stdlib/include/ms_transform.hrl").
+
 %% cds_storage behaviour
 -export([start/0]).
 -export([get_token/1]).
 -export([get_card_data/1]).
 -export([get_session_card_data/2]).
--export([put_card_data/5]).
+-export([put_card_data/6]).
 -export([delete_card_data/3]).
--export([delete_cvv/1]).
+-export([delete_session/1]).
+-export([get_sessions_created_between/3]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -57,7 +60,7 @@ get_card_data(Token) ->
 -spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 get_session_card_data(Token, Session) ->
     case ets:lookup(?SESSION_TABLE, Session) of
-        [{Session, Cvv}] ->
+        [{Session, Cvv, _CreatedAt}] ->
             case ets:lookup(?TOKEN_TABLE, Token) of
                 [{Token, CardData}] ->
                     {ok, {CardData, Cvv}};
@@ -68,11 +71,11 @@ get_session_card_data(Token, Session) ->
             {error, not_found}
     end.
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary()) -> ok.
-put_card_data(Token, Session, Hash, CardData, Cvv) ->
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok.
+put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
     true = ets:insert(?TOKEN_TABLE, {Token, CardData}),
     true = ets:insert(?HASH_TABLE, {Hash, Token}),
-    true = ets:insert(?SESSION_TABLE, {Session, Cvv}),
+    true = ets:insert(?SESSION_TABLE, {Session, Cvv, CreatedAt}),
     ok.
 
 -spec delete_card_data(binary(), binary(), binary()) -> ok.
@@ -82,10 +85,37 @@ delete_card_data(Token, Hash, Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
--spec delete_cvv(binary()) -> ok.
-delete_cvv(Session) ->
+-spec delete_session(binary()) -> ok.
+delete_session(Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
+
+-spec get_sessions_created_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> {ok, [binary()]}.
+get_sessions_created_between(From, To, Limit) ->
+    MatchSpec =  ets:fun2ms(
+        fun({Session, _, CreatedAt}) when
+            CreatedAt >= From;
+            CreatedAt =< To
+        ->
+            Session
+        end
+    ),
+    Result = case Limit of
+        undefined -> ets:select(?SESSION_TABLE, MatchSpec);
+        Limit -> ets:select(?SESSION_TABLE, MatchSpec, Limit)
+    end,
+    case Result of
+        Match when is_list(Match) ->
+            {ok, Match};
+        {Match, _Continuation} ->
+            {ok, Match};
+        '$end_of_table' ->
+            {ok, []}
+    end.
 
 %%
 %% gen_server behaviour

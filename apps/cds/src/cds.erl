@@ -18,7 +18,7 @@
 -export([get_session_card_data/2]).
 -export([put_card_data/1]).
 -export([delete_card_data/2]).
--export([delete_cvv/1]).
+-export([delete_session/1]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -37,9 +37,11 @@
 %%
 -export_type([token/0]).
 -export_type([session/0]).
+-export_type([masterkey_share/0]).
 
 -type token() :: binary().
 -type session() :: binary().
+-type masterkey_share() :: binary().
 
 %%
 %% API
@@ -77,9 +79,15 @@ init([]) ->
         id => cds_keyring_manager,
         start => {cds_keyring_manager, start_link, []}
     },
+    SessionCleaner = #{
+        id => cds_session_cleaner_sup,
+        start => {cds_session_cleaner_sup, start_link, []},
+        type => supervisor
+    },
     Procs = [
         Service,
-        KeyringManager
+        KeyringManager,
+        SessionCleaner
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.
 
@@ -131,7 +139,14 @@ put_card_data(CardData) ->
     Hash = hash(UniqueCardData),
     EncryptedCardData = encrypt(MarshalledCardData),
     EncryptedCvv = encrypt(Cvv),
-    ok = cds_storage:put_card_data(Token, Session, Hash, EncryptedCardData, EncryptedCvv),
+    ok = cds_storage:put_card_data(
+        Token,
+        Session,
+        Hash,
+        EncryptedCardData,
+        EncryptedCvv,
+        current_time()
+    ),
     {Token, Session}.
 
 -spec delete_card_data(cds:token(), cds:session()) -> ok.
@@ -142,10 +157,10 @@ delete_card_data(Token, Session) ->
     Hash = hash(UniqueCardData),
     ok = cds_storage:delete_card_data(Token, Hash, Session),
     ok.
--spec delete_cvv(cds:session()) -> ok.
-delete_cvv(Session) ->
+-spec delete_session(cds:session()) -> ok.
+delete_session(Session) ->
     ok = keyring_available(),
-    ok = cds_storage:delete_cvv(Session),
+    ok = cds_storage:delete_session(Session),
     ok.
 
 
@@ -153,11 +168,11 @@ delete_cvv(Session) ->
 %%
 %% Keyring operations
 %%
--spec unlock_keyring(binary()) -> {more, byte()} | ok.
+-spec unlock_keyring(masterkey_share()) -> {more, byte()} | ok.
 unlock_keyring(Share) ->
     cds_keyring_manager:unlock(Share).
 
--spec init_keyring(integer(), integer()) -> [binary()].
+-spec init_keyring(integer(), integer()) -> [masterkey_share()].
 init_keyring(Threshold, Count) when Threshold =< Count ->
     cds_keyring_manager:initialize(Threshold, Count).
 
@@ -228,3 +243,6 @@ keyring_available() ->
         unlocked ->
             ok
     end.
+
+current_time() ->
+    genlib_time:unow().
