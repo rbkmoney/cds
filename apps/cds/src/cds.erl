@@ -19,6 +19,7 @@
 -export([put_card_data/1]).
 -export([delete_card_data/2]).
 -export([delete_session/1]).
+-export([refresh_sessions/0]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -145,7 +146,7 @@ put_card_data(CardData) ->
         Hash,
         EncryptedCardData,
         EncryptedCvv,
-        current_time()
+        cds_utils:current_time()
     ),
     {Token, Session}.
 
@@ -163,7 +164,9 @@ delete_session(Session) ->
     ok = cds_storage:delete_session(Session),
     ok.
 
-
+-spec refresh_sessions() -> ok.
+refresh_sessions() ->
+    ok = cds_storage:refresh_sessions().
 
 %%
 %% Keyring operations
@@ -243,6 +246,3 @@ keyring_available() ->
         unlocked ->
             ok
     end.
-
-current_time() ->
-    genlib_time:unow().

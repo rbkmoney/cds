@@ -80,7 +80,12 @@ clean_sessions(From, To, BatchSize) ->
         Sessions = cds_storage:get_sessions_created_between(From, To, BatchSize),
         SessionsLength = length(Sessions),
         _ = lager:info("Got ~p sessions to clean", [SessionsLength]),
-        _ = [cds_storage:delete_session(ID) || ID <- Sessions],
+        _ = [
+            begin
+            cds_storage:delete_session(ID),
+            lager:debug("Deleted session ~p", [ID])
+            end
+        || ID <- Sessions],
         case BatchSize of
             undefined ->
                 {ok, done};

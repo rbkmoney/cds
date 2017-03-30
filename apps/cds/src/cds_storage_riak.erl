@@ -9,6 +9,7 @@
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
+-export([refresh_sessions/0]).
 
 -include_lib("riakc/include/riakc.hrl").
 
@@ -19,6 +20,9 @@
 -define(SESSION_CREATED_AT_INDEX, {integer_index, "created_at"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
+
+-define(REFRESH_BATCH, 300).
+
 %%
 %% cds_storage behaviour
 %%
@@ -115,15 +119,16 @@ get_sessions_created_between(From, To, Limit) ->
         _ -> [{max_results, Limit}]
     end,
 
-    P = get_index_range(
+    Result = get_index_range(
         ?SESSION_BUCKET,
         ?SESSION_CREATED_AT_INDEX,
         From,
         To,
         Options
     ),
-    case P of
-        {ok, #index_results_v1{keys = Keys}} when Keys =/= undefined ->
+
+    case Result of
+        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
             {ok, Keys};
         {ok, _} ->
             {ok, []};
@@ -131,6 +136,65 @@ get_sessions_created_between(From, To, Limit) ->
             error(Reason)
     end.
 
+refresh_sessions() ->
+    refresh_sessions(undefined, init).
+
+refresh_sessions(undefined, processing) ->
+    ok;
+
+refresh_sessions(Continuation0, _Step) ->
+    Result = get_keys(?SESSION_BUCKET, ?REFRESH_BATCH, Continuation0),
+
+    case Result of
+        {ok, [#index_results_v1{keys = Keys, continuation = Continuation}]} when Keys =/= undefined ->
+            [ok = refresh_session(Key) || Key <- Keys],
+            refresh_sessions(Continuation, processing);
+        {ok, _} ->
+            {ok, {[], undefined}};
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+refresh_session(SessionKey) ->
+    case get_session_obj(SessionKey) of
+        {ok, Obj0} ->
+            CreatedAt = cds_utils:current_time(),
+            SessionObj = set_session_created_at(Obj0, CreatedAt),
+            case batch_put([[SessionObj]]) of
+                ok ->
+                    ok;
+                {error, Reason} ->
+                    error(Reason)
+            end;
+        {error, not_found} ->
+            ok
+    end.
+
+get_session_obj(SessionKey) ->
+    case get(?SESSION_BUCKET, SessionKey) of
+        OK = {ok, _SessionObj} ->
+            OK;
+        {error, notfound} ->
+            {error, not_found};
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+get_keys(Bucket, Batch, Continuation) ->
+    Options = case Continuation of
+        undefined -> [{max_results, Batch}];
+        _ -> [
+            {max_results,  Batch},
+            {continuation, Continuation}
+        ]
+    end,
+
+    get_index_eq(
+        Bucket,
+        <<"$bucket">>,
+        <<"_">>,
+        Options
+    ).
 %%
 %% Internal
 %%
@@ -157,7 +221,10 @@ delete(Bucket, Key) ->
     batch_delete([[Bucket, Key]]).
 
 get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
-    batch_get_index_range([[Bucket, Index, StartKey, EndKey, Opts]]).
+    batch_request(get_index_range, [[Bucket, Index, StartKey, EndKey, Opts]], []).
+
+get_index_eq(Bucket, Index, Key, Opts) ->
+    batch_request(get_index_eq, [[Bucket, Index, Key, Opts]], []).
 
 set_bucket(Bucket) ->
     batch_request(set_bucket, [[Bucket, [{allow_mult, false}]]], ok).
@@ -170,9 +237,6 @@ batch_put(Args) ->
 
 batch_delete(Args) ->
     batch_request(delete, Args, ok).
-
-batch_get_index_range(Args) ->
-    batch_request(get_index_range, Args, ok).
 
 batch_request(Method, Args, Acc) ->
     Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
@@ -208,10 +272,13 @@ prepare_session_obj(Session, Cvv, CurrentTime) ->
         Error = {error, _} ->
             error(Error);
         Obj ->
-            MD1 = riakc_obj:get_update_metadata(Obj),
-            MD2 = riakc_obj:set_secondary_index(
-                MD1,
-                [{?SESSION_CREATED_AT_INDEX, [CurrentTime]}]
-            ),
-            riakc_obj:update_metadata(Obj, MD2)
+            set_session_created_at(Obj, CurrentTime)
     end.
+
+set_session_created_at(Obj, CurrentTime) ->
+    MD1 = riakc_obj:get_update_metadata(Obj),
+    MD2 = riakc_obj:set_secondary_index(
+        MD1,
+        [{?SESSION_CREATED_AT_INDEX, [CurrentTime]}]
+    ),
+    riakc_obj:update_metadata(Obj, MD2).
