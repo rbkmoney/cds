@@ -55,7 +55,8 @@ groups() ->
             init,
             lock,
             unlock,
-            session_cleaning
+            session_cleaning,
+            refresh_sessions
         ]}
     ].
 %%
@@ -91,7 +92,7 @@ init_per_group(session_management, C) ->
         {
             session_cleaning,
             #{
-                session_lifetime => 3,
+                session_lifetime => 4,
                 batch_size => 1000,
                 interval => 1000
             }
@@ -185,6 +186,41 @@ session_cleaning(C) ->
         interval := Interval
     }}] = config(session_cleaning_config, C),
     timer:sleep((Lifetime + 1) * 1000 + Interval),
+    ok = try
+        _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
+        error
+    catch
+        throw:#'CardDataNotFound'{} ->
+            ok
+    end,
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
+
+refresh_sessions(C) ->
+    #'PutCardDataResult'{
+        bank_card = #'BankCard'{
+            token = Token
+        },
+        session = Session
+    } = cds_client:put_card_data(?CREDIT_CARD(<<"345">>), root_url(C)),
+
+    [{session_cleaning, #{
+        session_lifetime := Lifetime,
+        interval := Interval
+    }}] = config(session_cleaning_config, C),
+
+    [
+        begin
+            ok = cds:refresh_sessions(),
+            timer:sleep(Lifetime * 100)
+        end
+    || _ <- lists:seq(1, 25)],
+
+    timer:sleep(Interval),
+
+    _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
+
+    timer:sleep(Lifetime * 1000 + Interval),
+
     ok = try
         _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
         error

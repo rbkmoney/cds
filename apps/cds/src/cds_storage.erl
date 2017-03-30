@@ -12,6 +12,7 @@
     non_neg_integer(),
     non_neg_integer() | undefined
 ) -> {ok, [binary()]}.
+-callback refresh_sessions() -> ok.
 
 -export([start/0]).
 -export([get_token/1]).
@@ -21,6 +22,9 @@
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
+-export([refresh_sessions/0]).
+
+-type timestamp() :: pos_integer().
 
 -spec start() -> ok.
 start() ->
@@ -38,7 +42,7 @@ get_card_data(Token) ->
 get_session_card_data(Token, Session) ->
     cds_backend:call(storage, get_session_card_data, [Token, Session]).
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok | no_return().
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), timestamp()) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
     cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv, CreatedAt]).
 
@@ -59,3 +63,7 @@ get_sessions_created_between(From, To, Limit) when
     From =< To
 ->
     cds_backend:call(storage, get_sessions_created_between, [From, To, Limit]).
+
+-spec refresh_sessions() -> ok | no_return().
+refresh_sessions() ->
+    cds_backend:call(storage, refresh_sessions, []).

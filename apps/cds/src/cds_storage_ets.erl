@@ -13,6 +13,7 @@
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
+-export([refresh_sessions/0]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -98,7 +99,7 @@ delete_session(Session) ->
 get_sessions_created_between(From, To, Limit) ->
     MatchSpec =  ets:fun2ms(
         fun({Session, _, CreatedAt}) when
-            CreatedAt >= From;
+            CreatedAt >= From,
             CreatedAt =< To
         ->
             Session
@@ -108,6 +109,7 @@ get_sessions_created_between(From, To, Limit) ->
         undefined -> ets:select(?SESSION_TABLE, MatchSpec);
         Limit -> ets:select(?SESSION_TABLE, MatchSpec, Limit)
     end,
+
     case Result of
         Match when is_list(Match) ->
             {ok, Match};
@@ -116,6 +118,18 @@ get_sessions_created_between(From, To, Limit) ->
         '$end_of_table' ->
             {ok, []}
     end.
+
+-spec refresh_sessions() -> ok.
+refresh_sessions() ->
+    MatchSpec = ets:fun2ms(
+        fun({Session, Cvv, _}) ->
+            {Session, Cvv}
+        end
+    ),
+    Result =  ets:select(?SESSION_TABLE, MatchSpec),
+    [true = ets:insert(?SESSION_TABLE, {Session, Cvv, cds_utils:current_time()})
+    || {Session, Cvv} <- Result],
+    ok.
 
 %%
 %% gen_server behaviour

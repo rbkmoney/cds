@@ -1,0 +1,41 @@
+#!/bin/sh
+
+set -e
+
+REL_NAME=cds
+SCRIPT_NAME=maintenance
+maintenance_usage() {
+    command="$1"
+
+    case "$command" in
+        refresh_sessions)
+            echo "Usage: $SCRIPT_NAME refresh_sessions"
+            echo "Sets sessions \"created at\" time to current UTC time"
+            ;;
+        *)
+            echo "Usage: $SCRIPT_NAME {refresh_sessions|help}"
+            ;;
+    esac
+}
+
+# Check the first argument for instructions
+case "$1" in
+    refresh_sessions)
+        (exec ./$REL_NAME eval 'cds:refresh_sessions()')
+        ;;
+    help)
+        if [ -z "$2" ]; then
+            maintenance_usage
+            exit 1
+        fi
+
+        TOPIC="$2"; shift
+        maintenance_usage $TOPIC
+        ;;
+    *)
+        maintenance_usage
+        exit 1
+        ;;
+esac
+
+exit 0
