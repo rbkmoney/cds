@@ -127,8 +127,10 @@ refresh_sessions() ->
         end
     ),
     Result =  ets:select(?SESSION_TABLE, MatchSpec),
-    [true = ets:insert(?SESSION_TABLE, {Session, Cvv, cds_utils:current_time()})
-    || {Session, Cvv} <- Result],
+    [
+        true = ets:insert(?SESSION_TABLE, {Session, Cvv, cds_utils:current_time()})
+            || {Session, Cvv} <- Result
+    ],
     ok.
 
 %%

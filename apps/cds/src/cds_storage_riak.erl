@@ -137,18 +137,18 @@ get_sessions_created_between(From, To, Limit) ->
     end.
 
 refresh_sessions() ->
-    refresh_sessions(init).
+    refresh_sessions(undefined, init).
 
-refresh_sessions(undefined) ->
+refresh_sessions(undefined, processing) ->
     ok;
 
-refresh_sessions(Continuation0) ->
+refresh_sessions(Continuation0, _Step) ->
     Result = get_keys(?SESSION_BUCKET, ?REFRESH_BATCH, Continuation0),
 
     case Result of
         {ok, [#index_results_v1{keys = Keys, continuation = Continuation}]} when Keys =/= undefined ->
             [ok = refresh_session(Key) || Key <- Keys],
-            refresh_sessions(Continuation);
+            refresh_sessions(Continuation, processing);
         {ok, _} ->
             {ok, {[], undefined}};
         {error, Reason} ->
@@ -182,7 +182,7 @@ get_session_obj(SessionKey) ->
 
 get_keys(Bucket, Batch, Continuation) ->
     Options = case Continuation of
-        init -> [{max_results, Batch}];
+        undefined -> [{max_results, Batch}];
         _ -> [
             {max_results,  Batch},
             {continuation, Continuation}
