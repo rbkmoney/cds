@@ -63,7 +63,6 @@ stop() ->
 %%
 init([]) ->
     {ok, IP} = inet:parse_address(application:get_env(cds, ip, "::")),
-    Port = application:get_env(cds, port, 8022),
     Service = woody_server:child_spec(
         cds_thrift_service_sup,
         #{
@@ -73,7 +72,8 @@ init([]) ->
             ],
             event_handler => cds_thrift_handler,
             ip => IP,
-            port => Port
+            port => genlib_app:env(?MODULE, port, 8022),
+            net_opts => genlib_app:env(?MODULE, net_opts, #{})
         }
     ),
     KeyringManager = #{
