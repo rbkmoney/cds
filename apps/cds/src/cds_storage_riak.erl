@@ -5,10 +5,12 @@
 -export([get_token/1]).
 -export([get_card_data/1]).
 -export([get_session_card_data/2]).
--export([put_card_data/6]).
+-export([put_card_data/7]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
+-export([get_tokens_by_key_id_between/3]).
+-export([get_sessions_by_key_id_between/3]).
 -export([refresh_sessions/0]).
 
 -include_lib("riakc/include/riakc.hrl").
@@ -17,7 +19,8 @@
 -define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
--define(SESSION_CREATED_AT_INDEX, {integer_index, "created_at"}).
+-define(CREATED_AT_INDEX, {integer_index, "created_at"}).
+-define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
 
@@ -78,11 +81,11 @@ get_session_card_data(Token, Session) ->
             error(Reason)
     end.
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
-    TokenObj = riakc_obj:new(?TOKEN_BUCKET, Token, CardData),
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok | no_return().
+put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
+    TokenObj = prepare_token_obj(Token, CardData, KeyID),
     HashObj = riakc_obj:new(?HASH_BUCKET, Hash, Token),
-    SessionObj = prepare_session_obj(Session, Cvv, CreatedAt),
+    SessionObj = prepare_session_obj(Session, Cvv, CreatedAt, KeyID),
     case batch_put([[TokenObj], [HashObj], [SessionObj]]) of
         ok ->
             ok;
@@ -108,6 +111,36 @@ delete_session(Session) ->
             error(Reason)
     end.
 
+update_card_data(Token, CardData, KeyID) ->
+    case batch_get([[?TOKEN_BUCKET, Token]]) of
+        {ok, TokenObj0} ->
+            TokenObj1 = riakc_obj:update_value(TokenObj0, CardData),
+            TokenObj = set_indexes(TokenObj1, [{?KEY_ID_INDEX, KeyID}]),
+            case batch_put([[TokenObj]]) of
+                ok ->
+                    ok;
+                {error, Reason} ->
+                    error(Reason)
+            end;
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+update_cvv(Session, NewCvv, KeyID) ->
+    case batch_get([[?SESSION_BUCKET, Session]]) of
+        {ok, SessionObj0} ->
+            SessionObj1 = riakc_obj:update_value(SessionObj0, NewCvv),
+            SessionObj = set_indexes(SessionObj1, [{?KEY_ID_INDEX, KeyID}]),
+            case batch_put([[SessionObj]]) of
+                ok ->
+                    ok;
+                {error, Reason} ->
+                    error(Reason)
+            end;
+        {error, Reason} ->
+            error(Reason)
+    end.
+
 -spec get_sessions_created_between(
     non_neg_integer(),
     non_neg_integer(),
@@ -121,7 +154,7 @@ get_sessions_created_between(From, To, Limit) ->
 
     Result = get_index_range(
         ?SESSION_BUCKET,
-        ?SESSION_CREATED_AT_INDEX,
+        ?CREATED_AT_INDEX,
         From,
         To,
         Options
@@ -135,6 +168,54 @@ get_sessions_created_between(From, To, Limit) ->
         {error, Reason} ->
             error(Reason)
     end.
+
+get_tokens_by_key_id_between(From, To, Limit) ->
+    Options0 = case Limit of
+        undefined -> [];
+        _ -> [{max_results, Limit}]
+    end,
+    Options = [{return_terms, true} | Options0],
+    Result = get_index_range(
+        ?TOKEN_BUCKET,
+        ?KEY_ID_INDEX,
+        From,
+        To,
+        Options
+    ),
+
+    case Result of
+        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
+            {ok, Keys};
+        {ok, _} ->
+            {ok, []};
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+get_sessions_by_key_id_between(From, To, Limit) ->
+    Options0 = case Limit of
+        undefined -> [];
+        _ -> [{max_results, Limit}]
+    end,
+    Options = [{return_terms, true} | Options0],
+
+    Result = get_index_range(
+        ?SESSION_BUCKET,
+        ?KEY_ID_INDEX,
+        From,
+        To,
+        Options
+    ),
+
+    case Result of
+        {ok, [#index_results_v1{terms = Keys}]} when Keys =/= undefined ->
+            {ok, Keys};
+        {ok, _} ->
+            {ok, []};
+        {error, Reason} ->
+            error(Reason)
+    end.
+
 
 refresh_sessions() ->
     refresh_sessions(undefined, init).
@@ -159,7 +240,7 @@ refresh_session(SessionKey) ->
     case get_session_obj(SessionKey) of
         {ok, Obj0} ->
             CreatedAt = cds_utils:current_time(),
-            SessionObj = set_session_created_at(Obj0, CreatedAt),
+            SessionObj = set_indexes(Obj0, [{?CREATED_AT_INDEX, CreatedAt}]),
             case batch_put([[SessionObj]]) of
                 ok ->
                     ok;
@@ -267,18 +348,33 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
-prepare_session_obj(Session, Cvv, CurrentTime) ->
+prepare_session_obj(Session, Cvv, CurrentTime, KeyID) ->
     case riakc_obj:new(?SESSION_BUCKET, Session, Cvv)  of
         Error = {error, _} ->
             error(Error);
         Obj ->
-            set_session_created_at(Obj, CurrentTime)
+            set_indexes(
+                Obj,
+                [{?CREATED_AT_INDEX, CurrentTime}, {?KEY_ID_INDEX, KeyID}]
+            )
     end.
 
-set_session_created_at(Obj, CurrentTime) ->
+prepare_token_obj(Token, CardData, KeyID) ->
+    case riakc_obj:new(?SESSION_BUCKET, Token, CardData)  of
+        Error = {error, _} ->
+            error(Error);
+        Obj ->
+            set_indexes(
+                Obj,
+                [{?KEY_ID_INDEX, KeyID}]
+            )
+    end.
+
+set_indexes(Obj, Indexes) ->
     MD1 = riakc_obj:get_update_metadata(Obj),
     MD2 = riakc_obj:set_secondary_index(
         MD1,
-        [{?SESSION_CREATED_AT_INDEX, [CurrentTime]}]
+        [{Index, [Value]} || {Index, Value} <- Indexes]
     ),
     riakc_obj:update_metadata(Obj, MD2).
+

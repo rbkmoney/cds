@@ -14,6 +14,8 @@
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
 -export([refresh_sessions/0]).
+-export([get_tokens_by_key_id_between/3]).
+-export([get_sessions_by_key_id_between/3]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -26,6 +28,10 @@
 -define(TOKEN_TABLE, cds_ets_storage_token).
 -define(HASH_TABLE, cds_ets_storage_hash).
 -define(SESSION_TABLE, cds_ets_storage_session).
+
+
+-define(CREATED_AT_INDEX, "created_at").
+-define(KEY_ID_INDEX, "encoding_key_id").
 
 %%
 %% cds_storage behaviour
@@ -52,7 +58,7 @@ get_token(Hash) ->
 -spec get_card_data(binary()) -> {ok, binary()} | {error, not_found}.
 get_card_data(Token) ->
     case ets:lookup(?TOKEN_TABLE, Token) of
-        [{Token, CardData}] ->
+        [{Token, CardData, _Index}] ->
             {ok, CardData};
         [] ->
             {error, not_found}
@@ -61,9 +67,9 @@ get_card_data(Token) ->
 -spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 get_session_card_data(Token, Session) ->
     case ets:lookup(?SESSION_TABLE, Session) of
-        [{Session, Cvv, _CreatedAt}] ->
+        [{Session, Cvv, _Index}] ->
             case ets:lookup(?TOKEN_TABLE, Token) of
-                [{Token, CardData}] ->
+                [{Token, CardData, _Index}] ->
                     {ok, {CardData, Cvv}};
                 [] ->
                     {error, not_found}
@@ -72,11 +78,29 @@ get_session_card_data(Token, Session) ->
             {error, not_found}
     end.
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok.
-put_card_data(Token, Session, Hash, CardData, Cvv, CreatedAt) ->
-    true = ets:insert(?TOKEN_TABLE, {Token, CardData}),
+-spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok.
+put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
+    true = ets:insert(
+        ?TOKEN_TABLE,
+        {
+            Token,
+            CardData
+            #{
+                encryption_key => KeyID1
+            }
+        }
+    ),
     true = ets:insert(?HASH_TABLE, {Hash, Token}),
-    true = ets:insert(?SESSION_TABLE, {Session, Cvv, CreatedAt}),
+    true = ets:insert(
+        ?SESSION_TABLE,
+        {
+            Session,
+            Cvv,
+            #{
+                created_at => CreatedAt,
+                encryption_key => KeyID2
+            }
+        }),
     ok.
 
 -spec delete_card_data(binary(), binary(), binary()) -> ok.
@@ -98,26 +122,32 @@ delete_session(Session) ->
 ) -> {ok, [binary()]}.
 get_sessions_created_between(From, To, Limit) ->
     MatchSpec =  ets:fun2ms(
-        fun({Session, _, CreatedAt}) when
-            CreatedAt >= From,
-            CreatedAt =< To
-        ->
-            Session
+        fun({Session, _, Index}) ->
+            {Session, Index}
         end
     ),
+    Result0 = [S ||
+        {S, #{created_at := CreatedAt}} <- ets:select(?SESSION_TABLE, MatchSpec),
+        CreatedAt >= From,
+        CreatedAt =< To
+    ],
     Result = case Limit of
-        undefined -> ets:select(?SESSION_TABLE, MatchSpec);
-        Limit -> ets:select(?SESSION_TABLE, MatchSpec, Limit)
+        undefined -> Result0;
+        _ -> lists:sublist(Result0, Limit)
     end,
+    {ok, Result}.
 
-    case Result of
-        Match when is_list(Match) ->
-            {ok, Match};
-        {Match, _Continuation} ->
-            {ok, Match};
-        '$end_of_table' ->
-            {ok, []}
-    end.
+
+-spec update_card_data(binary(), binary()) -> ok | no_return().
+update_card_data(Token, NewCardData) ->
+    case ets:lookup(?TOKEN_TABLE, Token) of
+        [{Token, CardData, Index}] ->
+            ets:insert(?TOKEN_TABLE, {T})
+        _ ->
+            error(not_found)
+    end;
+
+-spec update_cvv(binary(), binary()) -> ok.
 
 -spec refresh_sessions() -> ok.
 refresh_sessions() ->
@@ -157,3 +187,4 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+

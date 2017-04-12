@@ -2,7 +2,7 @@
 
 -callback start() -> ok.
 -callback get_token(binary()) -> {ok, binary()} | {error, not_found}.
--callback get_card_data(binary()) -> {ok, binary()} | {error, not_found}.
+-callback get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
 -callback get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 -callback put_card_data(binary(), binary(), binary(), binary(), binary(), pos_integer()) -> ok.
 -callback delete_card_data(binary(), binary(), binary()) -> ok.
@@ -11,17 +11,33 @@
     non_neg_integer(),
     non_neg_integer(),
     non_neg_integer() | undefined
-) -> {ok, [binary()]}.
+) -> [term()].
+-callback get_sessions_by_key_id_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> [term()].
+-callback get_tokens_by_key_id_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> [term()].
+-callback get_cvv(binary()) -> binary().
+-callback put_cvv(binary(), binary()) -> ok.
 -callback refresh_sessions() -> ok.
 
 -export([start/0]).
 -export([get_token/1]).
--export([get_card_data/1]).
+-export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/6]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
+-export([get_tokens_by_key_id_between/3]).
+-export([get_sessions_by_key_id_between/3]).
+-export([get_cvv/1]).
+-export([put_cvv/2]).
 -export([refresh_sessions/0]).
 
 -type timestamp() :: pos_integer().
@@ -34,9 +50,9 @@ start() ->
 get_token(Hash) ->
     cds_backend:call(storage, get_token, [Hash]).
 
--spec get_card_data(binary()) -> binary() | no_return().
-get_card_data(Token) ->
-    cds_backend:call(storage, get_card_data, [Token]).
+-spec get_cardholder_data(binary()) -> binary() | no_return().
+get_cardholder_data(Token) ->
+    cds_backend:call(storage, get_cardholder_data, [Token]).
 
 -spec get_session_card_data(binary(), binary()) -> {binary(), binary()} | no_return().
 get_session_card_data(Token, Session) ->
@@ -64,6 +80,32 @@ get_sessions_created_between(From, To, Limit) when
 ->
     cds_backend:call(storage, get_sessions_created_between, [From, To, Limit]).
 
+-spec get_sessions_by_key_id_between(
+    non_neg_integer(),
+    pos_integer(),
+    pos_integer() | undefined
+) -> [term()] | no_return().
+get_sessions_by_key_id_between(From, To, Limit) when
+    From =< To
+->
+    cds_backend:call(storage, get_sessions_by_key_id_between, [From, To, Limit]).
+
+-spec get_tokens_by_key_id_between(
+    non_neg_integer(),
+    pos_integer(),
+    pos_integer() | undefined
+) -> [term()] | no_return().
+get_tokens_by_key_id_between(From, To, Limit) when
+    From =< To
+->
+    cds_backend:call(storage, get_tokens_by_key_id_between, [From, To, Limit]).
+
 -spec refresh_sessions() -> ok | no_return().
 refresh_sessions() ->
     cds_backend:call(storage, refresh_sessions, []).
+
+get_cvv(Session) ->
+    cds_backend:call(storage, get_cvv, [Session]).
+
+put_cvv(Session, Cvv) ->
+    cds_backend:call(storage, put_cvv, [Session, Cvv]).

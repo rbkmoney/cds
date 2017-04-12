@@ -17,7 +17,6 @@
     cvv = CVV
 }).
 
-
 %%
 %% tests descriptions
 %%
@@ -26,7 +25,6 @@ all() ->
         {group, riak_storage_backend},
         {group, ets_storage_backend},
         {group, keyring_errors}
-
     ].
 
 groups() ->
@@ -229,6 +227,23 @@ refresh_sessions(C) ->
             ok
     end,
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
+
+re_encoding(C) ->
+    {KeyID0, _} = cds_keyring_manager:get_current_key(),
+    #'PutCardDataResult'{
+        bank_card = #'BankCard'{
+            token = Token
+        },
+        session = Session
+    } = cds_client:put_card_data(?CREDIT_CARD(<<"345">>), root_url(C)),
+    {EncryptedCardData0, EncryptedCvv0} = cds_storage:get_session_card_data(Token, Session),
+    {<<KeyID0, _/binary>>} = EncryptedCardData0,
+    {<<KeyID0, _/binary>>} = EncryptedCvv0,
+    _ = cds_keyring_manager:rotate(),
+    {KeyID, _} = cds_keyring_manager:get_current_key(),
+    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
+    {<<KeyID, _/binary>>} = EncryptedCardData,
+    {<<KeyID, _/binary>>} = EncryptedCvv.
 
 %%
 %% helpers

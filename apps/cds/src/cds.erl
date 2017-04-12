@@ -14,12 +14,20 @@
 -export([stop /1]).
 
 %% Storage operations
--export([get_card_data/1]).
--export([get_session_card_data/2]).
--export([put_card_data/1]).
+-export([get_unmarshalled_cardholder_data/1]).
+-export([get_cardholder_data/1]).
+-export([get_unmarshalled_card_data/2]).
+-export([get_card_data/2]).
+-export([put_unmarshalled_card_data/1]).
 -export([delete_card_data/2]).
 -export([delete_session/1]).
+
+-export([get_sessions_created_between/3]).
+-export([get_sessions_by_key_id_between/3]).
+-export([get_tokens_by_key_id_between/3]).
 -export([refresh_sessions/0]).
+-export([get_cvv/1]).
+-export([put_cvv/2]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -27,6 +35,7 @@
 -export([update_keyring/0]).
 -export([rotate_keyring/0]).
 -export([lock_keyring/0]).
+-export([get_outdated_encrypting_keys/0]).
 
 -compile({no_auto_import, [get/1]}).
 
@@ -43,6 +52,11 @@
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
 -type masterkey_share() :: binary().
+-type unmarshalled_card_data() :: cds_cds_thrift:'CardData'().
+-type unmarshalled_cardholder_data() :: cds_cds_thrift:'CardData'().
+-type card_data() :: {cardholder_data(), cvv()}.
+-type cardholder_data() :: binary().
+-type cvv() :: binary().
 
 %%
 %% API
@@ -80,15 +94,15 @@ init([]) ->
         id => cds_keyring_manager,
         start => {cds_keyring_manager, start_link, []}
     },
-    SessionCleaner = #{
-        id => cds_session_cleaner_sup,
-        start => {cds_session_cleaner_sup, start_link, []},
+    Maintenance = #{
+        id => cds_maintenance_sup,
+        start => {cds_maintenance_sup, start_link, []},
         type => supervisor
     },
     Procs = [
         Service,
         KeyringManager,
-        SessionCleaner
+        Maintenance
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.
 
@@ -115,50 +129,60 @@ stop(_State) ->
 %%
 %% Storage operations
 %%
--spec get_card_data(cds:token()) -> cds_cds_thrift:'CardData'().
-get_card_data(Token) ->
-    ok = keyring_available(),
-    Encrypted = cds_storage:get_card_data(Token),
-    Marshalled = decrypt(Encrypted),
+-spec get_unmarshalled_cardholder_data(token()) -> unmarshalled_cardholder_data().
+get_unmarshalled_cardholder_data(Token) ->
+    Marshalled = get_cardholder_data(Token),
     cds_card_data:unmarshall(Marshalled).
 
--spec get_session_card_data(cds:token(), cds:session()) -> cds_cds_thrift:'CardData'().
-get_session_card_data(Token, Session) ->
+-spec get_cardholder_data(token()) -> cardholder_data().
+get_cardholder_data(Token) ->
     ok = keyring_available(),
-    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
-    MarshalledCardData = decrypt(EncryptedCardData),
-    Cvv = decrypt(EncryptedCvv),
+    Encrypted = cds_storage:get_cardholder_data(Token),
+    decrypt(Encrypted).
+
+-spec get_unmarshalled_card_data(token(), session()) -> unmarshalled_card_data().
+get_unmarshalled_card_data(Token, Session) ->
+    {MarshalledCardData, Cvv} = get_card_data(Token, Session),
     cds_card_data:unmarshall(MarshalledCardData, Cvv).
 
--spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds:token(), cds:session()}.
-put_card_data(CardData) ->
+-spec get_card_data(token(), session()) -> card_data().
+get_card_data(Token, Session) ->
+    ok = keyring_available(),
+    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
+    {decrypt(EncryptedCardData), decrypt(EncryptedCvv)}.
+
+-spec put_unmarshalled_card_data(unmarshalled_card_data()) -> {token(), session()}.
+put_unmarshalled_card_data(CardData) ->
     ok = keyring_available(),
     {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
     UniqueCardData = cds_card_data:unique(CardData),
     Token = find_or_create_token(all_hashes(UniqueCardData)),
     Session = session(),
     Hash = hash(UniqueCardData),
-    EncryptedCardData = encrypt(MarshalledCardData),
-    EncryptedCvv = encrypt(Cvv),
+    {KeyID, _} = Current = cds_keyring_manager:get_current_key(),
+    EncryptedCardData = encrypt(Current, MarshalledCardData),
+    EncryptedCvv = encrypt(Current, Cvv),
     ok = cds_storage:put_card_data(
         Token,
         Session,
         Hash,
         EncryptedCardData,
         EncryptedCvv,
+        KeyID,
         cds_utils:current_time()
     ),
     {Token, Session}.
 
--spec delete_card_data(cds:token(), cds:session()) -> ok.
+-spec delete_card_data(token(), session()) -> ok.
 delete_card_data(Token, Session) ->
     ok = keyring_available(),
-    CardData = get_card_data(Token),
+    CardData = get_cardholder_data(Token),
     UniqueCardData = cds_card_data:unique(CardData),
     Hash = hash(UniqueCardData),
     ok = cds_storage:delete_card_data(Token, Hash, Session),
     ok.
--spec delete_session(cds:session()) -> ok.
+
+-spec delete_session(session()) -> ok.
 delete_session(Session) ->
     ok = keyring_available(),
     ok = cds_storage:delete_session(Session),
@@ -168,6 +192,25 @@ delete_session(Session) ->
 refresh_sessions() ->
     ok = cds_storage:refresh_sessions().
 
+get_sessions_created_between(From, To, BatchSize) ->
+    cds_storage:get_sessions_created_between(From, To, BatchSize).
+
+get_sessions_by_key_id_between(From, To, BatchSize) ->
+    cds_storage:get_sessions_by_key_id_between(From, To, BatchSize).
+
+get_tokens_by_key_id_between(From, To, BatchSize) ->
+    cds_storage:get_tokens_by_key_id_between(From, To, BatchSize).
+
+get_cvv(Session) ->
+    ok = keyring_available(),
+    EncryptedCvv = cds_storage:get_cvv(Session),
+    decrypt(EncryptedCvv).
+
+put_cvv(Session, Cvv) ->
+    ok = keyring_available(),
+    CurrentKeys = cds_keyring_manager:get_current_key(),
+    EncryptedCvv = encrypt(CurrentKeys, Cvv),
+    cds_storage:put_cvv(Session, EncryptedCvv).
 %%
 %% Keyring operations
 %%
@@ -191,23 +234,26 @@ rotate_keyring() ->
 lock_keyring() ->
     cds_keyring_manager:lock().
 
-%%
-%% Internal
-%%
--spec encrypt(binary()) -> binary().
-encrypt(Plain) ->
-    {KeyId, Key} = cds_keyring_manager:get_current_key(),
+-spec get_outdated_encrypting_keys() -> [{From :: byte(), To :: byte()}].
+get_outdated_encrypting_keys() ->
+    ok = keyring_available(),
+    {KeyID, _} = cds_keyring_manager:get_current_key(),
+    #{min := MinID, max := MaxID} = cds_keyring:get_key_id_config(),
+    [ I || {From, To} = I <- [{MinID, KeyID}, {KeyID, MaxID}], From =/= To].
+
+-spec encrypt(_, binary()) -> binary(). %%
+encrypt({KeyID, Key}, Plain) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
-    <<KeyId, Cipher/binary>>.
+    <<KeyID, Cipher/binary>>.
 
 -spec decrypt(binary()) -> binary().
-decrypt(<<KeyId, Cipher/binary>>) ->
-    {KeyId, Key} = cds_keyring_manager:get_key(KeyId),
+decrypt(<<KeyID, Cipher/binary>>) ->
+    {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
     cds_crypto:decrypt(Key, Cipher).
 
 -spec hash(binary()) -> binary().
 hash(Plain) ->
-    {_KeyId, Key} = cds_keyring_manager:get_current_key(),
+    {_KeyID, Key} = cds_keyring_manager:get_current_key(),
     hash(Plain, Key).
 
 -spec hash(binary(), binary()) -> binary().
@@ -217,7 +263,7 @@ hash(Plain, Salt) ->
 
 -spec all_hashes(binary()) -> [binary()].
 all_hashes(Plain) ->
-    [hash(Plain, Key) || {_KeyId, Key} <- cds_keyring_manager:get_all_keys()].
+    [hash(Plain, Key) || {_KeyID, Key} <- cds_keyring_manager:get_all_keys()].
 
 find_or_create_token([]) ->
     token();
@@ -230,11 +276,11 @@ find_or_create_token([Hash | Rest]) ->
             find_or_create_token(Rest)
     end.
 
--spec token() -> cds:token().
+-spec token() -> token().
 token() ->
     crypto:strong_rand_bytes(16).
 
--spec session() -> cds:session().
+-spec session() -> session().
 session() ->
     crypto:strong_rand_bytes(16).
 
@@ -242,7 +288,7 @@ session() ->
 keyring_available() ->
     case cds_keyring_manager:get_state() of
         locked ->
-            throw(locked);
+            throw(keyring_locked);
         unlocked ->
             ok
     end.

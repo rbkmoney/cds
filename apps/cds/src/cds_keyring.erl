@@ -7,13 +7,21 @@
 -export([marshall/1]).
 -export([unmarshall/1]).
 
+-export([get_key_id_config/0]).
+
 -export_type([key_id/0]).
+-export_type([key_id_config/0]).
 
 -type key_id() :: byte().
 
 -type keyring() :: #{
     current_key => key_id(),
     keys => #{key_id() => cds_crypto:key()}
+}.
+
+-type key_id_config() :: #{
+    min := non_neg_integer(),
+    max := non_neg_integer()
 }.
 
 -define(KEY_BYTESIZE, 32).
@@ -59,3 +67,9 @@ unmarshall_keys(<<>>, Acc) ->
 unmarshall_keys(<<KeyId, Key:?KEY_BYTESIZE/binary, Rest/binary>>, Acc) ->
     unmarshall_keys(Rest, Acc#{KeyId => Key}).
 
+-spec get_key_id_config() -> key_id_config().
+get_key_id_config() ->
+    #{
+        min => 0,
+        max => 255
+    }.
