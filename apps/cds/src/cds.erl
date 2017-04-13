@@ -296,7 +296,7 @@ session() ->
 keyring_available() ->
     case cds_keyring_manager:get_state() of
         locked ->
-            throw(keyring_locked);
+            throw(locked);
         unlocked ->
             ok
     end.

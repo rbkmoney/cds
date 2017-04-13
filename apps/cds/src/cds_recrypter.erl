@@ -23,7 +23,7 @@ start_link(Options) ->
 
 -spec init(_) -> {ok, non_neg_integer(), state()}.
 
-init(#{encoding_type := EncodingType}) when
+init([#{encoding_type := EncodingType}]) when
     EncodingType =:= cvv;
     EncodingType =:= card_data
 ->
@@ -33,7 +33,6 @@ init(#{encoding_type := EncodingType}) when
 
 handle_timeout(State = #{encoding_type := EncodingType}) ->
     _ = lager:info("Starting recrypting", []),
-
     case process_recrypting(EncodingType, get_batch_size()) of
         {ok, done} ->
             _ = lager:info("Recrypted all"),
@@ -47,8 +46,13 @@ handle_timeout(State = #{encoding_type := EncodingType}) ->
     end.
 
 process_recrypting(EncodingType, BatchSize) ->
-    Intervals = cds:get_outdated_encrypting_keys(),
-    process_recrypting(EncodingType, Intervals, BatchSize).
+    try
+        Intervals = cds:get_outdated_encrypting_keys(),
+        process_recrypting(EncodingType, Intervals, BatchSize)
+    catch
+        throw:Error when Error =:= locked ->
+            {error, Error}
+    end.
 
 process_recrypting(_, [], _) ->
     {ok, done};
@@ -59,27 +63,29 @@ process_recrypting(_, _, Left) when
     {ok, more};
 
 process_recrypting(EncodingType, [Interval | Rest], BatchSize) ->
-    try
-        Items = get_data_by_key_id_between(EncodingType, Interval, BatchSize),
-        ItemsSize = length(Items),
-        _ = lager:info("Got ~p items to recrypt", [ItemsSize]),
-        _ = [
-            begin
-            _ = recrypt(EncodingType, ItemID),
-            lager:debug("Recrypted item ~p", [ItemID])
-            end
-        || ItemID <- Items],
-        process_recrypting(EncodingType, Rest, BatchSize - ItemsSize)
-    catch
-        throw:Reason ->
-            {error, Reason}
-    end.
+    Items = get_data_by_key_id_between(EncodingType, Interval, BatchSize),
+    ItemsSize = length(Items),
+    _ = lager:info("Got ~p ~p items to recrypt", [ItemsSize, EncodingType]),
+    _ = [
+        _ = recrypt_item(EncodingType, ItemID)
+    || ItemID <- Items],
+    process_recrypting(EncodingType, Rest, BatchSize - ItemsSize).
 
 get_data_by_key_id_between(cvv, {From, To}, BatchSize) ->
     cds:get_sessions_by_key_id_between(From, To, BatchSize);
 
 get_data_by_key_id_between(card_data, {From, To}, BatchSize) ->
     cds:get_tokens_by_key_id_between(From, To, BatchSize).
+
+recrypt_item(EncodingType, ItemID) ->
+    try
+        _ = recrypt(EncodingType, ItemID),
+        _ = lager:debug("Recrypted ~p item ~p", [EncodingType, ItemID]),
+        ok
+    catch
+        throw:not_found ->
+            ok
+    end.
 
 recrypt(cvv, Session) ->
     CVV = cds:get_cvv(Session),
@@ -96,4 +102,4 @@ get_batch_size() ->
     maps:get(batch_size, get_config(), ?DEFAULT_BATCH_SIZE).
 
 get_config() ->
-    genlib_app:env(cds, recrypter, #{}).
+    genlib_app:env(cds, recrypting, #{}).

@@ -44,7 +44,7 @@ start_link(Callback, Args) ->
 -spec init(_) -> {ok, state()}.
 
 init([Callback, Args]) ->
-    {Interval, CallbackState} = Callback:init(Args),
+    {ok, Interval, CallbackState} = Callback:init(Args),
     {ok, init_state(Interval, Callback, CallbackState)}.
 
 handle_call(Request, From, State) ->

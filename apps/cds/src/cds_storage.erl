@@ -24,7 +24,7 @@
 ) -> {ok, [term()]}.
 -callback get_cvv(binary()) -> {ok, binary()} | {error, not_found}.
 -callback update_cvv(binary(), binary(), byte()) -> ok | {error, not_found}.
-% -callback update_cardholder_data(binary(), binary(), byte()) -> ok | {error, not_found}.
+-callback update_cardholder_data(binary(), binary(), byte()) -> ok | {error, not_found}.
 -callback refresh_sessions() -> ok.
 
 -export([start/0]).

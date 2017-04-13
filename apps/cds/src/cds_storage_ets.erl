@@ -16,6 +16,7 @@
 -export([delete_session/1]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
+-export([update_cardholder_data/3]).
 -export([get_sessions_created_between/3]).
 -export([refresh_sessions/0]).
 -export([get_tokens_by_key_id_between/3]).
@@ -158,6 +159,10 @@ get_cvv(Session) ->
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_TABLE, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
+-spec update_cardholder_data(Token :: binary(), NewCardData :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
+update_cardholder_data(Token, NewCardData, KeyID) ->
+    update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}]).
+
 -spec refresh_sessions() -> ok.
 refresh_sessions() ->
     MatchSpec = ets:fun2ms(
@@ -167,7 +172,11 @@ refresh_sessions() ->
     ),
     Result =  ets:select(?SESSION_TABLE, MatchSpec),
     [
-        true = ets:insert(?SESSION_TABLE, {Session, Cvv, cds_utils:current_time()})
+        true = insert(
+            ?SESSION_TABLE,
+            {Session, Cvv},
+            #{?CREATED_AT_INDEX => cds_utils:current_time()}
+        )
             || {Session, Cvv} <- Result
     ],
     ok.
@@ -213,10 +222,11 @@ get(Tab, Key) ->
 
 filter_by_index_between(Tab, IndexName, {From, To}, Limit) ->
     MatchSpec = ets:fun2ms(
-        fun({K, _, Index}) -> {K, Index} end
+        fun(V) -> V end
     ),
+    Match = ets:select(Tab, MatchSpec),
     Result0 = [S ||
-        {S, #{IndexName := IndexValue}} <- ets:select(Tab, MatchSpec),
+        {S, _, #{IndexName := IndexValue}} <- Match,
         IndexValue >= From,
         IndexValue =< To
     ],
@@ -228,11 +238,12 @@ filter_by_index_between(Tab, IndexName, {From, To}, Limit) ->
 update(Tab, Key, NewValue, NewIndexes) ->
     case get(Tab, Key) of
         {ok, _, OldIndex} ->
-            insert(
+            true = insert(
                 Tab,
                 {Key, NewValue},
                 update_indexes(OldIndex, NewIndexes)
-            );
+            ),
+            ok;
         Error ->
             Error
     end.

@@ -54,7 +54,8 @@ groups() ->
             lock,
             unlock,
             session_cleaning,
-            refresh_sessions
+            refresh_sessions,
+            recrypt
         ]}
     ].
 %%
@@ -62,6 +63,9 @@ groups() ->
 %%
 
 init_per_group(riak_storage_backend, C) ->
+    % _ = dbg:tracer(),
+    % _ = dbg:p(all, c),
+    % _ = dbg:tpl({cds_storage_riak, '_', '_'}, x),
     Storage = [
         {storage, cds_storage_riak},
         {cds_storage_riak, #{
@@ -80,7 +84,10 @@ init_per_group(general_flow, C) ->
     C;
 
 init_per_group(keyring_errors, C) ->
-    C1 = start_clear(C),
+    StorageConfig = [
+        {storage, cds_storage_ets}
+    ],
+    C1 = start_clear([{storage_config, StorageConfig} | C]),
     _MasterKeys = cds_client:init(2, 3, root_url(C1)),
     ok = cds_client:lock(root_url(C1)),
     C1 ++ C;
@@ -97,7 +104,12 @@ init_per_group(session_management, C) ->
         }
     ],
 
-    C1 = [{session_cleaning_config, CleanConfig} | C],
+    Recrypting = [
+        {recrypting, #{
+            interval => 2000
+        }}
+    ],
+    C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanConfig} | C],
     C2 = start_clear(C1),
     C1 ++ C2;
 
@@ -107,8 +119,8 @@ init_per_group(_, C) ->
 
 end_per_group(Group, C) when
     Group =:= ets_storage_backend;
-    Group =:= riak_storage_backend;
-    Group =:= general_flow
+    Group =:= general_flow;
+    Group =:= riak_storage_backend
  ->
     C;
 
@@ -228,22 +240,22 @@ refresh_sessions(C) ->
     end,
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
 
-re_encoding(C) ->
+recrypt(C) ->
     {KeyID0, _} = cds_keyring_manager:get_current_key(),
-    #'PutCardDataResult'{
-        bank_card = #'BankCard'{
-            token = Token
-        },
-        session = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(<<"345">>), root_url(C)),
+    {Token, Session} = cds:put_unmarshalled_card_data(?CREDIT_CARD(<<"345">>)),
     {EncryptedCardData0, EncryptedCvv0} = cds_storage:get_session_card_data(Token, Session),
-    {<<KeyID0, _/binary>>} = EncryptedCardData0,
-    {<<KeyID0, _/binary>>} = EncryptedCvv0,
+    <<KeyID0, _/binary>> = EncryptedCardData0,
+    <<KeyID0, _/binary>> = EncryptedCvv0,
     _ = cds_keyring_manager:rotate(),
+    [{session_cleaning, #{
+        interval := Interval
+    }}] = config(session_cleaning_config, C),
+    timer:sleep(Interval + 1000),
     {KeyID, _} = cds_keyring_manager:get_current_key(),
+    true = (KeyID0 =/= KeyID),
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
-    {<<KeyID, _/binary>>} = EncryptedCardData,
-    {<<KeyID, _/binary>>} = EncryptedCvv.
+    <<KeyID, _/binary>> = EncryptedCardData,
+    <<KeyID, _/binary>> = EncryptedCvv.
 
 %%
 %% helpers
@@ -255,6 +267,14 @@ start_clear(Config) ->
     RootUrl = "http://[" ++ IP ++ "]:" ++ integer_to_list(Port),
     StorageConfig = config(storage_config, Config, []),
     CleanConfig = config(session_cleaning_config, Config, []),
+    Recrypting = config(recrypting_config, Config, []),
+    CdsEnv = [
+            {ip, IP},
+            {port, Port},
+            {keyring_storage, cds_keyring_storage_env}
+    ] ++ StorageConfig ++ CleanConfig ++ Recrypting,
+    ok = clean_storage(CdsEnv),
+
     Apps =
         genlib_app:start_application_with(lager, [
             {async_threshold, 1},
@@ -266,11 +286,7 @@ start_clear(Config) ->
                 {lager_common_test_backend, [debug, true]}
             ]}
         ]) ++
-        genlib_app:start_application_with(cds, [
-            {ip, "::1"},
-            {port, 8022},
-            {keyring_storage, cds_keyring_storage_env}
-        ] ++ StorageConfig ++ CleanConfig),
+        genlib_app:start_application_with(cds, CdsEnv),
     [{apps, Apps}, {root_url, genlib:to_binary(RootUrl)}].
 
 stop_clear(C) ->
@@ -289,3 +305,29 @@ config(Key, Config, Default) ->
     end.
 
 root_url(C) -> config(root_url, C).
+
+
+clean_storage(CdsEnv) ->
+    case genlib_opts:get(storage, CdsEnv) of
+        cds_storage_riak -> clean_riak_storage(CdsEnv);
+        _ ->
+            ok
+    end.
+
+clean_riak_storage(CdsEnv) ->
+    _ = application:start(riakc),
+    _ = application:set_env(riakc, allow_listing, true),
+    #{conn_params := {Host, Port}} = genlib_opts:get(cds_storage_riak, CdsEnv),
+    {ok, Client} = riakc_pb_socket:start_link(Host, Port),
+    {ok, Buckets} = riakc_pb_socket:list_buckets(Client),
+    lists:foreach(
+        fun(B) ->
+            {ok, Keys} = riakc_pb_socket:list_keys(Client, B),
+            [
+                ok = riakc_pb_socket:delete(Client, B, K)
+                    || K <- Keys
+            ]
+        end,
+        Buckets
+    ),
+    ok.
