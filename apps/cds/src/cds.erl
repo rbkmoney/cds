@@ -27,7 +27,8 @@
 -export([get_tokens_by_key_id_between/3]).
 -export([refresh_sessions/0]).
 -export([get_cvv/1]).
--export([put_cvv/2]).
+-export([update_cvv/2]).
+-export([update_cardholder_data/2]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -176,7 +177,7 @@ put_unmarshalled_card_data(CardData) ->
 -spec delete_card_data(token(), session()) -> ok.
 delete_card_data(Token, Session) ->
     ok = keyring_available(),
-    CardData = get_cardholder_data(Token),
+    CardData = get_unmarshalled_cardholder_data(Token),
     UniqueCardData = cds_card_data:unique(CardData),
     Hash = hash(UniqueCardData),
     ok = cds_storage:delete_card_data(Token, Hash, Session),
@@ -206,11 +207,18 @@ get_cvv(Session) ->
     EncryptedCvv = cds_storage:get_cvv(Session),
     decrypt(EncryptedCvv).
 
-put_cvv(Session, Cvv) ->
+update_cvv(Session, Cvv) ->
     ok = keyring_available(),
-    CurrentKeys = cds_keyring_manager:get_current_key(),
+    {KeyID, _} = CurrentKeys = cds_keyring_manager:get_current_key(),
     EncryptedCvv = encrypt(CurrentKeys, Cvv),
-    cds_storage:put_cvv(Session, EncryptedCvv).
+    cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
+
+update_cardholder_data(Token, CardData) ->
+    ok = keyring_available(),
+    {KeyID, _} = CurrentKeys = cds_keyring_manager:get_current_key(),
+    EncryptedCardData = encrypt(CurrentKeys, CardData),
+    cds_storage:update_cardholder_data(Token, EncryptedCardData, KeyID).
+
 %%
 %% Keyring operations
 %%

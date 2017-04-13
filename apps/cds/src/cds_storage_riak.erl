@@ -3,15 +3,18 @@
 
 -export([start/0]).
 -export([get_token/1]).
--export([get_card_data/1]).
+-export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
+-export([get_cvv/1]).
+-export([update_cvv/3]).
 -export([get_sessions_created_between/3]).
 -export([get_tokens_by_key_id_between/3]).
 -export([get_sessions_by_key_id_between/3]).
 -export([refresh_sessions/0]).
+
 
 -include_lib("riakc/include/riakc.hrl").
 
@@ -50,11 +53,11 @@ get_token(Hash) ->
             error(Reason)
     end.
 
--spec get_card_data(binary()) ->
+-spec get_cardholder_data(binary()) ->
     {ok, binary()} |
     {error, not_found} |
     no_return().
-get_card_data(Token) ->
+get_cardholder_data(Token) ->
     case get(?TOKEN_BUCKET, Token) of
         {ok, CardDataObj} ->
             CardData = riakc_obj:get_value(CardDataObj),
@@ -111,21 +114,36 @@ delete_session(Session) ->
             error(Reason)
     end.
 
-update_card_data(Token, CardData, KeyID) ->
-    case batch_get([[?TOKEN_BUCKET, Token]]) of
-        {ok, TokenObj0} ->
-            TokenObj1 = riakc_obj:update_value(TokenObj0, CardData),
-            TokenObj = set_indexes(TokenObj1, [{?KEY_ID_INDEX, KeyID}]),
-            case batch_put([[TokenObj]]) of
-                ok ->
-                    ok;
-                {error, Reason} ->
-                    error(Reason)
-            end;
+
+
+% update_cardholder_data(Token, CardData, KeyID) ->
+%     case batch_get([[?TOKEN_BUCKET, Token]]) of
+%         {ok, TokenObj0} ->
+%             TokenObj1 = riakc_obj:update_value(TokenObj0, CardData),
+%             TokenObj = set_indexes(TokenObj1, [{?KEY_ID_INDEX, KeyID}]),
+%             case batch_put([[TokenObj]]) of
+%                 ok ->
+%                     ok;
+%                 {error, Reason} ->
+%                     error(Reason)
+%             end;
+%         {error, Reason} ->
+%             error(Reason)
+%     end.
+
+-spec get_cvv(Session :: binary()) -> {ok, binary()} | {error, not_found}.
+get_cvv(Session) ->
+    case get(?HASH_BUCKET, Session) of
+        {ok, SessionObj} ->
+            Session = riakc_obj:get_value(SessionObj),
+            {ok, Session};
+        {error, notfound} ->
+            {error, not_found};
         {error, Reason} ->
             error(Reason)
     end.
 
+-spec update_cvv(Session :: binary(), NewCvv :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
 update_cvv(Session, NewCvv, KeyID) ->
     case batch_get([[?SESSION_BUCKET, Session]]) of
         {ok, SessionObj0} ->
@@ -147,10 +165,7 @@ update_cvv(Session, NewCvv, KeyID) ->
     non_neg_integer() | undefined
 ) -> {ok, [binary()]} | no_return().
 get_sessions_created_between(From, To, Limit) ->
-    Options = case Limit of
-        undefined -> [];
-        _ -> [{max_results, Limit}]
-    end,
+    Options = options_max_results(Limit),
 
     Result = get_index_range(
         ?SESSION_BUCKET,
@@ -170,10 +185,7 @@ get_sessions_created_between(From, To, Limit) ->
     end.
 
 get_tokens_by_key_id_between(From, To, Limit) ->
-    Options0 = case Limit of
-        undefined -> [];
-        _ -> [{max_results, Limit}]
-    end,
+    Options0 = options_max_results(Limit),
     Options = [{return_terms, true} | Options0],
     Result = get_index_range(
         ?TOKEN_BUCKET,
@@ -193,10 +205,7 @@ get_tokens_by_key_id_between(From, To, Limit) ->
     end.
 
 get_sessions_by_key_id_between(From, To, Limit) ->
-    Options0 = case Limit of
-        undefined -> [];
-        _ -> [{max_results, Limit}]
-    end,
+    Options0 = options_max_results(Limit),
     Options = [{return_terms, true} | Options0],
 
     Result = get_index_range(
@@ -378,3 +387,8 @@ set_indexes(Obj, Indexes) ->
     ),
     riakc_obj:update_metadata(Obj, MD2).
 
+options_max_results(undefined) ->
+    [];
+
+options_max_results(Limit) ->
+    [{max_results, Limit}].

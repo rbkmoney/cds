@@ -4,18 +4,23 @@
 
 -include_lib("stdlib/include/ms_transform.hrl").
 
+-compile({no_auto_import, [get/1]}).
+
 %% cds_storage behaviour
 -export([start/0]).
 -export([get_token/1]).
--export([get_card_data/1]).
+-export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
--export([put_card_data/6]).
+-export([put_card_data/7]).
 -export([delete_card_data/3]).
 -export([delete_session/1]).
+-export([get_cvv/1]).
+-export([update_cvv/3]).
 -export([get_sessions_created_between/3]).
 -export([refresh_sessions/0]).
 -export([get_tokens_by_key_id_between/3]).
 -export([get_sessions_by_key_id_between/3]).
+
 
 %% gen_server behaviour
 -export([init/1]).
@@ -48,59 +53,60 @@ start() ->
 
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
 get_token(Hash) ->
-    case ets:lookup(?HASH_TABLE, Hash) of
-        [{Hash, Token}] ->
-            {ok, Token};
-        [] ->
-            {error, not_found}
+    case get(?HASH_TABLE, Hash) of
+        {ok, V, _Index} ->
+            {ok, V};
+        Error ->
+            Error
     end.
 
--spec get_card_data(binary()) -> {ok, binary()} | {error, not_found}.
-get_card_data(Token) ->
-    case ets:lookup(?TOKEN_TABLE, Token) of
-        [{Token, CardData, _Index}] ->
-            {ok, CardData};
-        [] ->
-            {error, not_found}
+-spec get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
+get_cardholder_data(Token) ->
+    case get(?TOKEN_TABLE, Token) of
+        {ok, V, _Index} ->
+            {ok, V};
+        Error ->
+            Error
     end.
 
 -spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 get_session_card_data(Token, Session) ->
-    case ets:lookup(?SESSION_TABLE, Session) of
-        [{Session, Cvv, _Index}] ->
-            case ets:lookup(?TOKEN_TABLE, Token) of
-                [{Token, CardData, _Index}] ->
+    case get(?SESSION_TABLE, Session) of
+        {ok, Cvv, _} ->
+            case get(?TOKEN_TABLE, Token) of
+                {ok, CardData, _} ->
                     {ok, {CardData, Cvv}};
-                [] ->
-                    {error, not_found}
+                Error ->
+                    Error
             end;
-        [] ->
-            {error, not_found}
+        Error ->
+            Error
     end.
 
 -spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok.
 put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
-    true = ets:insert(
+    true = insert(
         ?TOKEN_TABLE,
         {
             Token,
             CardData
-            #{
-                encryption_key => KeyID1
-            }
+        },
+        #{
+            ?KEY_ID_INDEX => KeyID
         }
     ),
-    true = ets:insert(?HASH_TABLE, {Hash, Token}),
-    true = ets:insert(
+    true = insert(?HASH_TABLE, {Hash, Token}),
+    true = insert(
         ?SESSION_TABLE,
         {
             Session,
-            Cvv,
-            #{
-                created_at => CreatedAt,
-                encryption_key => KeyID2
-            }
-        }),
+            Cvv
+        },
+        #{
+            ?CREATED_AT_INDEX => CreatedAt,
+            ?KEY_ID_INDEX => KeyID
+        }
+    ),
     ok.
 
 -spec delete_card_data(binary(), binary(), binary()) -> ok.
@@ -119,35 +125,38 @@ delete_session(Session) ->
     non_neg_integer(),
     non_neg_integer(),
     non_neg_integer() | undefined
-) -> {ok, [binary()]}.
+) -> {ok, [term()]}.
 get_sessions_created_between(From, To, Limit) ->
-    MatchSpec =  ets:fun2ms(
-        fun({Session, _, Index}) ->
-            {Session, Index}
-        end
-    ),
-    Result0 = [S ||
-        {S, #{created_at := CreatedAt}} <- ets:select(?SESSION_TABLE, MatchSpec),
-        CreatedAt >= From,
-        CreatedAt =< To
-    ],
-    Result = case Limit of
-        undefined -> Result0;
-        _ -> lists:sublist(Result0, Limit)
-    end,
-    {ok, Result}.
+    {ok, filter_by_index_between(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit)}.
 
+-spec get_sessions_by_key_id_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> {ok, [term()]}.
+get_sessions_by_key_id_between(From, To, Limit) ->
+    {ok, filter_by_index_between(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
 
--spec update_card_data(binary(), binary()) -> ok | no_return().
-update_card_data(Token, NewCardData) ->
-    case ets:lookup(?TOKEN_TABLE, Token) of
-        [{Token, CardData, Index}] ->
-            ets:insert(?TOKEN_TABLE, {T})
-        _ ->
-            error(not_found)
-    end;
+-spec get_tokens_by_key_id_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    non_neg_integer() | undefined
+) -> {ok, [term()]}.
+get_tokens_by_key_id_between(From, To, Limit) ->
+    {ok, filter_by_index_between(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
 
--spec update_cvv(binary(), binary()) -> ok.
+-spec get_cvv(Session :: binary()) -> {ok, binary()} | {error, not_found}.
+get_cvv(Session) ->
+    case get(?SESSION_TABLE, Session) of
+        {ok, Cvv, _Index} ->
+            {ok, Cvv};
+        Error ->
+            Error
+    end.
+
+-spec update_cvv(Session :: binary(), NewCvv :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
+update_cvv(Session, NewCvv, KeyID) ->
+    update(?SESSION_TABLE, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec refresh_sessions() -> ok.
 refresh_sessions() ->
@@ -188,3 +197,51 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+insert(Tab, {Key, Value}) ->
+    insert(Tab, {Key, Value}, #{}).
+
+insert(Tab, {Key, Value}, Index) ->
+    true = ets:insert(Tab, {Key, Value, Index}).
+
+get(Tab, Key) ->
+    case ets:lookup(Tab, Key) of
+        [{_K, V, Index}] ->
+            {ok, V, Index};
+        [] ->
+            {error, not_found}
+    end.
+
+filter_by_index_between(Tab, IndexName, {From, To}, Limit) ->
+    MatchSpec = ets:fun2ms(
+        fun({K, _, Index}) -> {K, Index} end
+    ),
+    Result0 = [S ||
+        {S, #{IndexName := IndexValue}} <- ets:select(Tab, MatchSpec),
+        IndexValue >= From,
+        IndexValue =< To
+    ],
+    case Limit of
+        undefined -> Result0;
+        _ -> lists:sublist(Result0, Limit)
+    end.
+
+update(Tab, Key, NewValue, NewIndexes) ->
+    case get(Tab, Key) of
+        {ok, _, OldIndex} ->
+            insert(
+                Tab,
+                {Key, NewValue},
+                update_indexes(OldIndex, NewIndexes)
+            );
+        Error ->
+            Error
+    end.
+
+update_indexes(Old, Indexes) ->
+    lists:foldl(
+        fun({K, V}, Acc) ->
+            maps:put(K, V, Acc)
+        end,
+        Old,
+        Indexes
+    ).

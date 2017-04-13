@@ -87,7 +87,6 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 init_state(Interval, Callback, CallbackState) ->
-    Interval =
     #{
         timer => set_timer(Interval),
         handler => #{

@@ -83,11 +83,11 @@ get_data_by_key_id_between(card_data, {From, To}, BatchSize) ->
 
 recrypt(cvv, Session) ->
     CVV = cds:get_cvv(Session),
-    cds:put_cvv(Session, CVV);
+    cds:update_cvv(Session, CVV);
 
 recrypt(card_data, Token) ->
-    CardData = cds:get_card_data(Token),
-    cds:put_cardholder_data(Token, CardData).
+    CardData = cds:get_cardholder_data(Token),
+    cds:update_cardholder_data(Token, CardData).
 
 get_interval() ->
     maps:get(interval, get_config(), ?DEFAULT_INTERVAL).

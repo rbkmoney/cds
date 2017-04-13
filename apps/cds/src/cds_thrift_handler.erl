@@ -36,14 +36,16 @@ handle_function('Rotate', [], _Context, _Opts) ->
 handle_function('Lock', [], _Context, _Opts) ->
     {ok, cds:lock_keyring()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
-    try {ok, cds:get_card_data(decode_token(Token))} catch
+    try {ok, cds:get_unmarshalled_cardholder_data(decode_token(Token))} catch
         not_found ->
             woody_error:raise(business, #'CardDataNotFound'{});
         locked ->
             woody_error:raise(business, #'KeyringLocked'{})
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    try {ok, cds:get_session_card_data(decode_token(Token), decode_session(Session))} catch
+    try
+        {ok, cds:get_unmarshalled_card_data(decode_token(Token), decode_session(Session))}
+    catch
         not_found ->
             woody_error:raise(business, #'CardDataNotFound'{});
         locked ->
@@ -52,7 +54,7 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
 handle_function('PutCardData', [CardData], _Context, _Opts) ->
     try
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
-        {Token, Session} = cds:put_card_data(CardData),
+        {Token, Session} = cds:put_unmarshalled_card_data(CardData),
         BankCard = #'BankCard'{
             token = encode_token(Token),
             payment_system = PaymentSystem,
