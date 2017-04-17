@@ -69,7 +69,10 @@ init_per_group(riak_storage_backend, C) ->
     Storage = [
         {storage, cds_storage_riak},
         {cds_storage_riak, #{
-            conn_params => {"riakdb", 8087}
+            conn_params => #{
+                host => "riakdb",
+                port => 8087
+            }
         }}
     ],
     [{storage_config, Storage} | C];
@@ -317,7 +320,10 @@ clean_storage(CdsEnv) ->
 clean_riak_storage(CdsEnv) ->
     _ = application:start(riakc),
     _ = application:set_env(riakc, allow_listing, true),
-    #{conn_params := {Host, Port}} = genlib_opts:get(cds_storage_riak, CdsEnv),
+    #{conn_params := #{
+        host := Host,
+        port := Port
+    }} = genlib_opts:get(cds_storage_riak, CdsEnv),
     {ok, Client} = riakc_pb_socket:start_link(Host, Port),
     {ok, Buckets} = riakc_pb_socket:list_buckets(Client),
     lists:foreach(

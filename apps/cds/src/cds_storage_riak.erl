@@ -27,8 +27,25 @@
 -define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
+-define(POOL_MAX_COUNT, 10).
+-define(POOL_INIT_COUNT, 5).
 
 -define(REFRESH_BATCH, 300).
+
+-type storage_params() :: #{
+    conn_params := conn_params(),
+    pool_params => pool_params()
+}.
+
+-type pool_params() :: #{
+    max_count => pos_integer(),
+    init_count => non_neg_integer()
+}.
+
+-type conn_params() :: #{
+    host := string(),
+    port := pos_integer()
+}.
 
 %%
 %% cds_storage behaviour
@@ -36,8 +53,8 @@
 
 -spec start() -> ok.
 start() ->
-    {ok, #{conn_params := ConnParams}} = application:get_env(cds, cds_storage_riak),
-    start_pool(ConnParams),
+    {ok, StorageParams} = get_storage_params(),
+    _ = start_pool(StorageParams),
     lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
 -spec get_token(binary()) -> {ok, binary()} |
@@ -264,11 +281,18 @@ get_keys(Bucket, Batch, Continuation) ->
 %% Internal
 %%
 
-start_pool({Host, Port}) ->
+-spec start_pool(storage_params()) -> ok | no_return().
+start_pool(#{conn_params := #{host := Host, port := Port}} = StorageParams) ->
+    PoolParams = maps:get(pool_params, StorageParams, #{}),
+
+    MaxCount = maps:get(max_count, PoolParams, ?POOL_MAX_COUNT),
+    InitCount = maps:get(init_count, PoolParams, ?POOL_INIT_COUNT),
+    ok = assert_pool_config(InitCount, MaxCount),
+
     PoolConfig = [
         {name, riak},
-        {max_count, 10},
-        {init_count, 5},
+        {max_count, MaxCount},
+        {init_count, InitCount},
         {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
     ],
     {ok, _Pid} = pooler:new_pool(PoolConfig),
@@ -382,3 +406,14 @@ update_with_indexes(Tab, Key, Value, Indexes) ->
         {error, Reason} ->
             error(Reason)
     end.
+
+-spec get_storage_params() -> {ok, storage_params()}.
+get_storage_params() ->
+    application:get_env(cds, cds_storage_riak).
+
+-spec assert_pool_config(non_neg_integer(), pos_integer()) -> ok | no_return().
+assert_pool_config(InitCount, MaxCount) when MaxCount >= InitCount ->
+    ok;
+
+assert_pool_config(_, _) ->
+    exit(invalid_pool_params).
