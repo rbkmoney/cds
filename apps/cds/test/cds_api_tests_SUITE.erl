@@ -223,7 +223,7 @@ refresh_sessions(C) ->
 
     [
         begin
-            ok = cds:refresh_sessions(),
+            ok = cds_maintenance:refresh_sessions_created_at(),
             timer:sleep(Lifetime * 100)
         end
     || _ <- lists:seq(1, 25)],

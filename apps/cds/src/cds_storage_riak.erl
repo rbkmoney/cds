@@ -14,7 +14,11 @@
 -export([get_sessions_created_between/3]).
 -export([get_tokens_by_key_id_between/3]).
 -export([get_sessions_by_key_id_between/3]).
--export([refresh_sessions/0]).
+-export([refresh_session_created_at/1]).
+-export([get_sessions/1]).
+-export([get_sessions/2]).
+-export([get_tokens/1]).
+-export([get_tokens/2]).
 
 
 -include_lib("riakc/include/riakc.hrl").
@@ -27,19 +31,10 @@
 -define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
--define(POOL_MAX_COUNT, 10).
--define(POOL_INIT_COUNT, 5).
-
--define(REFRESH_BATCH, 300).
 
 -type storage_params() :: #{
     conn_params := conn_params(),
     pool_params => pool_params()
-}.
-
--type pool_params() :: #{
-    max_count => pos_integer(),
-    init_count => non_neg_integer()
 }.
 
 -type conn_params() :: #{
@@ -47,14 +42,29 @@
     port := pos_integer()
 }.
 
+-type pool_params() :: #{
+    max_count            => non_neg_integer     (),
+    init_count           => non_neg_integer     (),
+    cull_interval        => pooler_time_interval(),
+    max_age              => pooler_time_interval(),
+    member_start_timeout => pooler_time_interval()
+}.
+
+-type pooler_time_interval() :: {non_neg_integer(), min | sec | ms | mu}.
+
+-define(DEFAULT_POOL_PARAMS, #{
+    max_count     => 10,
+    init_count    => 10,
+    cull_interval => {0, min}
+}).
+
 %%
 %% cds_storage behaviour
 %%
 
 -spec start() -> ok.
 start() ->
-    {ok, StorageParams} = get_storage_params(),
-    _ = start_pool(StorageParams),
+    _ = start_pool(get_storage_params()),
     lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
 -spec get_token(binary()) -> {ok, binary()} |
@@ -147,11 +157,11 @@ get_cvv(Session) ->
 
 -spec update_cvv(Session :: binary(), NewCvv :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
 update_cvv(Session, NewCvv, KeyID) ->
-    update_with_indexes(?SESSION_BUCKET, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
+    update(?SESSION_BUCKET, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec update_cardholder_data(Token :: binary(), NewCardData :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
 update_cardholder_data(Token, NewCardData, KeyID) ->
-    update_with_indexes(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}]).
+    update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec get_sessions_created_between(
     non_neg_integer(),
@@ -159,142 +169,69 @@ update_cardholder_data(Token, NewCardData, KeyID) ->
     non_neg_integer() | undefined
 ) -> {ok, [binary()]} | no_return().
 get_sessions_created_between(From, To, Limit) ->
-    Options = options_max_results(Limit),
-
-    Result = get_index_range(
-        ?SESSION_BUCKET,
-        ?CREATED_AT_INDEX,
-        From,
-        To,
-        Options
-    ),
+    Result = get_keys_by_index_range(?SESSION_BUCKET, ?CREATED_AT_INDEX, From, To, Limit),
 
     case Result of
-        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
-            {ok, Keys};
-        {ok, _} ->
-            {ok, []};
-        {error, Reason} ->
-            error(Reason)
+        OK = {ok, _} ->
+            OK;
+        {error, Error} ->
+            error(Error)
     end.
 
 get_tokens_by_key_id_between(From, To, Limit) ->
-    Options = options_max_results(Limit),
-
-    Result = get_index_range(
-        ?TOKEN_BUCKET,
-        ?KEY_ID_INDEX,
-        From,
-        To,
-        Options
-    ),
+    Result = get_keys_by_index_range(?TOKEN_BUCKET, ?KEY_ID_INDEX, From, To, Limit),
 
     case Result of
-        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
-            {ok, Keys};
-        {ok, _} ->
-            {ok, []};
-        {error, Reason} ->
-            error(Reason)
+        OK = {ok, _} ->
+            OK;
+        {error, Error} ->
+            error(Error)
     end.
 
 get_sessions_by_key_id_between(From, To, Limit) ->
-    Options = options_max_results(Limit),
-
-    Result = get_index_range(
-        ?SESSION_BUCKET,
-        ?KEY_ID_INDEX,
-        From,
-        To,
-        Options
-    ),
-    case Result of
-        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
-            {ok, Keys};
-        {ok, _} ->
-            {ok, []};
-        {error, Reason} ->
-            error(Reason)
-    end.
-
-
-refresh_sessions() ->
-    refresh_sessions(undefined, init).
-
-refresh_sessions(undefined, processing) ->
-    ok;
-
-refresh_sessions(Continuation0, _Step) ->
-    Result = get_keys(?SESSION_BUCKET, ?REFRESH_BATCH, Continuation0),
+    Result = get_keys_by_index_range(?SESSION_BUCKET, ?KEY_ID_INDEX, From, To, Limit),
 
     case Result of
-        {ok, [#index_results_v1{keys = Keys, continuation = Continuation}]} when Keys =/= undefined ->
-            [ok = refresh_session(Key) || Key <- Keys],
-            refresh_sessions(Continuation, processing);
-        {ok, _} ->
-            {ok, {[], undefined}};
-        {error, Reason} ->
-            error(Reason)
-    end.
-
-refresh_session(SessionKey) ->
-    case get_session_obj(SessionKey) of
-        {ok, Obj0} ->
-            CreatedAt = cds_utils:current_time(),
-            SessionObj = set_indexes(Obj0, [{?CREATED_AT_INDEX, CreatedAt}]),
-            case batch_put([[SessionObj]]) of
-                ok ->
-                    ok;
-                {error, Reason} ->
-                    error(Reason)
-            end;
-        {error, not_found} ->
-            ok
-    end.
-
-get_session_obj(SessionKey) ->
-    case get(?SESSION_BUCKET, SessionKey) of
-        OK = {ok, _SessionObj} ->
+        OK = {ok, _} ->
             OK;
+        {error, Error} ->
+            error(Error)
+    end.
+
+get_sessions(Limit) ->
+    get_sessions(Limit, undefined).
+
+get_sessions(Limit, Continuation) ->
+    get_keys(?SESSION_BUCKET, Limit, Continuation).
+
+get_tokens(Limit) ->
+    get_tokens(Limit, undefined).
+
+get_tokens(Limit, Continuation) ->
+    get_keys(?TOKEN_BUCKET, Limit, Continuation).
+
+refresh_session_created_at(Session) ->
+    case get(?SESSION_BUCKET, Session) of
+        {ok, Obj} ->
+            update_indexes(Obj, [{?CREATED_AT_INDEX, cds_utils:current_time()}]);
         {error, notfound} ->
-            {error, not_found};
+            ok;
         {error, Reason} ->
             error(Reason)
     end.
-
-get_keys(Bucket, Batch, Continuation) ->
-    Options = case Continuation of
-        undefined -> [{max_results, Batch}];
-        _ -> [
-            {max_results,  Batch},
-            {continuation, Continuation}
-        ]
-    end,
-
-    get_index_eq(
-        Bucket,
-        <<"$bucket">>,
-        <<"_">>,
-        Options
-    ).
 %%
 %% Internal
 %%
 
 -spec start_pool(storage_params()) -> ok | no_return().
 start_pool(#{conn_params := #{host := Host, port := Port}} = StorageParams) ->
-    PoolParams = maps:get(pool_params, StorageParams, #{}),
-
-    MaxCount = maps:get(max_count, PoolParams, ?POOL_MAX_COUNT),
-    InitCount = maps:get(init_count, PoolParams, ?POOL_INIT_COUNT),
-    ok = assert_pool_config(InitCount, MaxCount),
+    PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 
     PoolConfig = [
         {name, riak},
-        {max_count, MaxCount},
-        {init_count, InitCount},
         {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
-    ],
+    ] ++ maps:to_list(PoolParams),
+
     {ok, _Pid} = pooler:new_pool(PoolConfig),
     ok.
 
@@ -386,34 +323,72 @@ set_indexes(Obj, Indexes) ->
     ),
     riakc_obj:update_metadata(Obj, MD2).
 
-options_max_results(undefined) ->
-    [];
-
-options_max_results(Limit) ->
-    [{max_results, Limit}].
-
-update_with_indexes(Tab, Key, Value, Indexes) ->
+update(Tab, Key, Value, Indexes) ->
     case get(Tab, Key) of
         {ok, Obj0} ->
-            Obj1 = riakc_obj:update_value(Obj0, Value),
-            Obj = set_indexes(Obj1, Indexes),
-            case batch_put([[Obj]]) of
-                ok ->
-                    ok;
-                {error, Reason} ->
-                    error(Reason)
-            end;
+            update(Obj0, Value, Indexes);
         {error, Reason} ->
             error(Reason)
     end.
 
--spec get_storage_params() -> {ok, storage_params()}.
+update(Obj0, Value, Indexes) ->
+    Obj = riakc_obj:update_value(Obj0, Value),
+    update_indexes(Obj, Indexes).
+
+update_indexes(Obj0, Indexes) ->
+    Obj = set_indexes(Obj0, Indexes),
+    case batch_put([[Obj]]) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+-spec get_storage_params() -> storage_params().
 get_storage_params() ->
-    application:get_env(cds, cds_storage_riak).
+    genlib_app:env(cds, cds_storage_riak).
 
--spec assert_pool_config(non_neg_integer(), pos_integer()) -> ok | no_return().
-assert_pool_config(InitCount, MaxCount) when MaxCount >= InitCount ->
-    ok;
+get_keys(Bucket, Limit, Continuation) ->
+    Options = options([{max_results, Limit}, {continuation, Continuation}]),
 
-assert_pool_config(_, _) ->
-    exit(invalid_pool_params).
+    Result = get_index_eq(
+        Bucket,
+        <<"$bucket">>,
+        <<"_">>,
+        Options
+    ),
+    prepare_index_result(Result).
+
+
+%% @TODO add continuation here?
+get_keys_by_index_range(Bucket, IndexName, From, To, Limit) ->
+    Options = options([{max_results, Limit}]),
+
+    Result = get_index_range(
+        Bucket,
+        IndexName,
+        From,
+        To,
+        Options
+    ),
+    case Result of
+        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
+            {ok, Keys};
+        {ok, _} ->
+            {ok, []};
+        Error = {error, _} ->
+            Error
+    end.
+
+prepare_index_result(Result) ->
+    case Result of
+        {ok, [#index_results_v1{keys = Keys, continuation = Continuation}]} when Keys =/= undefined ->
+            {ok, {Keys, Continuation}};
+        {ok, _} ->
+            {ok, {[], undefined}};
+        Error = {error, _} ->
+            Error
+    end.
+
+options(Opts) ->
+    [Item || {_, V} = Item <- Opts, V =/= undefined].

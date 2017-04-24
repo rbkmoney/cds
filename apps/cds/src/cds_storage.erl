@@ -25,7 +25,11 @@
 -callback get_cvv(binary()) -> {ok, binary()} | {error, not_found}.
 -callback update_cvv(binary(), binary(), byte()) -> ok | {error, not_found}.
 -callback update_cardholder_data(binary(), binary(), byte()) -> ok | {error, not_found}.
--callback refresh_sessions() -> ok.
+-callback refresh_session_created_at(binary()) -> ok.
+-callback get_sessions(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
+-callback get_sessions(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
+-callback get_tokens(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
+-callback get_tokens(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
 
 -export([start/0]).
 -export([get_token/1]).
@@ -40,7 +44,11 @@
 -export([get_cvv/1]).
 -export([update_cvv/3]).
 -export([update_cardholder_data/3]).
--export([refresh_sessions/0]).
+-export([refresh_session_created_at/1]).
+-export([get_sessions/1]).
+-export([get_sessions/2]).
+-export([get_tokens/1]).
+-export([get_tokens/2]).
 
 -type timestamp() :: pos_integer().
 
@@ -102,9 +110,25 @@ get_tokens_by_key_id_between(From, To, Limit) when
 ->
     cds_backend:call(storage, get_tokens_by_key_id_between, [From, To, Limit]).
 
--spec refresh_sessions() -> ok | no_return().
-refresh_sessions() ->
-    cds_backend:call(storage, refresh_sessions, []).
+-spec refresh_session_created_at(binary()) -> ok.
+refresh_session_created_at(Session) ->
+    cds_backend:call(storage, refresh_session_created_at, [Session]).
+
+-spec get_sessions(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
+get_sessions(Limit) ->
+    cds_backend:call(storage, get_sessions, [Limit]).
+
+-spec get_sessions(non_neg_integer(), Continuation :: term()) -> {[term()], Continuation :: term()}.
+get_sessions(Limit, Continuation) ->
+    cds_backend:call(storage, get_sessions, [Limit, Continuation]).
+
+-spec get_tokens(non_neg_integer()) -> {[term()], Continuation :: term()}.
+get_tokens(Limit) ->
+    cds_backend:call(storage, get_tokens, [Limit]).
+
+-spec get_tokens(non_neg_integer(), Continuation :: term()) -> {[term()], Continuation :: term()}.
+get_tokens(Limit, Continuation) ->
+    cds_backend:call(storage, get_tokens, [Limit, Continuation]).
 
 -spec get_cvv(binary()) -> binary().
 get_cvv(Session) ->

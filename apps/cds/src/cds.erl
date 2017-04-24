@@ -25,10 +25,14 @@
 -export([get_sessions_created_between/3]).
 -export([get_sessions_by_key_id_between/3]).
 -export([get_tokens_by_key_id_between/3]).
--export([refresh_sessions/0]).
 -export([get_cvv/1]).
 -export([update_cvv/2]).
 -export([update_cardholder_data/2]).
+-export([refresh_session_created_at/1]).
+-export([get_sessions/1]).
+-export([get_sessions/2]).
+-export([get_tokens/1]).
+-export([get_tokens/2]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -189,10 +193,6 @@ delete_session(Session) ->
     ok = cds_storage:delete_session(Session),
     ok.
 
--spec refresh_sessions() -> ok.
-refresh_sessions() ->
-    ok = cds_storage:refresh_sessions().
-
 get_sessions_created_between(From, To, BatchSize) ->
     cds_storage:get_sessions_created_between(From, To, BatchSize).
 
@@ -218,6 +218,21 @@ update_cardholder_data(Token, CardData) ->
     {KeyID, _} = CurrentKeys = cds_keyring_manager:get_current_key(),
     EncryptedCardData = encrypt(CurrentKeys, CardData),
     cds_storage:update_cardholder_data(Token, EncryptedCardData, KeyID).
+
+refresh_session_created_at(Session) ->
+    cds_storage:refresh_session_created_at(Session).
+
+get_sessions(Limit) ->
+    cds_storage:get_sessions(Limit).
+
+get_sessions(Limit, Continuation) ->
+    cds_storage:get_sessions(Limit, Continuation).
+
+get_tokens(Limit) ->
+    cds_storage:get_tokens(Limit).
+
+get_tokens(Limit, Continuation) ->
+    cds_storage:get_tokens(Limit, Continuation).
 
 %%
 %% Keyring operations

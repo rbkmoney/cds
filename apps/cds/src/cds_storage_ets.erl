@@ -18,10 +18,13 @@
 -export([update_cvv/3]).
 -export([update_cardholder_data/3]).
 -export([get_sessions_created_between/3]).
--export([refresh_sessions/0]).
 -export([get_tokens_by_key_id_between/3]).
 -export([get_sessions_by_key_id_between/3]).
-
+-export([refresh_session_created_at/1]).
+-export([get_sessions/1]).
+-export([get_sessions/2]).
+-export([get_tokens/1]).
+-export([get_tokens/2]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -128,7 +131,7 @@ delete_session(Session) ->
     non_neg_integer() | undefined
 ) -> {ok, [term()]}.
 get_sessions_created_between(From, To, Limit) ->
-    {ok, filter_by_index_between(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit)}.
+    {ok, get_keys_by_index_range(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit)}.
 
 -spec get_sessions_by_key_id_between(
     non_neg_integer(),
@@ -136,7 +139,7 @@ get_sessions_created_between(From, To, Limit) ->
     non_neg_integer() | undefined
 ) -> {ok, [term()]}.
 get_sessions_by_key_id_between(From, To, Limit) ->
-    {ok, filter_by_index_between(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
+    {ok, get_keys_by_index_range(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
 
 -spec get_tokens_by_key_id_between(
     non_neg_integer(),
@@ -144,7 +147,7 @@ get_sessions_by_key_id_between(From, To, Limit) ->
     non_neg_integer() | undefined
 ) -> {ok, [term()]}.
 get_tokens_by_key_id_between(From, To, Limit) ->
-    {ok, filter_by_index_between(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
+    {ok, get_keys_by_index_range(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
 
 -spec get_cvv(Session :: binary()) -> {ok, binary()} | {error, not_found}.
 get_cvv(Session) ->
@@ -163,23 +166,25 @@ update_cvv(Session, NewCvv, KeyID) ->
 update_cardholder_data(Token, NewCardData, KeyID) ->
     update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}]).
 
--spec refresh_sessions() -> ok.
-refresh_sessions() ->
-    MatchSpec = ets:fun2ms(
-        fun({Session, Cvv, _}) ->
-            {Session, Cvv}
-        end
-    ),
-    Result =  ets:select(?SESSION_TABLE, MatchSpec),
-    [
-        true = insert(
-            ?SESSION_TABLE,
-            {Session, Cvv},
-            #{?CREATED_AT_INDEX => cds_utils:current_time()}
-        )
-            || {Session, Cvv} <- Result
-    ],
-    ok.
+refresh_session_created_at(Session) ->
+    case get(?SESSION_TABLE, Session) of
+        {ok, Value, _} ->
+            update(?SESSION_TABLE, Session, Value, [{?CREATED_AT_INDEX, cds_utils:current_time()}]);
+        {error, not_found} ->
+            ok
+    end.
+
+get_sessions(Limit) ->
+    get_sessions(Limit, undefined).
+
+get_sessions(Limit, Continuation) ->
+    get_keys(?SESSION_TABLE, Limit, Continuation).
+
+get_tokens(Limit) ->
+    get_tokens(Limit, undefined).
+
+get_tokens(Limit, Continuation) ->
+    get_keys(?TOKEN_TABLE, Limit, Continuation).
 
 %%
 %% gen_server behaviour
@@ -220,7 +225,36 @@ get(Tab, Key) ->
             {error, not_found}
     end.
 
-filter_by_index_between(Tab, IndexName, {From, To}, Limit) ->
+get_keys(Tab, undefined, undefined) ->
+    {ok, {[K || {K, _, _} <- ets:select(Tab, match_all())], undefined}};
+
+get_keys(Tab, Limit, Continuation0) ->
+    {ok, Match, Continuation} = select_from(Tab, Limit, Continuation0),
+    {ok, {[K || {K, _, _} <- Match], Continuation}}.
+
+select_from(Tab, Limit, Continuation) ->
+    select_from(Tab, Limit, Continuation, []).
+
+select_from(_Tab, 0, Continuation, Acc) ->
+    {ok, Acc, Continuation};
+
+select_from(Tab, Limit, undefined, Acc) ->
+    case ets:select(Tab, match_all(), 1) of
+        {Match, Continuation} ->
+            select_from(Tab, Limit - 1, Continuation, Acc ++ Match);
+        '$end_of_table' ->
+            {ok, Acc, undefined}
+    end;
+
+select_from(Tab, Limit, Continuation, Acc) ->
+    case ets:select(Continuation) of
+        {Match, Continuation} ->
+            select_from(Tab, Limit - 1, Continuation, Acc ++ Match);
+        '$end_of_table' ->
+            {ok, Acc, undefined}
+    end.
+
+get_keys_by_index_range(Tab, IndexName, {From, To}, Limit) ->
     MatchSpec = ets:fun2ms(
         fun(V) -> V end
     ),
@@ -255,4 +289,9 @@ update_indexes(Old, Indexes) ->
         end,
         Old,
         Indexes
+    ).
+
+match_all() ->
+    ets:fun2ms(
+        fun(V) -> V end
     ).
