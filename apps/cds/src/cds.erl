@@ -26,10 +26,6 @@
 -export([update_cvv/2]).
 -export([update_cardholder_data/2]).
 -export([refresh_session_created_at/1]).
--export([get_sessions/1]).
--export([get_sessions/2]).
--export([get_tokens/1]).
--export([get_tokens/2]).
 
 %% Keyring operations
 -export([unlock_keyring/1]).
@@ -197,18 +193,6 @@ update_cardholder_data(Token, CardData) ->
 
 refresh_session_created_at(Session) ->
     cds_storage:refresh_session_created_at(Session).
-
-get_sessions(Limit) ->
-    cds_storage:get_sessions(Limit).
-
-get_sessions(Limit, Continuation) ->
-    cds_storage:get_sessions(Limit, Continuation).
-
-get_tokens(Limit) ->
-    cds_storage:get_tokens(Limit).
-
-get_tokens(Limit, Continuation) ->
-    cds_storage:get_tokens(Limit, Continuation).
 
 %%
 %% Keyring operations

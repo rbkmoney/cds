@@ -10,12 +10,12 @@
 %% api
 
 refresh_sessions_created_at() ->
-    Getter = fun(Continuation) -> cds:get_sessions(?REFRESH_BATCH, Continuation) end,
+    Getter = fun(Continuation) -> get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) -> cds:refresh_session_created_at(Key) end,
     refresh(Getter, Refresher).
 
 refresh_cvv_encryption() ->
-    Getter = fun(Continuation) -> cds:get_sessions(?REFRESH_BATCH, Continuation) end,
+    Getter = fun(Continuation) -> get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
         CVV = cds:get_cvv(Key),
         cds:update_cvv(Key, CVV)
@@ -23,7 +23,7 @@ refresh_cvv_encryption() ->
     refresh(Getter, Refresher).
 
 refresh_cardholder_encryption() ->
-    Getter = fun(Continuation) -> cds:get_tokens(?REFRESH_BATCH, Continuation) end,
+    Getter = fun(Continuation) -> get_tokens(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
         CardData = cds:get_cardholder_data(Key),
         cds:update_cardholder_data(Key, CardData)
@@ -44,3 +44,10 @@ refresh(Getter, Refresher, Continuation0) ->
         _ ->
             refresh(Getter, Refresher, Continuation)
     end.
+
+
+get_sessions(Limit, Continuation) ->
+    cds_storage:get_sessions(Limit, Continuation).
+
+get_tokens(Limit, Continuation) ->
+    cds_storage:get_tokens(Limit, Continuation).
