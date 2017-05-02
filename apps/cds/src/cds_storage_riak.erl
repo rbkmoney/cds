@@ -6,7 +6,6 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
--export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
@@ -119,15 +118,6 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     HashObj = riakc_obj:new(?HASH_BUCKET, Hash, Token),
     SessionObj = prepare_session_obj(Session, Cvv, CreatedAt, KeyID),
     case batch_put([[TokenObj], [HashObj], [SessionObj]]) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            error(Reason)
-    end.
-
--spec delete_card_data(binary(), binary(), binary()) -> ok | no_return().
-delete_card_data(Token, Hash, Session) ->
-    case batch_delete([[?TOKEN_BUCKET, Token], [?HASH_BUCKET, Hash], [?SESSION_BUCKET, Session]]) of
         ok ->
             ok;
         {error, Reason} ->

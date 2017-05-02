@@ -36,7 +36,7 @@ handle_function('Rotate', [], _Context, _Opts) ->
 handle_function('Lock', [], _Context, _Opts) ->
     {ok, cds:lock_keyring()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
-    try {ok, cds:get_unmarshalled_cardholder_data(decode_token(Token))} catch
+    try {ok, get_cardholder_data(decode_token(Token))} catch
         not_found ->
             woody_error:raise(business, #'CardDataNotFound'{});
         locked ->
@@ -44,7 +44,7 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
-        {ok, cds:get_unmarshalled_card_data(decode_token(Token), decode_session(Session))}
+        {ok, get_card_data(decode_token(Token), decode_session(Session))}
     catch
         not_found ->
             woody_error:raise(business, #'CardDataNotFound'{});
@@ -54,7 +54,7 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
 handle_function('PutCardData', [CardData], _Context, _Opts) ->
     try
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
-        {Token, Session} = cds:put_unmarshalled_card_data(CardData),
+        {Token, Session} = put_card_data(CardData),
         BankCard = #'BankCard'{
             token = encode_token(Token),
             payment_system = PaymentSystem,
@@ -112,6 +112,20 @@ base62_encode(Data) ->
 base62_decode(Data) ->
     genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
 
+get_cardholder_data(Token) ->
+    Marshalled = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshall(Marshalled).
+
+get_card_data(Token, Session) ->
+    {MarshalledCardData, Cvv} = cds:get_card_data(Token, Session),
+    cds_card_data:unmarshall(MarshalledCardData, Cvv).
+
+put_card_data(CardData) ->
+    cds:put_card_data(unique(CardData), cds_card_data:marshall(CardData)).
+
+unique(CardData) ->
+    cds_card_data:unique(CardData).
+
 % test
 
 -ifdef(TEST).
@@ -125,5 +139,3 @@ isomorphic_marshalling_test_() ->
         <<0:16/integer-unit:8>>
     ],
     [?_assertEqual(decode_token(encode_token(V)), V) || V <- Vs].
-
--endif.

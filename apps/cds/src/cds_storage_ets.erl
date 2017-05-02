@@ -12,7 +12,6 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
--export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
@@ -111,13 +110,6 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
             ?KEY_ID_INDEX => KeyID
         }
     ),
-    ok.
-
--spec delete_card_data(binary(), binary(), binary()) -> ok.
-delete_card_data(Token, Hash, Session) ->
-    true = ets:delete(?TOKEN_TABLE, Token),
-    true = ets:delete(?HASH_TABLE, Hash),
-    true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
 -spec delete_session(binary()) -> ok.

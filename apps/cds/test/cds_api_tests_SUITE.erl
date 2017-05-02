@@ -243,9 +243,14 @@ refresh_sessions(C) ->
     end,
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
 
+%% dishonest test which uses internal functions
 recrypt(C) ->
     {KeyID0, _} = cds_keyring_manager:get_current_key(),
-    {Token, Session} = cds:put_unmarshalled_card_data(?CREDIT_CARD(<<"345">>)),
+    CardData = ?CREDIT_CARD(<<"345">>),
+    {Token, Session} = cds:put_card_data(
+        cds_card_data:unique(CardData),
+        cds_card_data:marshall(CardData)
+    ),
     {EncryptedCardData0, EncryptedCvv0} = cds_storage:get_session_card_data(Token, Session),
     <<KeyID0, _/binary>> = EncryptedCardData0,
     <<KeyID0, _/binary>> = EncryptedCvv0,

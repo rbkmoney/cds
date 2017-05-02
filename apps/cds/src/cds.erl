@@ -14,12 +14,9 @@
 -export([stop /1]).
 
 %% Storage operations
--export([get_unmarshalled_cardholder_data/1]).
 -export([get_cardholder_data/1]).
--export([get_unmarshalled_card_data/2]).
 -export([get_card_data/2]).
--export([put_unmarshalled_card_data/1]).
--export([delete_card_data/2]).
+-export([put_card_data/2]).
 -export([delete_session/1]).
 
 -export([get_sessions_created_between/3]).
@@ -57,9 +54,8 @@
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
 -type masterkey_share() :: binary().
--type unmarshalled_card_data() :: cds_cds_thrift:'CardData'().
--type unmarshalled_cardholder_data() :: cds_cds_thrift:'CardData'().
 -type card_data() :: {cardholder_data(), cvv()}.
+-type unique_card_info() :: binary().
 -type cardholder_data() :: binary().
 -type cvv() :: binary().
 
@@ -134,10 +130,6 @@ stop(_State) ->
 %%
 %% Storage operations
 %%
--spec get_unmarshalled_cardholder_data(token()) -> unmarshalled_cardholder_data().
-get_unmarshalled_cardholder_data(Token) ->
-    Marshalled = get_cardholder_data(Token),
-    cds_card_data:unmarshall(Marshalled).
 
 -spec get_cardholder_data(token()) -> cardholder_data().
 get_cardholder_data(Token) ->
@@ -145,22 +137,15 @@ get_cardholder_data(Token) ->
     Encrypted = cds_storage:get_cardholder_data(Token),
     decrypt(Encrypted).
 
--spec get_unmarshalled_card_data(token(), session()) -> unmarshalled_card_data().
-get_unmarshalled_card_data(Token, Session) ->
-    {MarshalledCardData, Cvv} = get_card_data(Token, Session),
-    cds_card_data:unmarshall(MarshalledCardData, Cvv).
-
 -spec get_card_data(token(), session()) -> card_data().
 get_card_data(Token, Session) ->
     ok = keyring_available(),
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
     {decrypt(EncryptedCardData), decrypt(EncryptedCvv)}.
 
--spec put_unmarshalled_card_data(unmarshalled_card_data()) -> {token(), session()}.
-put_unmarshalled_card_data(CardData) ->
+-spec put_card_data(unique_card_info(), card_data()) -> {token(), session()}.
+put_card_data(UniqueCardData, {MarshalledCardData, Cvv}) ->
     ok = keyring_available(),
-    {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
-    UniqueCardData = cds_card_data:unique(CardData),
     Token = find_or_create_token(all_hashes(UniqueCardData)),
     Session = session(),
     Hash = hash(UniqueCardData),
@@ -177,15 +162,6 @@ put_unmarshalled_card_data(CardData) ->
         cds_utils:current_time()
     ),
     {Token, Session}.
-
--spec delete_card_data(token(), session()) -> ok.
-delete_card_data(Token, Session) ->
-    ok = keyring_available(),
-    CardData = get_unmarshalled_cardholder_data(Token),
-    UniqueCardData = cds_card_data:unique(CardData),
-    Hash = hash(UniqueCardData),
-    ok = cds_storage:delete_card_data(Token, Hash, Session),
-    ok.
 
 -spec delete_session(session()) -> ok.
 delete_session(Session) ->

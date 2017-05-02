@@ -5,7 +5,6 @@
 -callback get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
 -callback get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 -callback put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok.
--callback delete_card_data(binary(), binary(), binary()) -> ok.
 -callback delete_session(binary()) -> ok.
 -callback get_sessions_created_between(
     non_neg_integer(),
@@ -36,7 +35,6 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
--export([delete_card_data/3]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/3]).
 -export([get_tokens_by_key_id_between/3]).
@@ -71,10 +69,6 @@ get_session_card_data(Token, Session) ->
 -spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), timestamp()) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt]).
-
--spec delete_card_data(binary(), binary(), binary()) -> ok | no_return().
-delete_card_data(Token, Hash, Session) ->
-    cds_backend:call(storage, delete_card_data, [Token, Hash, Session]).
 
 -spec delete_session(binary()) -> ok | no_return().
 delete_session(Session) ->
