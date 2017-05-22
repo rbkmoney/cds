@@ -36,14 +36,14 @@ handle_function('Rotate', [], _Context, _Opts) ->
 handle_function('Lock', [], _Context, _Opts) ->
     {ok, cds:lock_keyring()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
-    try {ok, cds:get_card_data(base62_decode(Token))} catch
+    try {ok, cds:get_card_data(decode_token(Token))} catch
         not_found ->
             woody_error:raise(business, #'CardDataNotFound'{});
         locked ->
             woody_error:raise(business, #'KeyringLocked'{})
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    try {ok, cds:get_session_card_data(base62_decode(Token), base62_decode(Session))} catch
+    try {ok, cds:get_session_card_data(decode_token(Token), decode_session(Session))} catch
         not_found ->
             woody_error:raise(business, #'CardDataNotFound'{});
         locked ->
@@ -54,14 +54,14 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
         {Token, Session} = cds:put_card_data(CardData),
         BankCard = #'BankCard'{
-            token = base62_encode(Token),
+            token = encode_token(Token),
             payment_system = PaymentSystem,
             bin = BIN,
             masked_pan = MaskedPan
         },
         {ok, #'PutCardDataResult'{
             bank_card = BankCard,
-            session = base62_encode(Session)
+            session = encode_session(Session)
         }}
     catch
         invalid_card_data ->
@@ -92,8 +92,36 @@ construct_md(Map = #{}) ->
 
 % local
 
+decode_token(Token) ->
+    base62_decode(Token).
+
+encode_token(Token) ->
+    base62_encode(Token).
+
+decode_session(Session) ->
+    base62_decode(Session).
+
+encode_session(Session) ->
+    base62_encode(Session).
+
 base62_encode(Data) ->
     genlib_format:format_int_base(binary:decode_unsigned(Data), 62).
 
 base62_decode(Data) ->
-    binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)).
+    genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
+
+% test
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+isomorphic_marshalling_test_() ->
+    Vs = [
+        crypto:strong_rand_bytes(16),
+        << <<C>> || C <- lists:seq(1, 16) >>,
+        <<1:16/integer-unit:8>>,
+        <<0:16/integer-unit:8>>
+    ],
+    [?_assertEqual(decode_token(encode_token(V)), V) || V <- Vs].
+
+-endif.
