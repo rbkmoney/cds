@@ -36,7 +36,7 @@ full_card_data_validation(_C) ->
         cardholder_name = <<"Benedict Wizardcock">>, %%
         cvv = <<"045">>
     },
-    #'CardData'{pan = <<IIN:6/binary, _:6/binary, Mask/binary>>} = ValidCard,
+    #'CardData'{pan = <<IIN:6/binary, _:6/binary, Mask:4/binary>>} = ValidCard,
     {mastercard, IIN, Mask} = cds_card_data:validate(ValidCard),
     %%length
     invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{pan = <<"53213012345678905">>})),
@@ -50,7 +50,7 @@ full_card_data_validation(_C) ->
 
 payment_system_detection(_C) ->
     [
-        {Target, _, _} = cds_card_data:validate(Sample)
+        {Target, _, <<_Masked:4/binary>>} = cds_card_data:validate(Sample)
     || {Target, Sample} <- get_card_data_samples()].
 
 %%

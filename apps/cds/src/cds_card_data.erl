@@ -14,7 +14,7 @@
 
 -spec validate(card_data()) ->
     {cds_iin_config:payment_system(), IIN :: binary(), MaskedNumber :: binary()} | no_return().
-validate(#'CardData'{pan = <<IIN:6/binary, _Skip:6/binary, Masked/binary>> = CN, exp_date = ExpDate, cvv = CVV}) ->
+validate(#'CardData'{pan = <<IIN:6/binary, Number/binary>> = CN, exp_date = ExpDate, cvv = CVV}) ->
     case cds_iin_config:detect_ps(IIN) of
         unknown ->
             throw(invalid_card_data);
@@ -29,7 +29,7 @@ validate(#'CardData'{pan = <<IIN:6/binary, _Skip:6/binary, Masked/binary>> = CN,
 
             {{YearNow, MonthNow, _D}, _T} = calendar:universal_time(),
             ok = assert(date_valid(ExpDate, {YearNow, MonthNow})),
-            {PaymentSystem, IIN, Masked}
+            {PaymentSystem, IIN, get_masked_number(Number)}
     end.
 
 -spec marshall(card_data()) -> {MarshalledCardData :: binary(), Cvv :: binary()}.
@@ -81,6 +81,11 @@ unique(CardData) ->
 assert(true) ->
     ok;
 assert(false) ->
+    throw(invalid_card_data).
+
+get_masked_number(Number) when size(Number) >= 4 ->
+    binary:part(Number, {size(Number), -4});
+get_masked_number(_) ->
     throw(invalid_card_data).
 
 validate_algo({length, card_number, Lengths}, #{card_number := CN}) ->
