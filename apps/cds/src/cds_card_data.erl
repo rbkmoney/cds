@@ -14,7 +14,7 @@
 
 -spec validate(card_data()) ->
     {cds_iin_config:payment_system(), IIN :: binary(), MaskedNumber :: binary()} | no_return().
-validate(#'CardData'{pan = <<IIN:6/binary, _Skip:6/binary, Masked/binary>> = CN, exp_date = ExpDate, cvv = CVV}) ->
+validate(#'CardData'{pan = <<IIN:6/binary, Number/binary>> = CN, exp_date = ExpDate, cvv = CVV}) ->
     case cds_iin_config:detect_ps(IIN) of
         unknown ->
             throw(invalid_card_data);
@@ -29,7 +29,7 @@ validate(#'CardData'{pan = <<IIN:6/binary, _Skip:6/binary, Masked/binary>> = CN,
 
             {{YearNow, MonthNow, _D}, _T} = calendar:universal_time(),
             ok = assert(date_valid(ExpDate, {YearNow, MonthNow})),
-            {PaymentSystem, IIN, Masked}
+            {PaymentSystem, IIN, get_masked_number(Number)}
     end.
 
 -spec marshall(card_data()) -> {MarshalledCardData :: binary(), Cvv :: binary()}.
@@ -44,7 +44,7 @@ marshall(CardData) ->
         cvv = Cvv
     } = CardData,
     %% TODO: validate
-    {<<(size(Pan)), Pan/binary, Month:8, Year:16, CardholderName/binary>>, Cvv}.
+    {<<(byte_size(Pan)), Pan/binary, Month:8, Year:16, CardholderName/binary>>, Cvv}.
 
 -spec unmarshall(MarshalledCardData :: binary()) -> card_data().
 unmarshall(Marshalled) ->
@@ -74,7 +74,7 @@ unique(CardData) ->
         cvv = _Cvv
     } = CardData,
     %% TODO: validate
-    <<(size(Pan)), Pan/binary, Month:8, Year:16>>.
+    <<(byte_size(Pan)), Pan/binary, Month:8, Year:16>>.
 
 % local
 
@@ -83,11 +83,16 @@ assert(true) ->
 assert(false) ->
     throw(invalid_card_data).
 
+get_masked_number(Number) when byte_size(Number) >= 4 ->
+    binary:part(Number, {byte_size(Number), -4});
+get_masked_number(_) ->
+    throw(invalid_card_data).
+
 validate_algo({length, card_number, Lengths}, #{card_number := CN}) ->
-    lists:member(size(CN), Lengths);
+    lists:member(byte_size(CN), Lengths);
 
 validate_algo({length, cvv, Lengths}, #{cvv := CVV}) ->
-    lists:member(size(CVV), Lengths);
+    lists:member(byte_size(CVV), Lengths);
 
 validate_algo(luhn, #{card_number := CN}) ->
     luhn_valid(CN).
@@ -102,7 +107,7 @@ luhn_valid(<<CheckSum>>, Sum) ->
         _M ->
             false
     end;
-luhn_valid(<<N, Rest/binary>>, Sum) when size(Rest) rem 2 =:= 1 ->
+luhn_valid(<<N, Rest/binary>>, Sum) when byte_size(Rest) rem 2 =:= 1 ->
     case (N - $0) * 2 of
         M when M >= 10 ->
             luhn_valid(Rest, Sum + M div 10 + M rem 10);
