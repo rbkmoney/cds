@@ -16,7 +16,7 @@ SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
 BASE_IMAGE_NAME := service_erlang
 BASE_IMAGE_TAG := 13454a94990acb72f753623ec13599a9f6f4f852
 
-BUILD_IMAGE_TAG := 3750c129119b83ea399dc4aa0ed923fb0e3bf0f0
+BUILD_IMAGE_TAG := da3d14f1cc5c4749aac771adb685bb36fd4d5c1e
 
 CALL_W_CONTAINER := all submodules rebar-update compile xref lint dialyze test start devrel release clean distclean
 
@@ -64,8 +64,8 @@ clean:
 
 distclean:
 	$(REBAR) clean -a
-	rm -rfv _build _builds _cache _steps _temp
+	rm -rf _build
 
 test: submodules
-	$(REBAR) ct
+	$(REBAR) do eunit,ct
 

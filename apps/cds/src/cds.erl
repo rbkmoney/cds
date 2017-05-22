@@ -40,8 +40,8 @@
 -export_type([session/0]).
 -export_type([masterkey_share/0]).
 
--type token() :: binary().
--type session() :: binary().
+-type token() :: <<_:128>>.
+-type session() :: <<_:128>>.
 -type masterkey_share() :: binary().
 
 %%
