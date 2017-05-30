@@ -139,3 +139,5 @@ isomorphic_marshalling_test_() ->
         <<0:16/integer-unit:8>>
     ],
     [?_assertEqual(decode_token(encode_token(V)), V) || V <- Vs].
+
+-endif.
