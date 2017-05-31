@@ -181,15 +181,16 @@ get_cvv(Session) ->
 
 update_cvv(Session, Cvv) ->
     ok = keyring_available(),
-    {KeyID, _} = CurrentKeys = cds_keyring_manager:get_current_key(),
-    EncryptedCvv = encrypt(CurrentKeys, Cvv),
+    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    EncryptedCvv = encrypt(CurrentKey, Cvv),
     cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
 
 update_cardholder_data(Token, CardData) ->
     ok = keyring_available(),
-    {KeyID, _} = CurrentKeys = cds_keyring_manager:get_current_key(),
-    EncryptedCardData = encrypt(CurrentKeys, CardData),
-    cds_storage:update_cardholder_data(Token, EncryptedCardData, KeyID).
+    {KeyID, Key} = CurrentKey = cds_keyring_manager:get_current_key(),
+    Hash = hash(cds_card_data:unique(CardData), Key),
+    EncryptedCardData = encrypt(CurrentKey, CardData),
+    cds_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
 refresh_session_created_at(Session) ->
     cds_storage:refresh_session_created_at(Session).

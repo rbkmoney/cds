@@ -15,7 +15,7 @@
 -export([delete_session/1]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
--export([update_cardholder_data/3]).
+-export([update_cardholder_data/4]).
 -export([get_sessions_created_between/3]).
 -export([get_tokens_by_key_id_between/3]).
 -export([get_sessions_by_key_id_between/3]).
@@ -34,12 +34,12 @@
 -export([code_change/3]).
 
 -define(TOKEN_TABLE, cds_ets_storage_token).
--define(HASH_TABLE, cds_ets_storage_hash).
 -define(SESSION_TABLE, cds_ets_storage_session).
 
 
 -define(CREATED_AT_INDEX, "created_at").
 -define(KEY_ID_INDEX, "encoding_key_id").
+-define(CARD_DATA_HASH_INDEX, "card_data_salted_hash").
 
 %%
 %% cds_storage behaviour
@@ -56,11 +56,14 @@ start() ->
 
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
 get_token(Hash) ->
-    case get(?HASH_TABLE, Hash) of
-        {ok, V, _Index} ->
-            {ok, V};
-        Error ->
-            Error
+    case get_keys_by_index_value(?TOKEN_TABLE, ?CARD_DATA_HASH_INDEX, Hash, undefined) of
+        [Token] ->
+            {ok, Token};
+        [_ | _OtherTokens] ->
+            % This shouldnt happen, but we need to react somehow.
+            error({<<"Hash collision detected">>, Hash});
+        [] ->
+            {error, not_found}
     end.
 
 -spec get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
@@ -95,10 +98,10 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
             CardData
         },
         #{
-            ?KEY_ID_INDEX => KeyID
+            ?KEY_ID_INDEX => KeyID,
+            ?CARD_DATA_HASH_INDEX => Hash
         }
     ),
-    true = insert(?HASH_TABLE, {Hash, Token}),
     true = insert(
         ?SESSION_TABLE,
         {
@@ -154,9 +157,14 @@ get_cvv(Session) ->
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_TABLE, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
--spec update_cardholder_data(Token :: binary(), NewCardData :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
-update_cardholder_data(Token, NewCardData, KeyID) ->
-    update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}]).
+-spec update_cardholder_data(
+    Token :: binary(),
+    NewCardData :: binary(),
+    Hash :: binary(),
+    KeyID :: byte()
+) -> ok | {error, not_found}.
+update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
+    update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
 
 refresh_session_created_at(Session) ->
     case get(?SESSION_TABLE, Session) of
@@ -183,7 +191,6 @@ get_tokens(Limit, Continuation) ->
 %%
 
 init([]) ->
-    ?HASH_TABLE = ets:new(?HASH_TABLE, [named_table, public]),
     ?TOKEN_TABLE = ets:new(?TOKEN_TABLE, [named_table, public]),
     ?SESSION_TABLE = ets:new(?SESSION_TABLE, [named_table, public]),
     {ok, {}}.
@@ -202,9 +209,6 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
-insert(Tab, {Key, Value}) ->
-    insert(Tab, {Key, Value}, #{}).
 
 insert(Tab, {Key, Value}, Index) ->
     true = ets:insert(Tab, {Key, Value, Index}).
@@ -260,6 +264,9 @@ get_keys_by_index_range(Tab, IndexName, {From, To}, Limit) ->
         undefined -> Result0;
         _ -> lists:sublist(Result0, Limit)
     end.
+
+get_keys_by_index_value(Tab, IndexName, IndexValue, Limit) ->
+    get_keys_by_index_range(Tab, IndexName, {IndexValue, IndexValue}, Limit).
 
 update(Tab, Key, NewValue, NewIndexes) ->
     case get(Tab, Key) of

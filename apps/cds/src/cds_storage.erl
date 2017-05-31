@@ -23,7 +23,7 @@
 ) -> {ok, [term()]}.
 -callback get_cvv(binary()) -> {ok, binary()} | {error, not_found}.
 -callback update_cvv(binary(), binary(), byte()) -> ok | {error, not_found}.
--callback update_cardholder_data(binary(), binary(), byte()) -> ok | {error, not_found}.
+-callback update_cardholder_data(binary(), binary(), binary(), byte()) -> ok | {error, not_found}.
 -callback refresh_session_created_at(binary()) -> ok.
 -callback get_sessions(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
 -callback get_sessions(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
@@ -41,7 +41,7 @@
 -export([get_sessions_by_key_id_between/3]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
--export([update_cardholder_data/3]).
+-export([update_cardholder_data/4]).
 -export([refresh_session_created_at/1]).
 -export([get_sessions/1]).
 -export([get_sessions/2]).
@@ -132,7 +132,7 @@ get_cvv(Session) ->
 update_cvv(Session, Cvv, KeyID) ->
     cds_backend:call(storage, update_cvv, [Session, Cvv, KeyID]).
 
--spec update_cardholder_data(binary(), binary(), byte()) -> ok.
-update_cardholder_data(Token, CardData, KeyID) ->
-    cds_backend:call(storage, update_cardholder_data, [Token, CardData, KeyID]).
+-spec update_cardholder_data(binary(), binary(), binary(), byte()) -> ok.
+update_cardholder_data(Token, CardData, Hash, KeyID) ->
+    cds_backend:call(storage, update_cardholder_data, [Token, CardData, Hash, KeyID]).
 

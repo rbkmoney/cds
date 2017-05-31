@@ -9,7 +9,7 @@
 -export([delete_session/1]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
--export([update_cardholder_data/3]).
+-export([update_cardholder_data/4]).
 -export([get_sessions_created_between/3]).
 -export([get_tokens_by_key_id_between/3]).
 -export([get_sessions_by_key_id_between/3]).
@@ -23,11 +23,11 @@
 -include_lib("riakc/include/riakc.hrl").
 
 -define(TOKEN_BUCKET, <<"t">>).
--define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
 -define(CREATED_AT_INDEX, {integer_index, "created_at"}).
 -define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
+-define(CARD_DATA_HASH_INDEX, {binary_index, "card_data_salted_hash"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
 
@@ -64,18 +64,20 @@
 -spec start() -> ok.
 start() ->
     _ = start_pool(get_storage_params()),
-    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
+    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?SESSION_BUCKET]).
 
 -spec get_token(binary()) -> {ok, binary()} |
     {error, not_found} |
     no_return().
 get_token(Hash) ->
-    case get(?HASH_BUCKET, Hash) of
-        {ok, TokenObj} ->
-            Token = riakc_obj:get_value(TokenObj),
+    case get_keys_by_index_value(?TOKEN_BUCKET, ?CARD_DATA_HASH_INDEX, Hash, 2) of
+        {ok, [Token]} ->
             {ok, Token};
-        {error, notfound} ->
+        {ok, []} ->
             {error, not_found};
+        {ok, [_ | _OtherTokens]} ->
+            % This shouldnt happen, but we need to react somehow.
+            error({<<"Hash collision detected">>, Hash});
         {error, Reason} ->
             error(Reason)
     end.
@@ -85,7 +87,6 @@ get_token(Hash) ->
     {error, not_found} |
     no_return().
 get_cardholder_data(Token) ->
-
     case get(?TOKEN_BUCKET, Token) of
         {ok, CardDataObj} ->
             CardData = riakc_obj:get_value(CardDataObj),
@@ -114,10 +115,9 @@ get_session_card_data(Token, Session) ->
 
 -spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
-    TokenObj = prepare_token_obj(Token, CardData, KeyID),
-    HashObj = riakc_obj:new(?HASH_BUCKET, Hash, Token),
+    TokenObj = prepare_token_obj(Token, CardData, Hash, KeyID),
     SessionObj = prepare_session_obj(Session, Cvv, CreatedAt, KeyID),
-    case batch_put([[TokenObj], [HashObj], [SessionObj]]) of
+    case batch_put([[TokenObj], [SessionObj]]) of
         ok ->
             ok;
         {error, Reason} ->
@@ -149,9 +149,14 @@ get_cvv(Session) ->
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_BUCKET, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
--spec update_cardholder_data(Token :: binary(), NewCardData :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
-update_cardholder_data(Token, NewCardData, KeyID) ->
-    update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}]).
+-spec update_cardholder_data(
+    Token :: binary(),
+    NewCardData :: binary(),
+    NewHash :: binary(),
+    KeyID :: byte()
+) -> ok | {error, not_found}.
+update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
+    update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
 
 -spec get_sessions_created_between(
     non_neg_integer(),
@@ -294,14 +299,14 @@ prepare_session_obj(Session, Cvv, CreatedAt, KeyID) ->
             )
     end.
 
-prepare_token_obj(Token, CardData, KeyID) ->
+prepare_token_obj(Token, CardData, Hash, KeyID) ->
     case riakc_obj:new(?TOKEN_BUCKET, Token, CardData)  of
         Error = {error, _} ->
             error(Error);
         Obj ->
             set_indexes(
                 Obj,
-                [{?KEY_ID_INDEX, KeyID}]
+                [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}]
             )
     end.
 
@@ -359,6 +364,24 @@ get_keys_by_index_range(Bucket, IndexName, From, To, Limit) ->
         IndexName,
         From,
         To,
+        Options
+    ),
+    case Result of
+        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
+            {ok, Keys};
+        {ok, _} ->
+            {ok, []};
+        Error = {error, _} ->
+            Error
+    end.
+
+get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit) ->
+    Options = options([{max_results, Limit}]),
+
+    Result = get_index_eq(
+        Bucket,
+        IndexName,
+        IndexValue,
         Options
     ),
     case Result of

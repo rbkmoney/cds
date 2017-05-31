@@ -66,9 +66,7 @@ process_recrypting(EncodingType, [Interval | Rest], BatchSize) ->
     Items = get_data_by_key_id_between(EncodingType, Interval, BatchSize),
     ItemsSize = length(Items),
     _ = lager:info("Got ~p ~p items to recrypt", [ItemsSize, EncodingType]),
-    _ = [
-        _ = recrypt_item(EncodingType, ItemID)
-    || ItemID <- Items],
+    _ = [recrypt_item(EncodingType, ItemID) || ItemID <- Items],
     process_recrypting(EncodingType, Rest, BatchSize - ItemsSize).
 
 get_data_by_key_id_between(cvv, {From, To}, BatchSize) ->

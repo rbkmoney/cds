@@ -62,19 +62,20 @@ unmarshall(<<PanSize, Pan:PanSize/binary, Month:8, Year:16, CardholderName/binar
         cvv = Cvv
     }.
 
--spec unique(card_data()) -> Unqiue :: binary().
-unique(CardData) ->
-    #'CardData'{
-        pan = Pan,
-        exp_date = #'ExpDate'{
-            month = Month,
-            year = Year
-        },
-        cardholder_name = _CardholderName,
-        cvv = _Cvv
-    } = CardData,
+-spec unique(card_data() | binary()) -> Unqiue :: binary().
+unique(#'CardData'{
+    pan = Pan,
+    exp_date = #'ExpDate'{
+        month = Month,
+        year = Year
+    },
+    cardholder_name = _CardholderName,
+    cvv = _Cvv
+}) ->
     %% TODO: validate
-    <<(byte_size(Pan)), Pan/binary, Month:8, Year:16>>.
+    <<(byte_size(Pan)), Pan/binary, Month:8, Year:16>>;
+unique(<<PanSize, Pan:PanSize/binary, Month:8, Year:16, _/binary>>) ->
+    <<PanSize, Pan:PanSize/binary, Month:8, Year:16>>.
 
 % local
 
