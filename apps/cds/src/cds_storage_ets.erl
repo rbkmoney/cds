@@ -46,6 +46,7 @@
 %%
 
 -spec start() -> ok.
+
 start() ->
     ChildSpec = #{
         id => ?MODULE,
@@ -55,6 +56,7 @@ start() ->
     ok.
 
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
+
 get_token(Hash) ->
     case get_keys_by_index_value(?TOKEN_TABLE, ?CARD_DATA_HASH_INDEX, Hash, undefined) of
         [Token] ->
@@ -67,6 +69,7 @@ get_token(Hash) ->
     end.
 
 -spec get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
+
 get_cardholder_data(Token) ->
     case get(?TOKEN_TABLE, Token) of
         {ok, V, _Index} ->
@@ -76,6 +79,7 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
+
 get_session_card_data(Token, Session) ->
     case get(?SESSION_TABLE, Session) of
         {ok, Cvv, _} ->
@@ -90,6 +94,7 @@ get_session_card_data(Token, Session) ->
     end.
 
 -spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok.
+
 put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     true = insert(
         ?TOKEN_TABLE,
@@ -116,35 +121,31 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     ok.
 
 -spec delete_session(binary()) -> ok.
+
 delete_session(Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
--spec get_sessions_created_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [term()]}.
+-spec get_sessions_created_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, [term()]}.
+
 get_sessions_created_between(From, To, Limit) ->
     {ok, get_keys_by_index_range(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit)}.
 
--spec get_sessions_by_key_id_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [term()]}.
+-spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, [term()]}.
+
 get_sessions_by_key_id_between(From, To, Limit) ->
     {ok, get_keys_by_index_range(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
 
--spec get_tokens_by_key_id_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [term()]}.
+-spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, [term()]}.
+
 get_tokens_by_key_id_between(From, To, Limit) ->
     {ok, get_keys_by_index_range(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit)}.
 
 -spec get_cvv(Session :: binary()) -> {ok, binary()} | {error, not_found}.
+
 get_cvv(Session) ->
     case get(?SESSION_TABLE, Session) of
         {ok, Cvv, _Index} ->
@@ -154,17 +155,16 @@ get_cvv(Session) ->
     end.
 
 -spec update_cvv(Session :: binary(), NewCvv :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
+
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_TABLE, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
--spec update_cardholder_data(
-    Token :: binary(),
-    NewCardData :: binary(),
-    Hash :: binary(),
-    KeyID :: byte()
-) -> ok | {error, not_found}.
+-spec update_cardholder_data(binary(), binary(), binary(), byte()) -> ok | {error, not_found}.
+
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
+
+-spec refresh_session_created_at(binary()) -> ok.
 
 refresh_session_created_at(Session) ->
     case get(?SESSION_TABLE, Session) of
@@ -174,14 +174,22 @@ refresh_session_created_at(Session) ->
             ok
     end.
 
+-spec get_sessions(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
+
 get_sessions(Limit) ->
     get_sessions(Limit, undefined).
+
+-spec get_sessions(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
 
 get_sessions(Limit, Continuation) ->
     get_keys(?SESSION_TABLE, Limit, Continuation).
 
+-spec get_tokens(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
+
 get_tokens(Limit) ->
     get_tokens(Limit, undefined).
+
+-spec get_tokens(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
 
 get_tokens(Limit, Continuation) ->
     get_keys(?TOKEN_TABLE, Limit, Continuation).
@@ -190,25 +198,41 @@ get_tokens(Limit, Continuation) ->
 %% gen_server behaviour
 %%
 
+-type state() :: {}.
+
+-spec init([]) -> {ok, state()}.
+
 init([]) ->
     ?TOKEN_TABLE = ets:new(?TOKEN_TABLE, [named_table, public]),
     ?SESSION_TABLE = ets:new(?SESSION_TABLE, [named_table, public]),
     {ok, {}}.
 
+-spec handle_call(term(), {pid(), term()}, state()) -> {reply, ok, state()}.
+
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
+
+-spec handle_cast(term(), state()) -> {noreply, state()}.
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+-spec handle_info(term(), state()) -> {noreply, state()}.
+
 handle_info(_Info, State) ->
     {noreply, State}.
+
+-spec terminate(term(), state()) -> ok.
 
 terminate(_Reason, _State) ->
     ok.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
+
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% Internals
 
 insert(Tab, {Key, Value}, Index) ->
     true = ets:insert(Tab, {Key, Value, Index}).

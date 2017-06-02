@@ -35,6 +35,8 @@
     shares = #{}
 }).
 
+-type state() :: #state{}.
+
 %% API.
 
 -spec start_link() -> {ok, pid()}.
@@ -104,6 +106,8 @@ sync_send_all_state_event(Event) ->
 
 %% gen_fsm.
 
+-spec init(_) -> {ok, locked | not_initialized, state()}.
+
 init([]) ->
     try cds_keyring_storage:read() of
         Keyring ->
@@ -113,17 +117,27 @@ init([]) ->
             {ok, not_initialized, #state{}}
     end.
 
+-spec not_initialized(_, state()) -> {next_state, not_initialized, state()}.
+
 not_initialized(_Event, StateData) ->
     {next_state, not_initialized, StateData}.
+
+-spec locked(_, state()) -> {next_state, locked, state()}.
 
 locked(_Event, StateData) ->
     {next_state, locked, StateData}.
 
+-spec unlocked(_, state()) -> {next_state, unlocked, state()}.
+
 unlocked(_Event, StateData) ->
     {next_state, unlocked, StateData}.
 
+-spec handle_event(_, atom(), state()) -> {next_state, atom(), state()}.
+
 handle_event(_Event, StateName, StateData) ->
     {next_state, StateName, StateData}.
+
+-spec not_initialized(term(), term(), state()) -> term().
 
 not_initialized({initialize, Threshold, Count}, _From, StateData) ->
     MasterKey = cds_crypto:key(),
@@ -139,6 +153,8 @@ not_initialized({initialize, Threshold, Count}, _From, StateData) ->
     end;
 not_initialized(_Event, _From, StateData) ->
     {reply, {error, not_initialized}, not_initialized, StateData}.
+
+-spec locked(term(), term(), term()) -> term().
 
 locked(update, _From, StateData) ->
     try cds_keyring_storage:read() of
@@ -164,6 +180,8 @@ locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Sha
     end;
 locked(_Event, _From, StateData) ->
     {reply, {error, locked}, locked, StateData}.
+
+-spec unlocked(term(), term(), state()) -> term().
 
 unlocked(lock, _From, #state{masterkey = MasterKey, keyring = Keyring} = StateData) ->
     EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
@@ -203,16 +221,24 @@ unlocked(rotate, _From, #state{keyring = OldKeyring, masterkey = MasterKey} = St
 unlocked(_Event, _From, StateData) ->
     {reply, ignored, unlocked, StateData}.
 
+-spec handle_sync_event(term(), term(), atom(), state()) -> {reply, term(), atom(), state()}.
+
 handle_sync_event(get_state, _From, StateName, StateData) ->
     {reply, {ok, StateName}, StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
     {reply, ignored, StateName, StateData}.
 
+-spec handle_info(term(), atom(), state()) -> {next_state, atom(), state()}.
+
 handle_info(_Info, StateName, StateData) ->
     {next_state, StateName, StateData}.
 
+-spec terminate(term(), atom(), term()) -> ok.
+
 terminate(_Reason, _StateName, _StateData) ->
     ok.
+
+-spec code_change(term(), atom(), state(), term()) -> {ok, atom(), state()}.
 
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.

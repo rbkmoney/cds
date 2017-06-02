@@ -38,6 +38,8 @@
     state := handler_state()
 }.
 
+-spec start_link(module(), term()) -> {ok, pid()} | {error, term()}.
+
 start_link(Callback, Args) ->
     gen_server:start_link(?MODULE, [Callback, Args], []).
 
@@ -47,13 +49,19 @@ init([Callback, Args]) ->
     {ok, Interval, CallbackState} = Callback:init(Args),
     {ok, init_state(Interval, Callback, CallbackState)}.
 
+-spec handle_call(term(), {pid(), term()}, state()) -> {noreply, state()}.
+
 handle_call(Request, From, State) ->
-    _ = lager:error("Got unrecognized call from ~p: ", [From, Request]),
+    _ = lager:error("Got unrecognized call from ~p: ~p", [From, Request]),
     {noreply, State}.
 
+-spec handle_cast(term(), state()) -> {noreply, state()}.
+
 handle_cast(Msg, State) ->
-    _ = lager:error("Got unrecognized cast: ", [Msg]),
+    _ = lager:error("Got unrecognized cast: ~p", [Msg]),
     {noreply, State}.
+
+-spec handle_info(term(), state()) -> {noreply, state()}.
 
 handle_info(
     ?TIMEOUT_MESSAGE,
@@ -73,6 +81,8 @@ handle_info(Msg, State) ->
     _ = lager:debug("Got unrecognized info: ", [Msg]),
     {noreply, State}.
 
+-spec terminate(term(), state()) -> ok.
+
 terminate(Reason, #{handler := #{callback := Callback, state := CallbackState}}) ->
     Exports = Callback:module_info(exports),
     case lists:member({terminate, 1}, Exports) of
@@ -83,8 +93,12 @@ terminate(Reason, #{handler := #{callback := Callback, state := CallbackState}})
             ok
     end.
 
+-spec code_change(term(), state(), term()) -> {ok, state()}.
+
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%% Internals
 
 init_state(Interval, Callback, CallbackState) ->
     #{

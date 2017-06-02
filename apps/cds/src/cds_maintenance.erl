@@ -9,10 +9,14 @@
 
 %% api
 
+-spec refresh_sessions_created_at() -> ok.
+
 refresh_sessions_created_at() ->
     Getter = fun(Continuation) -> get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) -> cds:refresh_session_created_at(Key) end,
     refresh(Getter, Refresher).
+
+-spec refresh_cvv_encryption() -> ok.
 
 refresh_cvv_encryption() ->
     Getter = fun(Continuation) -> get_sessions(?REFRESH_BATCH, Continuation) end,
@@ -21,6 +25,8 @@ refresh_cvv_encryption() ->
         cds:update_cvv(Key, CVV)
     end,
     refresh(Getter, Refresher).
+
+-spec refresh_cardholder_encryption() -> ok.
 
 refresh_cardholder_encryption() ->
     Getter = fun(Continuation) -> get_tokens(?REFRESH_BATCH, Continuation) end,

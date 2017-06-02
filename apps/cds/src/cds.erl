@@ -36,12 +36,6 @@
 -export([get_outdated_encrypting_keys/0]).
 
 -compile({no_auto_import, [get/1]}).
-
--ifdef(TEST).
--include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
--endif.
-
 %%
 -export_type([token/0]).
 -export_type([session/0]).
@@ -72,6 +66,9 @@ stop() ->
 %%
 %% Supervisor callbacks
 %%
+
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+
 init([]) ->
     {ok, IP} = inet:parse_address(application:get_env(cds, ip, "::")),
     Service = woody_server:child_spec(
@@ -174,17 +171,20 @@ get_sessions_by_key_id_between(From, To, BatchSize) ->
 get_tokens_by_key_id_between(From, To, BatchSize) ->
     cds_storage:get_tokens_by_key_id_between(From, To, BatchSize).
 
+-spec get_cvv(session()) -> term().
 get_cvv(Session) ->
     ok = keyring_available(),
     EncryptedCvv = cds_storage:get_cvv(Session),
     decrypt(EncryptedCvv).
 
+-spec update_cvv(session(), cvv()) -> term().
 update_cvv(Session, Cvv) ->
     ok = keyring_available(),
     {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
     EncryptedCvv = encrypt(CurrentKey, Cvv),
     cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
 
+-spec update_cardholder_data(token(), cardholder_data()) -> term().
 update_cardholder_data(Token, CardData) ->
     ok = keyring_available(),
     {KeyID, Key} = CurrentKey = cds_keyring_manager:get_current_key(),

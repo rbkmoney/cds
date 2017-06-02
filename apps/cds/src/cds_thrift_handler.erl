@@ -131,6 +131,9 @@ unique(CardData) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
+-spec test() -> _.
+-spec isomorphic_marshalling_test_() -> _.
+
 isomorphic_marshalling_test_() ->
     Vs = [
         crypto:strong_rand_bytes(16),

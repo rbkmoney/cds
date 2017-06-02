@@ -18,6 +18,8 @@
     encoding_type := cvv | card_data
 }.
 
+-spec start_link(state()) -> {ok, pid()} | {error, Reason :: any()}.
+
 start_link(Options) ->
     cds_periodic_job:start_link(?MODULE, [Options]).
 
@@ -30,6 +32,8 @@ init([#{encoding_type := EncodingType}]) when
     _ = lager:info("Starting recrypter for ~p...", [EncodingType]),
     _ = cds_utils:logtag_process(encoding_type, EncodingType),
     {ok, get_interval(), #{encoding_type => EncodingType}}.
+
+-spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
 
 handle_timeout(State = #{encoding_type := EncodingType}) ->
     _ = lager:info("Starting recrypting", []),
@@ -44,6 +48,8 @@ handle_timeout(State = #{encoding_type := EncodingType}) ->
             _ = lager:error("Recrypting error: ~p", [Error]),
             {error, Error, State}
     end.
+
+%% Internals
 
 process_recrypting(EncodingType, BatchSize) ->
     try

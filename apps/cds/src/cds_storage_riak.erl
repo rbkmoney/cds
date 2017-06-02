@@ -23,6 +23,7 @@
 -include_lib("riakc/include/riakc.hrl").
 
 -define(TOKEN_BUCKET, <<"t">>).
+-define(HASH_BUCKET, <<"h">>).
 -define(SESSION_BUCKET, <<"s">>).
 
 -define(CREATED_AT_INDEX, {integer_index, "created_at"}).
@@ -62,19 +63,19 @@
 %%
 
 -spec start() -> ok.
+
 start() ->
     _ = start_pool(get_storage_params()),
-    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?SESSION_BUCKET]).
+    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
--spec get_token(binary()) -> {ok, binary()} |
-    {error, not_found} |
-    no_return().
+-spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
+
 get_token(Hash) ->
     case get_keys_by_index_value(?TOKEN_BUCKET, ?CARD_DATA_HASH_INDEX, Hash, 2) of
         {ok, [Token]} ->
             {ok, Token};
         {ok, []} ->
-            {error, not_found};
+            get_token_old_style(Hash);
         {ok, [_ | _OtherTokens]} ->
             % This shouldnt happen, but we need to react somehow.
             error({<<"Hash collision detected">>, Hash});
@@ -82,10 +83,16 @@ get_token(Hash) ->
             error(Reason)
     end.
 
--spec get_cardholder_data(binary()) ->
-    {ok, binary()} |
-    {error, not_found} |
-    no_return().
+get_token_old_style(Hash) ->
+    case get(?HASH_BUCKET, Hash) of
+        {ok, TokenObj} ->
+            {ok, riakc_obj:get_value(TokenObj)};
+        {error, notfound} ->
+            {error, not_found}
+    end.
+
+-spec get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found} | no_return().
+
 get_cardholder_data(Token) ->
     case get(?TOKEN_BUCKET, Token) of
         {ok, CardDataObj} ->
@@ -97,10 +104,8 @@ get_cardholder_data(Token) ->
             error(Reason)
     end.
 
--spec get_session_card_data(binary(), binary()) ->
-    {ok, {binary(), binary()}} |
-    {error, not_found} |
-    no_return().
+-spec get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found} | no_return().
+
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
         {ok, [CvvObj, CardDataObj]} ->
@@ -114,6 +119,7 @@ get_session_card_data(Token, Session) ->
     end.
 
 -spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok | no_return().
+
 put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     TokenObj = prepare_token_obj(Token, CardData, Hash, KeyID),
     SessionObj = prepare_session_obj(Session, Cvv, CreatedAt, KeyID),
@@ -125,6 +131,7 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     end.
 
 -spec delete_session(binary()) -> ok | no_return().
+
 delete_session(Session) ->
     case delete(?SESSION_BUCKET, Session) of
         ok ->
@@ -134,6 +141,7 @@ delete_session(Session) ->
     end.
 
 -spec get_cvv(Session :: binary()) -> {ok, binary()} | {error, not_found}.
+
 get_cvv(Session) ->
     case get(?SESSION_BUCKET, Session) of
         {ok, SessionObj} ->
@@ -146,64 +154,76 @@ get_cvv(Session) ->
     end.
 
 -spec update_cvv(Session :: binary(), NewCvv :: binary(), KeyID :: byte()) -> ok | {error, not_found}.
+
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_BUCKET, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
--spec update_cardholder_data(
-    Token :: binary(),
-    NewCardData :: binary(),
-    NewHash :: binary(),
-    KeyID :: byte()
-) -> ok | {error, not_found}.
+-spec update_cardholder_data(binary(), binary(), binary(), byte()) -> ok | {error, not_found}.
+
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
 
--spec get_sessions_created_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [binary()]} | no_return().
+-spec get_sessions_created_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, [binary()]} | no_return().
+
 get_sessions_created_between(From, To, Limit) ->
     Result = get_keys_by_index_range(?SESSION_BUCKET, ?CREATED_AT_INDEX, From, To, Limit),
-
     case Result of
         OK = {ok, _} ->
             OK;
         {error, Error} ->
             error(Error)
     end.
+
+-spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, [binary()]} | no_return().
 
 get_tokens_by_key_id_between(From, To, Limit) ->
     Result = get_keys_by_index_range(?TOKEN_BUCKET, ?KEY_ID_INDEX, From, To, Limit),
-
     case Result of
         OK = {ok, _} ->
             OK;
         {error, Error} ->
             error(Error)
     end.
+
+-spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, [binary()]} | no_return().
 
 get_sessions_by_key_id_between(From, To, Limit) ->
     Result = get_keys_by_index_range(?SESSION_BUCKET, ?KEY_ID_INDEX, From, To, Limit),
-
     case Result of
         OK = {ok, _} ->
             OK;
         {error, Error} ->
             error(Error)
     end.
+
+-spec get_sessions(non_neg_integer() | undefined) ->
+    {ok, {[binary()], continuation()}}.
 
 get_sessions(Limit) ->
     get_sessions(Limit, undefined).
 
+-spec get_sessions(non_neg_integer() | undefined, continuation()) ->
+    {ok, {[binary()], continuation()}}.
+
 get_sessions(Limit, Continuation) ->
     get_keys(?SESSION_BUCKET, Limit, Continuation).
+
+-spec get_tokens(non_neg_integer() | undefined) ->
+    {ok, {[binary()], continuation()}}.
 
 get_tokens(Limit) ->
     get_tokens(Limit, undefined).
 
+-spec get_tokens(non_neg_integer() | undefined, continuation()) ->
+    {ok, {[binary()], continuation()}}.
+
 get_tokens(Limit, Continuation) ->
     get_keys(?TOKEN_BUCKET, Limit, Continuation).
+
+-spec refresh_session_created_at(binary()) -> ok | no_return().
 
 refresh_session_created_at(Session) ->
     case get(?SESSION_BUCKET, Session) of
@@ -219,6 +239,7 @@ refresh_session_created_at(Session) ->
 %%
 
 -spec start_pool(storage_params()) -> ok | no_return().
+
 start_pool(#{conn_params := #{host := Host, port := Port}} = StorageParams) ->
     PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 

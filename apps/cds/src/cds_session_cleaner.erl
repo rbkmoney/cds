@@ -15,6 +15,8 @@
 -define(DEFAULT_BATCH_SIZE, 5000).
 -define(DEFAULT_SESSION_LIFETIME, 3600).
 
+-spec start_link() -> {ok, pid()} | {error, Reason :: any()}.
+
 start_link() ->
     cds_periodic_job:start_link(?MODULE, []).
 
@@ -23,6 +25,8 @@ start_link() ->
 init(_Args) ->
     _ = lager:info("Starting session cleaner...", []),
     {ok, get_interval(), undefined}.
+
+-spec handle_timeout(any()) -> {ok, done | more, any()} | {error, Reason :: any(), any()}.
 
 handle_timeout(State) ->
     _ = lager:info("Starting session cleaning", []),
@@ -40,11 +44,8 @@ handle_timeout(State) ->
             {error, Error, State}
     end.
 
--spec clean_sessions(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, done | more} | {error, Reason :: any()}.
+-spec clean_sessions(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
+    {ok, done | more} | {error, Reason :: any()}.
 
 clean_sessions(From, To, BatchSize) ->
     try
@@ -69,6 +70,8 @@ clean_sessions(From, To, BatchSize) ->
         throw:Reason ->
             {error, Reason}
     end.
+
+%% Internals
 
 get_interval() ->
     maps:get(interval, get_config(), ?DEFAULT_INTERVAL).

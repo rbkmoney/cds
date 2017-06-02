@@ -2,7 +2,25 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("cds/src/cds_cds_thrift.hrl").
--compile(export_all).
+
+-export([all/0]).
+-export([groups/0]).
+-export([init_per_group/2]).
+-export([end_per_group/2]).
+
+-export([init/1]).
+-export([lock/1]).
+-export([unlock/1]).
+-export([put_card_data/1]).
+-export([get_card_data/1]).
+-export([rotate/1]).
+-export([recrypt/1]).
+-export([session_cleaning/1]).
+-export([refresh_sessions/1]).
+-export([init_keyring_exists/1]).
+-export([rotate_keyring_locked/1]).
+-export([get_card_data_keyring_locked/1]).
+-export([get_session_card_data_keyring_locked/1]).
 
 %%
 
@@ -20,12 +38,19 @@
 %%
 %% tests descriptions
 %%
+
+-type config() :: term().
+
+-spec all() -> [{group, atom()}].
+
 all() ->
     [
         {group, riak_storage_backend},
         {group, ets_storage_backend},
         {group, keyring_errors}
     ].
+
+-spec groups() -> [{atom(), list(), [atom()]}].
 
 groups() ->
  [
@@ -61,6 +86,8 @@ groups() ->
 %%
 %% starting/stopping
 %%
+
+-spec init_per_group(atom(), config()) -> config().
 
 init_per_group(riak_storage_backend, C) ->
     % _ = dbg:tracer(),
@@ -120,6 +147,8 @@ init_per_group(_, C) ->
     C1 = start_clear(C),
     C1 ++ C.
 
+-spec end_per_group(atom(), config()) -> _.
+
 end_per_group(Group, C) when
     Group =:= ets_storage_backend;
     Group =:= general_flow;
@@ -133,10 +162,15 @@ end_per_group(_, C) ->
 %%
 %% tests
 %%
+
+-spec init(config()) -> _.
+
 init(C) ->
     MasterKeys = cds_client:init(2, 3, root_url(C)),
     3 = length(MasterKeys),
     {save_config, MasterKeys}.
+
+-spec lock(config()) -> _.
 
 lock(C) ->
     {init, MasterKeys} = config(saved_config, C),
@@ -144,11 +178,15 @@ lock(C) ->
     #'KeyringLocked'{} = (catch cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C))),
     {save_config, MasterKeys}.
 
+-spec unlock(config()) -> _.
+
 unlock(C) ->
     {lock, [MasterKey1, MasterKey2, _MasterKey3]} = config(saved_config, C),
     {more_keys_needed, 1} = cds_client:unlock(MasterKey1, root_url(C)),
     {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, root_url(C)),
     ok.
+
+-spec put_card_data(config()) -> _.
 
 put_card_data(C) ->
     #'PutCardDataResult'{
@@ -158,23 +196,35 @@ put_card_data(C) ->
     } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
     {save_config, Token}.
 
+-spec get_card_data(config()) -> _.
+
 get_card_data(C) ->
     {put_card_data, Token} = config(saved_config, C),
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
     ok.
 
+-spec rotate(config()) -> _.
+
 rotate(C) ->
     ok = cds_client:rotate(root_url(C)),
     ok.
 
+-spec init_keyring_exists(config()) -> _.
+
 init_keyring_exists(C) ->
     #'KeyringExists'{} = (catch cds_client:init(2, 3, root_url(C))).
+
+-spec rotate_keyring_locked(config()) -> _.
 
 rotate_keyring_locked(C) ->
     #'KeyringLocked'{} = (catch cds_client:rotate(root_url(C))).
 
+-spec get_card_data_keyring_locked(config()) -> _.
+
 get_card_data_keyring_locked(C) ->
     #'KeyringLocked'{} = (catch cds_client:get_card_data(<<"No matter what">>, root_url(C))).
+
+-spec get_session_card_data_keyring_locked(config()) -> _.
 
 get_session_card_data_keyring_locked(C) ->
     #'KeyringLocked'{} = (catch cds_client:get_session_card_data(
@@ -182,6 +232,8 @@ get_session_card_data_keyring_locked(C) ->
         <<"No matter what">>,
         root_url(C))
     ).
+
+-spec session_cleaning(config()) -> _.
 
 session_cleaning(C) ->
     #'PutCardDataResult'{
@@ -207,6 +259,8 @@ session_cleaning(C) ->
             ok
     end,
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
+
+-spec refresh_sessions(config()) -> _.
 
 refresh_sessions(C) ->
     #'PutCardDataResult'{
@@ -242,6 +296,9 @@ refresh_sessions(C) ->
             ok
     end,
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
+
+
+-spec recrypt(config()) -> _.
 
 %% dishonest test which uses internal functions
 recrypt(C) ->
