@@ -12,14 +12,16 @@
 -spec refresh_sessions_created_at() -> ok.
 
 refresh_sessions_created_at() ->
-    Getter = fun(Continuation) -> get_sessions(?REFRESH_BATCH, Continuation) end,
-    Refresher = fun(Key) -> cds:refresh_session_created_at(Key) end,
+    ok = assert_keyring_available(),
+    Getter = fun(Continuation) -> cds_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
+    Refresher = fun(Key) -> cds_storage:refresh_session_created_at(Key) end,
     refresh(Getter, Refresher).
 
 -spec refresh_cvv_encryption() -> ok.
 
 refresh_cvv_encryption() ->
-    Getter = fun(Continuation) -> get_sessions(?REFRESH_BATCH, Continuation) end,
+    ok = assert_keyring_available(),
+    Getter = fun(Continuation) -> cds_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
         CVV = cds:get_cvv(Key),
         cds:update_cvv(Key, CVV)
@@ -29,7 +31,8 @@ refresh_cvv_encryption() ->
 -spec refresh_cardholder_encryption() -> ok.
 
 refresh_cardholder_encryption() ->
-    Getter = fun(Continuation) -> get_tokens(?REFRESH_BATCH, Continuation) end,
+    ok = assert_keyring_available(),
+    Getter = fun(Continuation) -> cds_storage:get_tokens(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
         CardData = cds:get_cardholder_data(Key),
         cds:update_cardholder_data(Key, CardData)
@@ -51,9 +54,10 @@ refresh(Getter, Refresher, Continuation0) ->
             refresh(Getter, Refresher, Continuation)
     end.
 
-
-get_sessions(Limit, Continuation) ->
-    cds_storage:get_sessions(Limit, Continuation).
-
-get_tokens(Limit, Continuation) ->
-    cds_storage:get_tokens(Limit, Continuation).
+assert_keyring_available() ->
+    case cds_keyring_manager:get_state() of
+        unlocked ->
+            ok;
+        locked ->
+            throw(locked)
+    end.

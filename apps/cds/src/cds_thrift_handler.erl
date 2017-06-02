@@ -13,8 +13,8 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('Init', [Threshold, Count], _Context, _Opts) ->
-    try cds:init_keyring(Threshold, Count) of
+handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
+    try cds_keyring_manager:initialize(Threshold, Count) of
         Shares ->
             {ok, Shares}
     catch
@@ -22,19 +22,19 @@ handle_function('Init', [Threshold, Count], _Context, _Opts) ->
             woody_error:raise(business, #'KeyringExists'{})
     end;
 handle_function('Unlock', [Share], _Context, _Opts) ->
-    case cds:unlock_keyring(Share) of
+    case cds_keyring_manager:unlock(Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {unlocked, #'Unlocked'{}}}
     end;
 handle_function('Rotate', [], _Context, _Opts) ->
-    try {ok, cds:rotate_keyring()} catch
+    try {ok, cds_keyring_manager:rotate()} catch
         locked ->
             woody_error:raise(business, #'KeyringLocked'{})
     end;
 handle_function('Lock', [], _Context, _Opts) ->
-    {ok, cds:lock_keyring()};
+    {ok, cds_keyring_manager:lock()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     try {ok, get_cardholder_data(decode_token(Token))} catch
         not_found ->

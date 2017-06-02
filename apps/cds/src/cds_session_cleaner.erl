@@ -15,46 +15,54 @@
 -define(DEFAULT_BATCH_SIZE, 5000).
 -define(DEFAULT_SESSION_LIFETIME, 3600).
 
+-type state() :: #{
+    continuation := continuation()
+}.
+
+-type continuation() :: undefined | term().
+
 -spec start_link() -> {ok, pid()} | {error, Reason :: any()}.
 
 start_link() ->
     cds_periodic_job:start_link(?MODULE, []).
 
--spec init(_) -> {ok, non_neg_integer(), undefined}.
+-spec init(_) -> {ok, non_neg_integer(), state()}.
 
 init(_Args) ->
     _ = lager:info("Starting session cleaner...", []),
-    {ok, get_interval(), undefined}.
+    {ok, get_interval(), #{continuation => undefined}}.
 
--spec handle_timeout(any()) -> {ok, done | more, any()} | {error, Reason :: any(), any()}.
+-spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
 
-handle_timeout(State) ->
+handle_timeout(State = #{continuation := Continuation0}) ->
     _ = lager:info("Starting session cleaning", []),
 
     To = genlib_time:unow() - get_session_lifetime(),
-    case clean_sessions(0, To, get_batch_size()) of
+    case clean_sessions(0, To, get_batch_size(), Continuation0) of
         {ok, done} ->
             _ = lager:info("Cleaned all the sessions"),
-            {ok, done, State};
-        {ok, more} ->
+            {ok, done, State#{continuation => undefined}};
+        {ok, more, Continuation} ->
             _ = lager:info("Cleaned some sessions. Need to repeat"),
-            {ok, more, State};
+            {ok, more, State#{continuation => Continuation}};
         {error, Error} ->
             _ = lager:error("Cleaning error: ~p", [Error]),
-            {error, Error, State}
+            {error, Error, State#{continuation => undefined}}
     end.
 
--spec clean_sessions(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
-    {ok, done | more} | {error, Reason :: any()}.
+%% Internals
 
-clean_sessions(From, To, BatchSize) ->
+-spec clean_sessions(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined, continuation()) ->
+    {ok, done} | {ok, more, continuation()} | {error, Reason :: any()}.
+
+clean_sessions(From, To, BatchSize, Continuation0) ->
     try
-        Sessions = cds:get_sessions_created_between(From, To, BatchSize),
+        {Sessions, Continuation} = cds_storage:get_sessions_created_between(From, To, BatchSize, Continuation0),
         SessionsSize = length(Sessions),
         _ = lager:info("Got ~p sessions to clean", [SessionsSize]),
         _ = [
             begin
-            _ = cds:delete_session(ID),
+            _ = cds_storage:delete_session(ID),
             lager:debug("Deleted session ~p", [ID])
             end
         || ID <- Sessions],
@@ -64,7 +72,7 @@ clean_sessions(From, To, BatchSize) ->
             _ when SessionsSize < BatchSize ->
                 {ok, done};
             _ ->
-                {ok, more}
+                {ok, more, Continuation}
         end
     catch
         throw:Reason ->

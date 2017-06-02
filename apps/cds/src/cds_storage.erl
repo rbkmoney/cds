@@ -1,34 +1,40 @@
 -module(cds_storage).
 
+-type limit() :: non_neg_integer() | undefined.
+-type continuation() :: term().
+-type timestamp() :: pos_integer().
+
 -callback start() -> ok.
 -callback get_token(binary()) -> {ok, binary()} | {error, not_found}.
 -callback get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
 -callback get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
 -callback put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok.
--callback delete_session(binary()) -> ok.
--callback get_sessions_created_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [term()]}.
--callback get_sessions_by_key_id_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [term()]}.
--callback get_tokens_by_key_id_between(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, [term()]}.
 -callback get_cvv(binary()) -> {ok, binary()} | {error, not_found}.
 -callback update_cvv(binary(), binary(), byte()) -> ok | {error, not_found}.
 -callback update_cardholder_data(binary(), binary(), binary(), byte()) -> ok | {error, not_found}.
 -callback refresh_session_created_at(binary()) -> ok.
--callback get_sessions(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
--callback get_sessions(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
--callback get_tokens(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
--callback get_tokens(non_neg_integer(), Continuation :: term()) -> {ok, {[term()], Continuation :: term()}}.
+-callback delete_session(binary()) -> ok.
+
+-callback get_sessions_created_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    limit(),
+    continuation()
+) -> {ok, {[term()], continuation()}} | no_return().
+-callback get_sessions_by_key_id_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    limit(),
+    continuation()
+) -> {ok, {[term()], continuation()}} | no_return().
+-callback get_tokens_by_key_id_between(
+    non_neg_integer(),
+    non_neg_integer(),
+    limit(),
+    continuation()
+) -> {ok, {[term()], continuation()}} | no_return().
+-callback get_sessions(limit(), continuation()) -> {ok, {[term()], continuation()}} | no_return().
+-callback get_tokens(limit(), continuation()) -> {ok, {[term()], continuation()}} | no_return().
 
 -export([start/0]).
 -export([get_token/1]).
@@ -36,19 +42,15 @@
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
 -export([delete_session/1]).
--export([get_sessions_created_between/3]).
--export([get_tokens_by_key_id_between/3]).
--export([get_sessions_by_key_id_between/3]).
+-export([get_sessions_created_between/4]).
+-export([get_tokens_by_key_id_between/4]).
+-export([get_sessions_by_key_id_between/4]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
 -export([update_cardholder_data/4]).
 -export([refresh_session_created_at/1]).
--export([get_sessions/1]).
 -export([get_sessions/2]).
--export([get_tokens/1]).
 -export([get_tokens/2]).
-
--type timestamp() :: pos_integer().
 
 -spec start() -> ok.
 start() ->
@@ -77,50 +79,45 @@ delete_session(Session) ->
 -spec get_sessions_created_between(
     non_neg_integer(),
     pos_integer(),
-    pos_integer() | undefined
-) -> [term()] | no_return().
-get_sessions_created_between(From, To, Limit) when
+    limit(),
+    continuation()
+) -> {[term()], continuation()} | no_return().
+get_sessions_created_between(From, To, Limit, Continuation) when
     From =< To
 ->
-    cds_backend:call(storage, get_sessions_created_between, [From, To, Limit]).
+    cds_backend:call(storage, get_sessions_created_between, [From, To, Limit, Continuation]).
 
 -spec get_sessions_by_key_id_between(
     non_neg_integer(),
     pos_integer(),
-    pos_integer() | undefined
-) -> [term()] | no_return().
-get_sessions_by_key_id_between(From, To, Limit) when
+    limit(),
+    continuation()
+) -> {[term()], continuation()} | no_return().
+get_sessions_by_key_id_between(From, To, Limit, Continuation) when
     From =< To
 ->
-    cds_backend:call(storage, get_sessions_by_key_id_between, [From, To, Limit]).
+    cds_backend:call(storage, get_sessions_by_key_id_between, [From, To, Limit, Continuation]).
 
 -spec get_tokens_by_key_id_between(
     non_neg_integer(),
     pos_integer(),
-    pos_integer() | undefined
-) -> [term()] | no_return().
-get_tokens_by_key_id_between(From, To, Limit) when
+    limit(),
+    continuation()
+) -> {[term()], continuation()} | no_return().
+get_tokens_by_key_id_between(From, To, Limit, Continuation) when
     From =< To
 ->
-    cds_backend:call(storage, get_tokens_by_key_id_between, [From, To, Limit]).
+    cds_backend:call(storage, get_tokens_by_key_id_between, [From, To, Limit, Continuation]).
 
 -spec refresh_session_created_at(binary()) -> ok.
 refresh_session_created_at(Session) ->
     cds_backend:call(storage, refresh_session_created_at, [Session]).
 
--spec get_sessions(non_neg_integer()) -> {ok, {[term()], Continuation :: term()}}.
-get_sessions(Limit) ->
-    cds_backend:call(storage, get_sessions, [Limit]).
-
--spec get_sessions(non_neg_integer(), Continuation :: term()) -> {[term()], Continuation :: term()}.
+-spec get_sessions(limit(), continuation()) -> {[term()], continuation()} | no_return().
 get_sessions(Limit, Continuation) ->
     cds_backend:call(storage, get_sessions, [Limit, Continuation]).
 
--spec get_tokens(non_neg_integer()) -> {[term()], Continuation :: term()}.
-get_tokens(Limit) ->
-    cds_backend:call(storage, get_tokens, [Limit]).
-
--spec get_tokens(non_neg_integer(), Continuation :: term()) -> {[term()], Continuation :: term()}.
+-spec get_tokens(limit(), continuation()) -> {[term()], continuation()} | no_return().
 get_tokens(Limit, Continuation) ->
     cds_backend:call(storage, get_tokens, [Limit, Continuation]).
 

@@ -6,6 +6,7 @@
 -export([get_key/1]).
 -export([get_all_keys/0]).
 -export([get_current_key/0]).
+-export([get_outdated_keys/0]).
 -export([unlock/1]).
 -export([lock/0]).
 -export([update/0]).
@@ -54,6 +55,12 @@ get_all_keys() ->
 -spec get_current_key() -> {cds_keyring:key_id(), cds_crypto:key()}.
 get_current_key() ->
     sync_send_event(get_current_key).
+
+-spec get_outdated_keys() -> [{From :: byte(), To :: byte()}].
+get_outdated_keys() ->
+    {KeyID, _} = get_current_key(),
+    #{min := MinID, max := MaxID} = cds_keyring:get_key_id_config(),
+    [ I || {From, To} = I <- [{MinID, KeyID}, {KeyID, MaxID}], From =/= To].
 
 -spec unlock(binary()) -> {more, byte()} | ok.
 unlock(Share) ->

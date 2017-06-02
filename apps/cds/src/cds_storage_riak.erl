@@ -2,21 +2,23 @@
 -behaviour(cds_storage).
 
 -export([start/0]).
+
+%% Single object functions
+-export([get_cvv/1]).
 -export([get_token/1]).
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
 -export([delete_session/1]).
--export([get_cvv/1]).
 -export([update_cvv/3]).
 -export([update_cardholder_data/4]).
--export([get_sessions_created_between/3]).
--export([get_tokens_by_key_id_between/3]).
--export([get_sessions_by_key_id_between/3]).
 -export([refresh_session_created_at/1]).
--export([get_sessions/1]).
+
+%% Many objects functions
+-export([get_sessions_created_between/4]).
+-export([get_tokens_by_key_id_between/4]).
+-export([get_sessions_by_key_id_between/4]).
 -export([get_sessions/2]).
--export([get_tokens/1]).
 -export([get_tokens/2]).
 
 
@@ -62,25 +64,31 @@
 %% cds_storage behaviour
 %%
 
+-type limit() :: non_neg_integer() | undefined.
+-type index_query_result() :: index_query_result(binary()).
+-type index_query_result(ResultType) :: {ok, {[ResultType], continuation()}}.
+
 -spec start() -> ok.
 
 start() ->
     _ = start_pool(get_storage_params()),
     lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
 
+%%
+%% Single object functions
+%%
+
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
 
 get_token(Hash) ->
-    case get_keys_by_index_value(?TOKEN_BUCKET, ?CARD_DATA_HASH_INDEX, Hash, 2) of
-        {ok, [Token]} ->
+    case get_keys_by_index_value(?TOKEN_BUCKET, ?CARD_DATA_HASH_INDEX, Hash, 2, undefined) of
+        {ok, {[Token], _}} ->
             {ok, Token};
-        {ok, []} ->
+        {ok, {[], _}} ->
             get_token_old_style(Hash);
-        {ok, [_ | _OtherTokens]} ->
+        {ok, {[_ | _OtherTokens], _}} ->
             % This shouldnt happen, but we need to react somehow.
-            error({<<"Hash collision detected">>, Hash});
-        {error, Reason} ->
-            error(Reason)
+            error({<<"Hash collision detected">>, Hash})
     end.
 
 get_token_old_style(Hash) ->
@@ -163,66 +171,6 @@ update_cvv(Session, NewCvv, KeyID) ->
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
 
--spec get_sessions_created_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
-    {ok, [binary()]} | no_return().
-
-get_sessions_created_between(From, To, Limit) ->
-    Result = get_keys_by_index_range(?SESSION_BUCKET, ?CREATED_AT_INDEX, From, To, Limit),
-    case Result of
-        OK = {ok, _} ->
-            OK;
-        {error, Error} ->
-            error(Error)
-    end.
-
--spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
-    {ok, [binary()]} | no_return().
-
-get_tokens_by_key_id_between(From, To, Limit) ->
-    Result = get_keys_by_index_range(?TOKEN_BUCKET, ?KEY_ID_INDEX, From, To, Limit),
-    case Result of
-        OK = {ok, _} ->
-            OK;
-        {error, Error} ->
-            error(Error)
-    end.
-
--spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined) ->
-    {ok, [binary()]} | no_return().
-
-get_sessions_by_key_id_between(From, To, Limit) ->
-    Result = get_keys_by_index_range(?SESSION_BUCKET, ?KEY_ID_INDEX, From, To, Limit),
-    case Result of
-        OK = {ok, _} ->
-            OK;
-        {error, Error} ->
-            error(Error)
-    end.
-
--spec get_sessions(non_neg_integer() | undefined) ->
-    {ok, {[binary()], continuation()}}.
-
-get_sessions(Limit) ->
-    get_sessions(Limit, undefined).
-
--spec get_sessions(non_neg_integer() | undefined, continuation()) ->
-    {ok, {[binary()], continuation()}}.
-
-get_sessions(Limit, Continuation) ->
-    get_keys(?SESSION_BUCKET, Limit, Continuation).
-
--spec get_tokens(non_neg_integer() | undefined) ->
-    {ok, {[binary()], continuation()}}.
-
-get_tokens(Limit) ->
-    get_tokens(Limit, undefined).
-
--spec get_tokens(non_neg_integer() | undefined, continuation()) ->
-    {ok, {[binary()], continuation()}}.
-
-get_tokens(Limit, Continuation) ->
-    get_keys(?TOKEN_BUCKET, Limit, Continuation).
-
 -spec refresh_session_created_at(binary()) -> ok | no_return().
 
 refresh_session_created_at(Session) ->
@@ -234,6 +182,41 @@ refresh_session_created_at(Session) ->
         {error, Reason} ->
             error(Reason)
     end.
+
+%%
+%% Batch functions
+%%
+
+-spec get_sessions_created_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
+    index_query_result() | no_return().
+
+get_sessions_created_between(From, To, Limit, Continuation) ->
+    get_keys_by_index_range(?SESSION_BUCKET, ?CREATED_AT_INDEX, From, To, Limit, Continuation).
+
+-spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
+    index_query_result() | no_return().
+
+get_tokens_by_key_id_between(From, To, Limit, Continuation) ->
+    get_keys_by_index_range(?TOKEN_BUCKET, ?KEY_ID_INDEX, From, To, Limit, Continuation).
+
+-spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
+    index_query_result() | no_return().
+
+get_sessions_by_key_id_between(From, To, Limit, Continuation) ->
+    get_keys_by_index_range(?SESSION_BUCKET, ?KEY_ID_INDEX, From, To, Limit, Continuation).
+
+-spec get_sessions(limit(), continuation()) ->
+    index_query_result() | no_return().
+
+get_sessions(Limit, Continuation) ->
+    get_keys(?SESSION_BUCKET, Limit, Continuation).
+
+-spec get_tokens(limit(), continuation()) ->
+    index_query_result() | no_return().
+
+get_tokens(Limit, Continuation) ->
+    get_keys(?TOKEN_BUCKET, Limit, Continuation).
+
 %%
 %% Internal
 %%
@@ -366,7 +349,6 @@ get_storage_params() ->
 
 get_keys(Bucket, Limit, Continuation) ->
     Options = options([{max_results, Limit}, {continuation, Continuation}]),
-
     Result = get_index_eq(
         Bucket,
         <<"$bucket">>,
@@ -375,11 +357,8 @@ get_keys(Bucket, Limit, Continuation) ->
     ),
     prepare_index_result(Result).
 
-
-%% @TODO add continuation here?
-get_keys_by_index_range(Bucket, IndexName, From, To, Limit) ->
-    Options = options([{max_results, Limit}]),
-
+get_keys_by_index_range(Bucket, IndexName, From, To, Limit, Continuation) ->
+    Options = options([{max_results, Limit}, {continuation, Continuation}]),
     Result = get_index_range(
         Bucket,
         IndexName,
@@ -387,32 +366,19 @@ get_keys_by_index_range(Bucket, IndexName, From, To, Limit) ->
         To,
         Options
     ),
-    case Result of
-        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
-            {ok, Keys};
-        {ok, _} ->
-            {ok, []};
-        Error = {error, _} ->
-            Error
-    end.
+    prepare_index_result(Result).
 
-get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit) ->
-    Options = options([{max_results, Limit}]),
-
+get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit, Continuation) ->
+    Options = options([{max_results, Limit}, {continuation, Continuation}]),
     Result = get_index_eq(
         Bucket,
         IndexName,
         IndexValue,
         Options
     ),
-    case Result of
-        {ok, [#index_results_v1{keys = Keys}]} when Keys =/= undefined ->
-            {ok, Keys};
-        {ok, _} ->
-            {ok, []};
-        Error = {error, _} ->
-            Error
-    end.
+    prepare_index_result(Result).
+
+-spec prepare_index_result({ok, index_results()} | {error, Reason :: term()}) -> index_query_result() | no_return().
 
 prepare_index_result(Result) ->
     case Result of
@@ -420,8 +386,8 @@ prepare_index_result(Result) ->
             {ok, {Keys, Continuation}};
         {ok, _} ->
             {ok, {[], undefined}};
-        Error = {error, _} ->
-            Error
+        {error, Error} ->
+            error(Error)
     end.
 
 options(Opts) ->

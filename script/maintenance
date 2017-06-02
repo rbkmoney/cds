@@ -1,10 +1,5 @@
 #!/bin/sh
 
--export([refresh_sessions_created_at/0]).
--export([refresh_cvv_encryption/0]).
--export([refresh_cardholder_encryption/0]).
-
-
 set -e
 
 REL_NAME=cds
@@ -13,33 +8,33 @@ maintenance_usage() {
     command="$1"
 
     case "$command" in
-        refresh_sessions_created_at)
-            echo "Usage: $SCRIPT_NAME refresh_sessions_created_at"
+        refresh_sessions)
+            echo "Usage: $SCRIPT_NAME refresh_sessions"
             echo "Sets sessions \"created at\" time to current UTC time"
             ;;
-        refresh_cvv_encryption)
+        refresh_cvv)
             echo "Usage: $SCRIPT_NAME refresh_cvv_encryption"
             echo "Sets sessions \"key id\" index to the current one"
             ;;
-        refresh_cardholder_encryption)
+        refresh_cardholder)
             echo "Usage: $SCRIPT_NAME refresh_cardholder_encryption"
             echo "Sets tokens \"key id\" index to the current one"
             ;;
         *)
-            echo "Usage: $SCRIPT_NAME {refresh_sessions_created_at|refresh_cvv_encryption|refresh_cardholder_encryption|help}"
+            echo "Usage: $SCRIPT_NAME {refresh_sessions|refresh_cvv|refresh_cardholder|help}"
             ;;
     esac
 }
 
 # Check the first argument for instructions
 case "$1" in
-    refresh_sessions_created_at)
+    refresh_sessions)
         (exec ./$REL_NAME eval 'cds_maintenance:refresh_sessions_created_at()')
         ;;
-    refresh_cvv_encryption)
+    refresh_cvv)
         (exec ./$REL_NAME eval 'cds_maintenance:refresh_cvv_encryption()')
         ;;
-    refresh_cardholder_encryption)
+    refresh_cardholder)
         (exec ./$REL_NAME eval 'cds_maintenance:refresh_cardholder_encryption()')
         ;;
     help)
