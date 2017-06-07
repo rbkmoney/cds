@@ -348,7 +348,7 @@ start_clear(Config) ->
             {suppress_application_start_stop, true},
             {crash_log, false},
             {handlers, [
-                {lager_common_test_backend, [debug, true]}
+                {lager_common_test_backend, debug}
             ]}
         ]) ++
         genlib_app:start_application_with(cds, CdsEnv),

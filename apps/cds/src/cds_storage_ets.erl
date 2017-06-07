@@ -59,13 +59,13 @@ start() ->
 -spec get_token(binary()) -> {ok, binary()} | {error, not_found}.
 
 get_token(Hash) ->
-    case get_keys_by_index_value(?TOKEN_TABLE, ?CARD_DATA_HASH_INDEX, Hash, undefined) of
-        [Token] ->
+    case get_keys_by_index_value(?TOKEN_TABLE, ?CARD_DATA_HASH_INDEX, Hash, 2) of
+        {ok, {[Token], _}} ->
             {ok, Token};
-        [_ | _OtherTokens] ->
+        {ok, {[_ | _OtherTokens], _}} ->
             % This shouldnt happen, but we need to react somehow.
             error({<<"Hash collision detected">>, Hash});
-        [] ->
+        {ok, {[], _}} ->
             {error, not_found}
     end.
 
@@ -161,19 +161,19 @@ refresh_session_created_at(Session) ->
     batch_response() | no_return().
 
 get_sessions_created_between(From, To, Limit, _) ->
-    {ok, {get_keys_by_index_range(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit), undefined}}.
+    get_keys_by_index_range(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit).
 
 -spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
     batch_response() | no_return().
 
 get_sessions_by_key_id_between(From, To, Limit, _) ->
-    {ok, {get_keys_by_index_range(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit), undefined}}.
+    get_keys_by_index_range(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit).
 
 -spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
     batch_response() | no_return().
 
 get_tokens_by_key_id_between(From, To, Limit, _) ->
-    {ok, {get_keys_by_index_range(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit), undefined}}.
+    get_keys_by_index_range(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit).
 
 -spec get_sessions(limit(), continuation()) -> batch_response() | no_return().
 
@@ -237,33 +237,13 @@ get(Tab, Key) ->
     end.
 
 get_keys(Tab, undefined, undefined) ->
-    {ok, {[K || {K, _, _} <- ets:select(Tab, match_all())], undefined}};
+    prepare_keys_result(ets:select(Tab, match_all()));
 
-get_keys(Tab, Limit, Continuation0) ->
-    {Match, Continuation} = select_from(Tab, Limit, Continuation0),
-    {ok, {[K || {K, _, _} <- Match], Continuation}}.
+get_keys(Tab, Limit, undefined) when Limit > 0 ->
+    prepare_keys_result(ets:select(Tab, match_all(), Limit));
 
-select_from(Tab, Limit, Continuation) ->
-    select_from(Tab, Limit, Continuation, []).
-
-select_from(_Tab, 0, Continuation, Acc) ->
-    {Acc, Continuation};
-
-select_from(Tab, Limit, undefined, Acc) ->
-    case ets:select(Tab, match_all(), 1) of
-        {Match, Continuation} ->
-            select_from(Tab, Limit - 1, Continuation, Acc ++ Match);
-        '$end_of_table' ->
-            {Acc, undefined}
-    end;
-
-select_from(Tab, Limit, Continuation, Acc) ->
-    case ets:select(Continuation) of
-        {Match, Continuation} ->
-            select_from(Tab, Limit - 1, Continuation, Acc ++ Match);
-        '$end_of_table' ->
-            {Acc, undefined}
-    end.
+get_keys(_, _, Continuation) ->
+    prepare_keys_result(ets:select(Continuation)).
 
 get_keys_by_index_value(Tab, IndexName, IndexValue, Limit) ->
     get_keys_by_index_range(Tab, IndexName, {IndexValue, IndexValue}, Limit).
@@ -275,10 +255,11 @@ get_keys_by_index_range(Tab, IndexName, {From, To}, Limit) ->
         IndexValue >= From,
         IndexValue =< To
     ],
-    case Limit of
+    Result = case Limit of
         undefined -> Result0;
         _ -> lists:sublist(Result0, Limit)
-    end.
+    end,
+    {ok, {Result, undefined}}.
 
 update(Tab, Key, NewValue, NewIndexes) ->
     case get(Tab, Key) of
@@ -306,3 +287,10 @@ match_all() ->
     ets:fun2ms(
         fun(V) -> V end
     ).
+
+prepare_keys_result(Match) when is_list(Match) ->
+    {ok, {[K || {K, _, _} <- Match], undefined}};
+prepare_keys_result({Match, Continuation}) when is_list(Match) ->
+    {ok, {[K || {K, _, _} <- Match], Continuation}};
+prepare_keys_result('$end_of_table') ->
+    {ok, {[], undefined}}.

@@ -19,7 +19,7 @@ handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< C
             {ok, Shares}
     catch
         Exists when Exists =:= already_exists; Exists =:= locked ->
-            woody_error:raise(business, #'KeyringExists'{})
+            raise(#'KeyringExists'{})
     end;
 handle_function('Unlock', [Share], _Context, _Opts) ->
     case cds_keyring_manager:unlock(Share) of
@@ -31,27 +31,30 @@ handle_function('Unlock', [Share], _Context, _Opts) ->
 handle_function('Rotate', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:rotate()} catch
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end;
 handle_function('Lock', [], _Context, _Opts) ->
     {ok, cds_keyring_manager:lock()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
+    _ = assert_keyring_available(),
     try {ok, get_cardholder_data(decode_token(Token))} catch
         not_found ->
-            woody_error:raise(business, #'CardDataNotFound'{});
+            raise(#'CardDataNotFound'{});
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
+    _ = assert_keyring_available(),
     try
         {ok, get_card_data(decode_token(Token), decode_session(Session))}
     catch
         not_found ->
-            woody_error:raise(business, #'CardDataNotFound'{});
+            raise(#'CardDataNotFound'{});
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end;
 handle_function('PutCardData', [CardData], _Context, _Opts) ->
+    _ = assert_keyring_available(),
     try
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
         {Token, Session} = put_card_data(CardData),
@@ -67,9 +70,9 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
         }}
     catch
         invalid_card_data ->
-            woody_error:raise(business, #'InvalidCardData'{});
+            raise(#'InvalidCardData'{});
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end.
 
 -spec handle_event(
@@ -125,6 +128,19 @@ put_card_data(CardData) ->
 
 unique(CardData) ->
     cds_card_data:unique(CardData).
+
+assert_keyring_available() ->
+    case cds_keyring_manager:get_state() of
+        unlocked ->
+            ok;
+        locked ->
+            raise(#'KeyringLocked'{})
+    end.
+
+-spec raise(_) -> no_return().
+
+raise(Exception) ->
+    woody_error:raise(business, Exception).
 
 % test
 

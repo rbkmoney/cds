@@ -57,8 +57,8 @@ process_recrypting(EncodingType, BatchSize, Continuation) ->
         Intervals = cds_keyring_manager:get_outdated_keys(),
         process_recrypting(EncodingType, Intervals, BatchSize, Continuation)
     catch
-        throw:Error when Error =:= locked ->
-            {error, Error}
+        throw:locked ->
+            {error, locked}
     end.
 
 process_recrypting(_, [], _, _) ->
