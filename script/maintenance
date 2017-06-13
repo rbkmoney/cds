@@ -12,16 +12,16 @@ maintenance_usage() {
             echo "Usage: $SCRIPT_NAME refresh_sessions"
             echo "Sets sessions \"created at\" time to current UTC time"
             ;;
-        refresh_cvv)
-            echo "Usage: $SCRIPT_NAME refresh_cvv_encryption"
+        reencrypt_cvv)
+            echo "Usage: $SCRIPT_NAME reencrypt_cvv"
             echo "Sets sessions \"key id\" index to the current one"
             ;;
-        refresh_cardholder)
-            echo "Usage: $SCRIPT_NAME refresh_cardholder_encryption"
+        reencrypt_cardholder)
+            echo "Usage: $SCRIPT_NAME reencrypt_cardholder"
             echo "Sets tokens \"key id\" index to the current one"
             ;;
         *)
-            echo "Usage: $SCRIPT_NAME {refresh_sessions|refresh_cvv|refresh_cardholder|help}"
+            echo "Usage: $SCRIPT_NAME {refresh_sessions|reencrypt_cvv|reencrypt_cardholder|help}"
             ;;
     esac
 }
@@ -31,10 +31,10 @@ case "$1" in
     refresh_sessions)
         (exec ./$REL_NAME eval 'cds_maintenance:refresh_sessions_created_at()')
         ;;
-    refresh_cvv)
+    reencrypt_cvv)
         (exec ./$REL_NAME eval 'cds_maintenance:refresh_cvv_encryption()')
         ;;
-    refresh_cardholder)
+    reencrypt_cardholder)
         (exec ./$REL_NAME eval 'cds_maintenance:refresh_cardholder_encryption()')
         ;;
     help)

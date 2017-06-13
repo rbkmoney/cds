@@ -35,7 +35,7 @@ put_card_data(Data, RootUrl) ->
 init(Threshold, Number, RootUrl) ->
     call('Init', [Threshold, Number], RootUrl).
 
--spec unlock(cds:masterkey_share(), woody:url()) -> result().
+-spec unlock(cds_keysharing:masterkey_share(), woody:url()) -> result().
 
 unlock(Share, RootUrl) ->
     call('Unlock', [Share], RootUrl).

@@ -44,15 +44,15 @@
 start_link() ->
     gen_fsm:start_link({local, ?FSM}, ?MODULE, [], []).
 
--spec get_key(cds_keyring:key_id()) -> {cds_keyring:key_id(), cds_crypto:key()}.
+-spec get_key(cds_keyring:key_id()) -> {cds_keyring:key_id(), cds_keyring:key()}.
 get_key(KeyId) ->
     sync_send_event({get_key, KeyId}).
 
--spec get_all_keys() -> [{cds_keyring:key_id(), cds_crypto:key()}].
+-spec get_all_keys() -> [{cds_keyring:key_id(), cds_keyring:key()}].
 get_all_keys() ->
     sync_send_event(get_all_keys).
 
--spec get_current_key() -> {cds_keyring:key_id(), cds_crypto:key()}.
+-spec get_current_key() -> {cds_keyring:key_id(), cds_keyring:key()}.
 get_current_key() ->
     sync_send_event(get_current_key).
 
@@ -62,7 +62,7 @@ get_outdated_keys() ->
     #{min := MinID, max := MaxID} = cds_keyring:get_key_id_config(),
     [ I || {From, To} = I <- [{MinID, KeyID}, {KeyID, MaxID}], From =/= To].
 
--spec unlock(binary()) -> {more, byte()} | ok.
+-spec unlock(cds_keysharing:masterkey_share()) -> {more, byte()} | ok.
 unlock(Share) ->
     sync_send_event({unlock, Share}).
 
@@ -78,7 +78,7 @@ update() ->
 rotate() ->
     sync_send_event(rotate).
 
--spec initialize(integer(), integer()) -> [binary()].
+-spec initialize(integer(), integer()) -> [cds_keysharing:masterkey_share()].
 initialize(Threshold, Count) ->
     sync_send_event({initialize, Threshold, Count}).
 

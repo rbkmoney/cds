@@ -116,18 +116,16 @@ base62_decode(Data) ->
     genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
 
 get_cardholder_data(Token) ->
-    Marshalled = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshall(Marshalled).
+    MarshalledCardholderData = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshall(MarshalledCardholderData).
 
 get_card_data(Token, Session) ->
-    {MarshalledCardData, Cvv} = cds:get_card_data(Token, Session),
-    cds_card_data:unmarshall(MarshalledCardData, Cvv).
+    MarshalledCardData = cds:get_card_data(Token, Session),
+    cds_card_data:unmarshall(MarshalledCardData).
 
 put_card_data(CardData) ->
-    cds:put_card_data(unique(CardData), cds_card_data:marshall(CardData)).
-
-unique(CardData) ->
-    cds_card_data:unique(CardData).
+    MarshalledCardData = cds_card_data:marshall(CardData),
+    cds:put_card_data(MarshalledCardData).
 
 assert_keyring_available() ->
     case cds_keyring_manager:get_state() of

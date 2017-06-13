@@ -5,14 +5,24 @@
 -type timestamp() :: pos_integer().
 
 -callback start() -> ok.
--callback get_token(binary()) -> {ok, binary()} | {error, not_found}.
--callback get_cardholder_data(binary()) -> {ok, binary()} | {error, not_found}.
--callback get_session_card_data(binary(), binary()) -> {ok, {binary(), binary()}} | {error, not_found}.
--callback put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), pos_integer()) -> ok.
--callback get_cvv(binary()) -> {ok, binary()} | {error, not_found}.
--callback update_cvv(binary(), binary(), byte()) -> ok | {error, not_found}.
--callback update_cardholder_data(binary(), binary(), binary(), byte()) -> ok | {error, not_found}.
--callback refresh_session_created_at(binary()) -> ok.
+-callback get_token(cds:hash()) -> {ok, cds:token()} | {error, not_found}.
+-callback get_cardholder_data(cds:token()) -> {ok, cds:encrypted_data()} | {error, not_found}.
+-callback get_session_card_data(cds:token(), cds:session()) ->
+    {ok, {CardData :: cds:encrypted_data(), CVV :: cds:encrypted_data()}} | {error, not_found}.
+-callback put_card_data(
+    cds:token(),
+    cds:session(),
+    cds:hash(),
+    CardData :: cds:encrypted_data(),
+    CVV :: cds:encrypted_data(),
+    cds_keyring:key_id(),
+    timestamp()
+) -> ok.
+-callback get_cvv(cds:token()) -> {ok, CVV :: cds:encrypted_data()} | {error, not_found}.
+-callback update_cvv(cds:session(), CVV :: cds:encrypted_data(), cds_keyring:key_id()) -> ok | {error, not_found}.
+-callback update_cardholder_data(cds:token(), CardData :: cds:encrypted_data(), cds:hash(), cds_keyring:key_id()) ->
+    ok | {error, not_found}.
+-callback refresh_session_created_at(cds:session()) -> ok.
 -callback delete_session(binary()) -> ok.
 
 -callback get_sessions_created_between(
@@ -20,21 +30,21 @@
     non_neg_integer(),
     limit(),
     continuation()
-) -> {ok, {[term()], continuation()}} | no_return().
+) -> {ok, {[cds:session()], continuation()}} | no_return().
 -callback get_sessions_by_key_id_between(
     non_neg_integer(),
     non_neg_integer(),
     limit(),
     continuation()
-) -> {ok, {[term()], continuation()}} | no_return().
+) -> {ok, {[cds:session()], continuation()}} | no_return().
 -callback get_tokens_by_key_id_between(
     non_neg_integer(),
     non_neg_integer(),
     limit(),
     continuation()
-) -> {ok, {[term()], continuation()}} | no_return().
--callback get_sessions(limit(), continuation()) -> {ok, {[term()], continuation()}} | no_return().
--callback get_tokens(limit(), continuation()) -> {ok, {[term()], continuation()}} | no_return().
+) -> {ok, {[cds:token()], continuation()}} | no_return().
+-callback get_sessions(limit(), continuation()) -> {ok, {[cds:session()], continuation()}} | no_return().
+-callback get_tokens(limit(), continuation()) -> {ok, {[cds:token()], continuation()}} | no_return().
 
 -export([start/0]).
 -export([get_token/1]).
@@ -56,23 +66,32 @@
 start() ->
     cds_backend:call(storage, start, []).
 
--spec get_token(binary()) -> binary() | no_return().
+-spec get_token(cds:hash()) -> cds:token() | no_return().
 get_token(Hash) ->
     cds_backend:call(storage, get_token, [Hash]).
 
--spec get_cardholder_data(binary()) -> binary() | no_return().
+-spec get_cardholder_data(cds:token()) -> cds:encrypted_data() | no_return().
 get_cardholder_data(Token) ->
     cds_backend:call(storage, get_cardholder_data, [Token]).
 
--spec get_session_card_data(binary(), binary()) -> {binary(), binary()} | no_return().
+-spec get_session_card_data(cds:token(), cds:session()) ->
+    {CardData :: cds:encrypted_data(), CVV :: cds:encrypted_data()} | no_return().
 get_session_card_data(Token, Session) ->
     cds_backend:call(storage, get_session_card_data, [Token, Session]).
 
--spec put_card_data(binary(), binary(), binary(), binary(), binary(), byte(), timestamp()) -> ok | no_return().
+-spec put_card_data(
+    cds:token(),
+    cds:session(),
+    cds:hash(),
+    CardData :: cds:encrypted_data(),
+    CVV :: cds:encrypted_data(),
+    cds_keyring:key_id(),
+    timestamp()
+) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
     cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt]).
 
--spec delete_session(binary()) -> ok | no_return().
+-spec delete_session(cds:session()) -> ok | no_return().
 delete_session(Session) ->
     cds_backend:call(storage, delete_session, [Session]).
 
@@ -81,7 +100,7 @@ delete_session(Session) ->
     pos_integer(),
     limit(),
     continuation()
-) -> {[term()], continuation()} | no_return().
+) -> {[cds:session()], continuation()} | no_return().
 get_sessions_created_between(From, To, Limit, Continuation) when
     From =< To
 ->
@@ -92,7 +111,7 @@ get_sessions_created_between(From, To, Limit, Continuation) when
     pos_integer(),
     limit(),
     continuation()
-) -> {[term()], continuation()} | no_return().
+) -> {[cds:session()], continuation()} | no_return().
 get_sessions_by_key_id_between(From, To, Limit, Continuation) when
     From =< To
 ->
@@ -103,33 +122,33 @@ get_sessions_by_key_id_between(From, To, Limit, Continuation) when
     pos_integer(),
     limit(),
     continuation()
-) -> {[term()], continuation()} | no_return().
+) -> {[cds:token()], continuation()} | no_return().
 get_tokens_by_key_id_between(From, To, Limit, Continuation) when
     From =< To
 ->
     cds_backend:call(storage, get_tokens_by_key_id_between, [From, To, Limit, Continuation]).
 
--spec refresh_session_created_at(binary()) -> ok.
+-spec refresh_session_created_at(cds:session()) -> ok.
 refresh_session_created_at(Session) ->
     cds_backend:call(storage, refresh_session_created_at, [Session]).
 
--spec get_sessions(limit(), continuation()) -> {[term()], continuation()} | no_return().
+-spec get_sessions(limit(), continuation()) -> {[cds:session()], continuation()} | no_return().
 get_sessions(Limit, Continuation) ->
     cds_backend:call(storage, get_sessions, [Limit, Continuation]).
 
--spec get_tokens(limit(), continuation()) -> {[term()], continuation()} | no_return().
+-spec get_tokens(limit(), continuation()) -> {[cds:token()], continuation()} | no_return().
 get_tokens(Limit, Continuation) ->
     cds_backend:call(storage, get_tokens, [Limit, Continuation]).
 
--spec get_cvv(binary()) -> binary().
+-spec get_cvv(cds:session()) -> cds:encrypted_data().
 get_cvv(Session) ->
     cds_backend:call(storage, get_cvv, [Session]).
 
--spec update_cvv(binary(), binary(), byte()) -> ok.
+-spec update_cvv(cds:session(), cds:encrypted_data(), cds_keyring:key_id()) -> ok.
 update_cvv(Session, Cvv, KeyID) ->
     cds_backend:call(storage, update_cvv, [Session, Cvv, KeyID]).
 
--spec update_cardholder_data(binary(), binary(), binary(), byte()) -> ok.
+-spec update_cardholder_data(cds:token(), cds:encrypted_data(), cds:hash(), cds_keyring:key_id()) -> ok.
 update_cardholder_data(Token, CardData, Hash, KeyID) ->
     cds_backend:call(storage, update_cardholder_data, [Token, CardData, Hash, KeyID]).
 
