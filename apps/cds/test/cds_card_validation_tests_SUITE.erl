@@ -2,17 +2,27 @@
 
 -include_lib("cds/src/cds_cds_thrift.hrl").
 
--compile(export_all).
+-export([all/0]).
+-export([groups/0]).
+-export([full_card_data_validation/1]).
+-export([payment_system_detection/1]).
 
 %%
 
 %%
 %% tests descriptions
 %%
+
+-type config() :: term().
+
+-spec all() -> [{group, atom()}].
+
 all() ->
     [
         {group, card_data_validation}
     ].
+
+-spec groups() -> [{atom(), list(), [atom()]}].
 
 groups() ->
     [
@@ -25,6 +35,8 @@ groups() ->
 %%
 %% tests
 %%
+
+-spec full_card_data_validation(config()) -> _.
 
 full_card_data_validation(_C) ->
     ValidCard = #'CardData'{
@@ -47,6 +59,8 @@ full_card_data_validation(_C) ->
     %%cvv length
     invalid_card_data = (catch cds_card_data:validate(ValidCard#'CardData'{cvv = <<"12">>})),
     ok.
+
+-spec payment_system_detection(config()) -> _.
 
 payment_system_detection(_C) ->
     [

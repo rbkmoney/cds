@@ -13,46 +13,51 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('Init', [Threshold, Count], _Context, _Opts) ->
-    try cds:init_keyring(Threshold, Count) of
+handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
+    try cds_keyring_manager:initialize(Threshold, Count) of
         Shares ->
             {ok, Shares}
     catch
         Exists when Exists =:= already_exists; Exists =:= locked ->
-            woody_error:raise(business, #'KeyringExists'{})
+            raise(#'KeyringExists'{})
     end;
 handle_function('Unlock', [Share], _Context, _Opts) ->
-    case cds:unlock_keyring(Share) of
+    case cds_keyring_manager:unlock(Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {unlocked, #'Unlocked'{}}}
     end;
 handle_function('Rotate', [], _Context, _Opts) ->
-    try {ok, cds:rotate_keyring()} catch
+    try {ok, cds_keyring_manager:rotate()} catch
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end;
 handle_function('Lock', [], _Context, _Opts) ->
-    {ok, cds:lock_keyring()};
+    {ok, cds_keyring_manager:lock()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
-    try {ok, cds:get_card_data(decode_token(Token))} catch
+    _ = assert_keyring_available(),
+    try {ok, get_cardholder_data(decode_token(Token))} catch
         not_found ->
-            woody_error:raise(business, #'CardDataNotFound'{});
+            raise(#'CardDataNotFound'{});
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    try {ok, cds:get_session_card_data(decode_token(Token), decode_session(Session))} catch
+    _ = assert_keyring_available(),
+    try
+        {ok, get_card_data(decode_token(Token), decode_session(Session))}
+    catch
         not_found ->
-            woody_error:raise(business, #'CardDataNotFound'{});
+            raise(#'CardDataNotFound'{});
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end;
 handle_function('PutCardData', [CardData], _Context, _Opts) ->
+    _ = assert_keyring_available(),
     try
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
-        {Token, Session} = cds:put_card_data(CardData),
+        {Token, Session} = put_card_data(CardData),
         BankCard = #'BankCard'{
             token = encode_token(Token),
             payment_system = PaymentSystem,
@@ -65,9 +70,9 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
         }}
     catch
         invalid_card_data ->
-            woody_error:raise(business, #'InvalidCardData'{});
+            raise(#'InvalidCardData'{});
         locked ->
-            woody_error:raise(business, #'KeyringLocked'{})
+            raise(#'KeyringLocked'{})
     end.
 
 -spec handle_event(
@@ -110,10 +115,38 @@ base62_encode(Data) ->
 base62_decode(Data) ->
     genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
 
+get_cardholder_data(Token) ->
+    MarshalledCardholderData = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshall(MarshalledCardholderData).
+
+get_card_data(Token, Session) ->
+    MarshalledCardData = cds:get_card_data(Token, Session),
+    cds_card_data:unmarshall(MarshalledCardData).
+
+put_card_data(CardData) ->
+    MarshalledCardData = cds_card_data:marshall(CardData),
+    cds:put_card_data(MarshalledCardData).
+
+assert_keyring_available() ->
+    case cds_keyring_manager:get_state() of
+        unlocked ->
+            ok;
+        locked ->
+            raise(#'KeyringLocked'{})
+    end.
+
+-spec raise(_) -> no_return().
+
+raise(Exception) ->
+    woody_error:raise(business, Exception).
+
 % test
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+-spec isomorphic_marshalling_test_() -> _.
 
 isomorphic_marshalling_test_() ->
     Vs = [

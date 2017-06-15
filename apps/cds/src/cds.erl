@@ -14,35 +14,24 @@
 -export([stop /1]).
 
 %% Storage operations
--export([get_card_data/1]).
--export([get_session_card_data/2]).
+-export([get_cardholder_data/1]).
+-export([get_card_data/2]).
 -export([put_card_data/1]).
--export([delete_card_data/2]).
--export([delete_session/1]).
--export([refresh_sessions/0]).
 
-%% Keyring operations
--export([unlock_keyring/1]).
--export([init_keyring/2]).
--export([update_keyring/0]).
--export([rotate_keyring/0]).
--export([lock_keyring/0]).
-
--compile({no_auto_import, [get/1]}).
-
--ifdef(TEST).
--include_lib("proper/include/proper.hrl").
--include_lib("eunit/include/eunit.hrl").
--endif.
+-export([get_cvv/1]).
+-export([update_cvv/2]).
+-export([update_cardholder_data/2]).
 
 %%
+-export_type([hash/0]).
 -export_type([token/0]).
 -export_type([session/0]).
--export_type([masterkey_share/0]).
+-export_type([encrypted_data/0]).
 
+-type hash() :: binary().
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
--type masterkey_share() :: binary().
+-type encrypted_data() :: binary(). % <<KeyID/byte, EncryptedData/binary>>
 
 %%
 %% API
@@ -61,6 +50,8 @@ stop() ->
 %%
 %% Supervisor callbacks
 %%
+
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, IP} = inet:parse_address(application:get_env(cds, ip, "::")),
     Service = woody_server:child_spec(
@@ -80,15 +71,15 @@ init([]) ->
         id => cds_keyring_manager,
         start => {cds_keyring_manager, start_link, []}
     },
-    SessionCleaner = #{
-        id => cds_session_cleaner_sup,
-        start => {cds_session_cleaner_sup, start_link, []},
+    Maintenance = #{
+        id => cds_maintenance_sup,
+        start => {cds_maintenance_sup, start_link, []},
         type => supervisor
     },
     Procs = [
         Service,
         KeyringManager,
-        SessionCleaner
+        Maintenance
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.
 
@@ -115,134 +106,108 @@ stop(_State) ->
 %%
 %% Storage operations
 %%
--spec get_card_data(cds:token()) -> cds_cds_thrift:'CardData'().
-get_card_data(Token) ->
-    ok = keyring_available(),
-    Encrypted = cds_storage:get_card_data(Token),
-    Marshalled = decrypt(Encrypted),
-    cds_card_data:unmarshall(Marshalled).
 
--spec get_session_card_data(cds:token(), cds:session()) -> cds_cds_thrift:'CardData'().
-get_session_card_data(Token, Session) ->
-    ok = keyring_available(),
+-spec get_cardholder_data(token()) -> cds_card_data:cardholder_data().
+get_cardholder_data(Token) ->
+    Encrypted = cds_storage:get_cardholder_data(Token),
+    decrypt(Encrypted).
+
+-spec get_card_data(token(), session()) -> cds_card_data:card_data().
+get_card_data(Token, Session) ->
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
-    MarshalledCardData = decrypt(EncryptedCardData),
-    Cvv = decrypt(EncryptedCvv),
-    cds_card_data:unmarshall(MarshalledCardData, Cvv).
+    {decrypt(EncryptedCardData), decrypt(EncryptedCvv)}.
 
--spec put_card_data(cds_cds_thrift:'CardData'()) -> {cds:token(), cds:session()}.
-put_card_data(CardData) ->
-    ok = keyring_available(),
-    {MarshalledCardData, Cvv} = cds_card_data:marshall(CardData),
-    UniqueCardData = cds_card_data:unique(CardData),
-    Token = find_or_create_token(all_hashes(UniqueCardData)),
+-spec put_card_data(cds_card_data:card_data()) -> {token(), session()}.
+put_card_data({MarshalledCardData, Cvv}) ->
+    UniqueCardData = cds_card_data:unique(MarshalledCardData),
+    {Token, Hash} = find_or_create_token(UniqueCardData),
     Session = session(),
-    Hash = hash(UniqueCardData),
-    EncryptedCardData = encrypt(MarshalledCardData),
-    EncryptedCvv = encrypt(Cvv),
+    {KeyID, _} = Current = cds_keyring_manager:get_current_key(),
+    EncryptedCardData = encrypt(Current, MarshalledCardData),
+    EncryptedCvv = encrypt(Current, Cvv),
     ok = cds_storage:put_card_data(
         Token,
         Session,
         Hash,
         EncryptedCardData,
         EncryptedCvv,
+        KeyID,
         cds_utils:current_time()
     ),
     {Token, Session}.
 
--spec delete_card_data(cds:token(), cds:session()) -> ok.
-delete_card_data(Token, Session) ->
-    ok = keyring_available(),
-    CardData = get_card_data(Token),
-    UniqueCardData = cds_card_data:unique(CardData),
-    Hash = hash(UniqueCardData),
-    ok = cds_storage:delete_card_data(Token, Hash, Session),
-    ok.
--spec delete_session(cds:session()) -> ok.
-delete_session(Session) ->
-    ok = keyring_available(),
-    ok = cds_storage:delete_session(Session),
-    ok.
+-spec get_cvv(session()) -> cds_card_data:cvv().
+get_cvv(Session) ->
+    EncryptedCvv = cds_storage:get_cvv(Session),
+    decrypt(EncryptedCvv).
 
--spec refresh_sessions() -> ok.
-refresh_sessions() ->
-    ok = cds_storage:refresh_sessions().
+-spec update_cvv(session(), cds_card_data:cvv()) -> ok.
+update_cvv(Session, Cvv) ->
+    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    EncryptedCvv = encrypt(CurrentKey, Cvv),
+    cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
 
-%%
-%% Keyring operations
-%%
--spec unlock_keyring(masterkey_share()) -> {more, byte()} | ok.
-unlock_keyring(Share) ->
-    cds_keyring_manager:unlock(Share).
-
--spec init_keyring(integer(), integer()) -> [masterkey_share()].
-init_keyring(Threshold, Count) when Threshold =< Count ->
-    cds_keyring_manager:initialize(Threshold, Count).
-
--spec update_keyring() -> ok.
-update_keyring() ->
-    cds_keyring_manager:update().
-
--spec rotate_keyring() -> ok.
-rotate_keyring() ->
-    cds_keyring_manager:rotate().
-
--spec lock_keyring() -> ok.
-lock_keyring() ->
-    cds_keyring_manager:lock().
+-spec update_cardholder_data(token(), cds_card_data:cardholder_data()) -> ok.
+update_cardholder_data(Token, CardData) ->
+    {KeyID, Key} = CurrentKey = cds_keyring_manager:get_current_key(),
+    Hash = hash(cds_card_data:unique(CardData), Key),
+    EncryptedCardData = encrypt(CurrentKey, CardData),
+    cds_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
 %%
-%% Internal
+%% Internals
 %%
--spec encrypt(binary()) -> binary().
-encrypt(Plain) ->
-    {KeyId, Key} = cds_keyring_manager:get_current_key(),
+
+-spec encrypt({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> encrypted_data().
+encrypt({KeyID, Key}, Plain) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
-    <<KeyId, Cipher/binary>>.
+    <<KeyID, Cipher/binary>>.
 
--spec decrypt(binary()) -> binary().
-decrypt(<<KeyId, Cipher/binary>>) ->
-    {KeyId, Key} = cds_keyring_manager:get_key(KeyId),
+-spec decrypt(encrypted_data()) -> binary().
+decrypt(<<KeyID, Cipher/binary>>) ->
+    {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
     cds_crypto:decrypt(Key, Cipher).
 
--spec hash(binary()) -> binary().
-hash(Plain) ->
-    {_KeyId, Key} = cds_keyring_manager:get_current_key(),
-    hash(Plain, Key).
-
--spec hash(binary(), binary()) -> binary().
+-spec hash(binary(), binary()) -> hash().
 hash(Plain, Salt) ->
     {N, R, P} = application:get_env(cds, scrypt_opts, {16384, 8, 1}),
     scrypt:scrypt(Plain, Salt, N, R, P, 16).
 
--spec all_hashes(binary()) -> [binary()].
-all_hashes(Plain) ->
-    [hash(Plain, Key) || {_KeyId, Key} <- cds_keyring_manager:get_all_keys()].
-
-find_or_create_token([]) ->
-    token();
-find_or_create_token([Hash | Rest]) ->
-    try cds_storage:get_token(Hash) of
-        Token ->
-            Token
+-spec find_or_create_token(cds_card_data:unique_card_data()) -> {token(), hash()}.
+find_or_create_token(CardData) ->
+    {CurrentKeyID, CurrentKey} = cds_keyring_manager:get_current_key(),
+    Keys = [Key || {KeyID, Key} <- cds_keyring_manager:get_all_keys(), KeyID =/= CurrentKeyID],
+    CurrentHash = hash(CardData, CurrentKey),
+    FindResult = try
+        % let's check current key first
+        {cds_storage:get_token(CurrentHash), CurrentHash}
     catch
         not_found ->
-            find_or_create_token(Rest)
+            % if not found, check other keys
+            find_token(CardData, Keys)
+    end,
+    case FindResult of
+        {_Token, _Hash} ->
+            FindResult;
+        not_found ->
+            {token(), CurrentHash}
     end.
 
--spec token() -> cds:token().
+find_token(_, []) ->
+    not_found;
+find_token(CardData, [Key | Others]) ->
+    Hash = hash(CardData, Key),
+    try
+        {cds_storage:get_token(Hash), Hash}
+    catch
+        not_found ->
+            find_token(CardData, Others)
+    end.
+
+-spec token() -> token().
 token() ->
     crypto:strong_rand_bytes(16).
 
--spec session() -> cds:session().
+-spec session() -> session().
 session() ->
     crypto:strong_rand_bytes(16).
-
--spec keyring_available() -> ok | no_return().
-keyring_available() ->
-    case cds_keyring_manager:get_state() of
-        locked ->
-            throw(locked);
-        unlocked ->
-            ok
-    end.

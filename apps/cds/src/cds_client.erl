@@ -4,7 +4,6 @@
 -export([get_card_data/2]).
 -export([get_session_card_data/3]).
 -export([put_card_data/2]).
--export([delete_card_data/2]).
 
 %% Keyring operations
 -export([init/3]).
@@ -31,17 +30,12 @@ get_session_card_data(Token, Session, RootUrl) ->
 put_card_data(Data, RootUrl) ->
     call('PutCardData', [Data], RootUrl).
 
--spec delete_card_data(cds:token(), woody:url()) -> result().
-
-delete_card_data(Token, RootUrl) ->
-    call('DeleteCardData', [Token], RootUrl).
-
 -spec init(integer(), integer(), woody:url()) -> result().
 
 init(Threshold, Number, RootUrl) ->
     call('Init', [Threshold, Number], RootUrl).
 
--spec unlock(cds:masterkey_share(), woody:url()) -> result().
+-spec unlock(cds_keysharing:masterkey_share(), woody:url()) -> result().
 
 unlock(Share, RootUrl) ->
     call('Unlock', [Share], RootUrl).
@@ -78,8 +72,6 @@ service('GetSessionCardData') ->
     'Storage';
 service('PutCardData') ->
     'Storage';
-service('DeleteCardData') ->
-    'Keyring';
 service('Init') ->
     'Keyring';
 service('Unlock') ->
@@ -95,8 +87,6 @@ path('GetSessionCardData') ->
     "/v1/storage";
 path('PutCardData') ->
     "/v1/storage";
-path('DeleteCardData') ->
-    "/v1/keyring";
 path('Init') ->
     "/v1/keyring";
 path('Unlock') ->

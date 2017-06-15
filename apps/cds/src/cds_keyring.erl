@@ -7,13 +7,23 @@
 -export([marshall/1]).
 -export([unmarshall/1]).
 
--export_type([key_id/0]).
+-export([get_key_id_config/0]).
 
+-export_type([key/0]).
+-export_type([key_id/0]).
+-export_type([key_id_config/0]).
+
+-type key() :: binary().
 -type key_id() :: byte().
 
 -type keyring() :: #{
     current_key => key_id(),
-    keys => #{key_id() => cds_crypto:key()}
+    keys => #{key_id() => key()}
+}.
+
+-type key_id_config() :: #{
+    min := non_neg_integer(),
+    max := non_neg_integer()
 }.
 
 -define(KEY_BYTESIZE, 32).
@@ -33,11 +43,11 @@ rotate(#{current_key := CurrentKeyId, keys := Keys}) ->
             throw(keyring_full)
     end.
 
--spec encrypt(cds_crypto:key(), keyring()) -> binary().
+-spec encrypt(key(), keyring()) -> binary().
 encrypt(MasterKey, Keyring) ->
     cds_crypto:encrypt(MasterKey, marshall(Keyring)).
 
--spec decrypt(cds_crypto:key(), binary()) -> keyring().
+-spec decrypt(key(), binary()) -> keyring().
 decrypt(MasterKey, EncryptedKeyring) ->
     unmarshall(cds_crypto:decrypt(MasterKey, EncryptedKeyring)).
 
@@ -49,7 +59,7 @@ marshall(#{current_key := CurrentKey, keys := Keys}) ->
 unmarshall(<<CurrentKey, Keys/binary>>) ->
     #{current_key => CurrentKey, keys => unmarshall_keys(Keys, #{})}.
 
--spec marshall_keys(key_id(), cds_crypto:key(), binary()) -> binary().
+-spec marshall_keys(key_id(), key(), binary()) -> binary().
 marshall_keys(KeyId, Key, Acc) ->
     <<Acc/binary, KeyId, Key:?KEY_BYTESIZE/binary>>.
 
@@ -59,3 +69,9 @@ unmarshall_keys(<<>>, Acc) ->
 unmarshall_keys(<<KeyId, Key:?KEY_BYTESIZE/binary, Rest/binary>>, Acc) ->
     unmarshall_keys(Rest, Acc#{KeyId => Key}).
 
+-spec get_key_id_config() -> key_id_config().
+get_key_id_config() ->
+    #{
+        min => 0,
+        max => 255
+    }.

@@ -4,13 +4,12 @@
 -export([encrypt/2]).
 -export([decrypt/2]).
 
--export_type([key/0]).
 
--type key() :: binary().
 
 %%internal
 
--type iv() :: binary().
+-type key() :: <<_:256>>.
+-type iv()  :: binary().
 -type tag() :: binary().
 -type aad() :: binary().
 

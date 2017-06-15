@@ -1,16 +1,20 @@
 -module(cds_keysharing).
 
+-include_lib("shamir/include/shamir.hrl").
+
 -export([share/3]).
 -export([recover/1]).
 
--include_lib("shamir/include/shamir.hrl").
+-export_type([masterkey_share/0]).
+
+-type masterkey_share() :: binary().
 -type share() :: #share{
     threshold :: byte(),
     x :: byte(),
     y :: binary()
 }.
 
--spec share(binary(), byte(), byte()) -> [binary()].
+-spec share(binary(), byte(), byte()) -> [masterkey_share()].
 share(Secret, Threshold, Count) ->
     try
         [convert(Share) || Share <- shamir:share(Secret, Threshold, Count)]
@@ -20,7 +24,7 @@ share(Secret, Threshold, Count) ->
     end.
 
 
--spec recover([binary()]) -> binary().
+-spec recover([masterkey_share()]) -> binary().
 recover(Shares) ->
     try
         shamir:recover([convert(Share) || Share <- Shares])
@@ -29,7 +33,9 @@ recover(Shares) ->
         throw(shamir_failed)
     end.
 
--spec convert(share() | binary()) -> share() | binary().
+-spec convert
+    (share()) -> masterkey_share();
+    (masterkey_share()) -> share().
 convert(#share{threshold = Threshold, x = X, y = Y}) ->
     <<Threshold, X, Y/binary>>;
 convert(<<Threshold, X, Y/binary>>) ->

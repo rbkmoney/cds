@@ -1,110 +1,85 @@
 -module(cds_session_cleaner).
 
--behaviour(gen_server).
+-behaviour(cds_periodic_job).
 
 %% api
 
 -export([start_link/0]).
 
-%% gen_server callbacks
+%% cds_periodic_job callbacks
 
 -export([init/1]).
--export([handle_call/3]).
--export([handle_cast/2]).
--export([handle_info/2]).
--export([terminate/2]).
--export([code_change/3]).
+-export([handle_timeout/1]).
 
--define(SERVICE, ?MODULE).
 -define(DEFAULT_INTERVAL, 3000).
 -define(DEFAULT_BATCH_SIZE, 5000).
 -define(DEFAULT_SESSION_LIFETIME, 3600).
 
-
 -type state() :: #{
-    timer := reference()
+    continuation := continuation()
 }.
 
-start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+-type continuation() :: undefined | term().
 
--spec init(_) -> {ok, state()}.
+-spec start_link() -> {ok, pid()} | {error, Reason :: any()}.
+
+start_link() ->
+    cds_periodic_job:start_link(?MODULE, []).
+
+-spec init(_) -> {ok, non_neg_integer(), state()}.
 
 init(_Args) ->
     _ = lager:info("Starting session cleaner...", []),
-    {ok, init_state(get_interval())}.
+    {ok, get_interval(), #{continuation => undefined}}.
 
-handle_call(Request, From, State) ->
-    _ = lager:error("Got unrecognized call from ~p: ", [From, Request]),
-    {noreply, State}.
+-spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
 
-handle_cast(Msg, State) ->
-    _ = lager:error("Got unrecognized cast: ", [Msg]),
-    {noreply, State}.
-
-handle_info(clean_timeout, State) ->
+handle_timeout(State = #{continuation := Continuation0}) ->
     _ = lager:info("Starting session cleaning", []),
 
     To = genlib_time:unow() - get_session_lifetime(),
-    NewState = case clean_sessions(0, To, get_batch_size()) of
+    case clean_sessions(0, To, get_batch_size(), Continuation0) of
         {ok, done} ->
             _ = lager:info("Cleaned all the sessions"),
-            State#{timer => set_timer(get_interval())};
-        {ok, more} ->
+            {ok, done, State#{continuation => undefined}};
+        {ok, more, Continuation} ->
             _ = lager:info("Cleaned some sessions. Need to repeat"),
-            State#{timer => set_timer(0)};
+            {ok, more, State#{continuation => Continuation}};
         {error, Error} ->
             _ = lager:error("Cleaning error: ~p", [Error]),
-            State#{timer => set_timer(get_interval())}
-    end,
-    {noreply, NewState};
+            {error, Error, State#{continuation => undefined}}
+    end.
 
-handle_info(Msg, State) ->
-    _ = lager:debug("Got unrecognized info: ", [Msg]),
-    {noreply, State}.
+%% Internals
 
-terminate(_Reason, _State) ->
-    ok.
+-spec clean_sessions(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined, continuation()) ->
+    {ok, done} | {ok, more, continuation()} | {error, Reason :: any()}.
 
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
-
--spec clean_sessions(
-    non_neg_integer(),
-    non_neg_integer(),
-    non_neg_integer() | undefined
-) -> {ok, done | more} | {error, Reason :: any()}.
-
-clean_sessions(From, To, BatchSize) ->
+clean_sessions(From, To, BatchSize, Continuation0) ->
     try
-        Sessions = cds_storage:get_sessions_created_between(From, To, BatchSize),
-        SessionsLength = length(Sessions),
-        _ = lager:info("Got ~p sessions to clean", [SessionsLength]),
+        {Sessions, Continuation} = cds_storage:get_sessions_created_between(From, To, BatchSize, Continuation0),
+        SessionsSize = length(Sessions),
+        _ = lager:info("Got ~p sessions to clean", [SessionsSize]),
         _ = [
             begin
-            cds_storage:delete_session(ID),
+            _ = cds_storage:delete_session(ID),
             lager:debug("Deleted session ~p", [ID])
             end
         || ID <- Sessions],
         case BatchSize of
             undefined ->
                 {ok, done};
-            _ when SessionsLength < BatchSize ->
+            _ when SessionsSize < BatchSize ->
                 {ok, done};
             _ ->
-                {ok, more}
+                {ok, more, Continuation}
         end
     catch
         throw:Reason ->
             {error, Reason}
     end.
 
-init_state(Interval) -> #{
-    timer => set_timer(Interval)
-}.
-
-set_timer(Interval) ->
-    erlang:send_after(Interval, self(), clean_timeout).
+%% Internals
 
 get_interval() ->
     maps:get(interval, get_config(), ?DEFAULT_INTERVAL).

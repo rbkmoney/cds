@@ -3,16 +3,24 @@
 -export([validate/1]).
 -export([marshall/1]).
 -export([unmarshall/1]).
--export([unmarshall/2]).
 -export([unique/1]).
 
+-export_type([card_data/0]).
+-export_type([cardholder_data/0]).
+-export_type([cvv/0]).
+-export_type([unique_card_data/0]).
+
+-type card_data() :: {cardholder_data(), cvv()}.
+-type cardholder_data() :: binary().
+-type cvv() :: binary().
+-type unique_card_data() :: binary().
+%% TODO something wrong with this type
+-type thrift_card_data() :: cds_cds_thrift:'CardData'().
+
 -include("cds_cds_thrift.hrl").
--include("cds_domain_thrift.hrl").
 
--type card_data() :: cds_cds_thrift:'CardData'().
--type exp_date() :: cds_cds_thrift:'ExpDate'().
 
--spec validate(card_data()) ->
+-spec validate(thrift_card_data()) ->
     {cds_iin_config:payment_system(), IIN :: binary(), MaskedNumber :: binary()} | no_return().
 validate(#'CardData'{pan = <<IIN:6/binary, Number/binary>> = CN, exp_date = ExpDate, cvv = CVV}) ->
     case cds_iin_config:detect_ps(IIN) of
@@ -32,7 +40,7 @@ validate(#'CardData'{pan = <<IIN:6/binary, Number/binary>> = CN, exp_date = ExpD
             {PaymentSystem, IIN, get_masked_number(Number)}
     end.
 
--spec marshall(card_data()) -> {MarshalledCardData :: binary(), Cvv :: binary()}.
+-spec marshall(thrift_card_data()) -> card_data().
 marshall(CardData) ->
     #'CardData'{
         pan = Pan,
@@ -46,12 +54,11 @@ marshall(CardData) ->
     %% TODO: validate
     {<<(byte_size(Pan)), Pan/binary, Month:8, Year:16, CardholderName/binary>>, Cvv}.
 
--spec unmarshall(MarshalledCardData :: binary()) -> card_data().
-unmarshall(Marshalled) ->
-    unmarshall(Marshalled, <<>>).
+-spec unmarshall(card_data() | cardholder_data()) -> thrift_card_data().
+unmarshall(Marshalled) when is_binary(Marshalled)->
+    unmarshall({Marshalled, <<>>});
 
--spec unmarshall(MarshalledCardData :: binary(), Cvv :: binary()) -> card_data().
-unmarshall(<<PanSize, Pan:PanSize/binary, Month:8, Year:16, CardholderName/binary>>, Cvv) ->
+unmarshall({<<PanSize, Pan:PanSize/binary, Month:8, Year:16, CardholderName/binary>>, Cvv}) ->
     #'CardData'{
         pan = Pan,
         exp_date = #'ExpDate'{
@@ -62,19 +69,20 @@ unmarshall(<<PanSize, Pan:PanSize/binary, Month:8, Year:16, CardholderName/binar
         cvv = Cvv
     }.
 
--spec unique(card_data()) -> Unqiue :: binary().
-unique(CardData) ->
-    #'CardData'{
-        pan = Pan,
-        exp_date = #'ExpDate'{
-            month = Month,
-            year = Year
-        },
-        cardholder_name = _CardholderName,
-        cvv = _Cvv
-    } = CardData,
+-spec unique(thrift_card_data() | cardholder_data()) -> unique_card_data().
+unique(#'CardData'{
+    pan = Pan,
+    exp_date = #'ExpDate'{
+        month = Month,
+        year = Year
+    },
+    cardholder_name = _CardholderName,
+    cvv = _Cvv
+}) ->
     %% TODO: validate
-    <<(byte_size(Pan)), Pan/binary, Month:8, Year:16>>.
+    <<(byte_size(Pan)), Pan/binary, Month:8, Year:16>>;
+unique(<<PanSize, Pan:PanSize/binary, Month:8, Year:16, _/binary>>) ->
+    <<PanSize, Pan:PanSize/binary, Month:8, Year:16>>.
 
 % local
 
@@ -117,7 +125,7 @@ luhn_valid(<<N, Rest/binary>>, Sum) when byte_size(Rest) rem 2 =:= 1 ->
 luhn_valid(<<N, Rest/binary>>, Sum) ->
     luhn_valid(Rest, Sum + N - $0).
 
--spec date_valid(exp_date(), {non_neg_integer(), 1..12}) -> true | false.
+-spec date_valid(cds_cds_thrift:'ExpDate'(), {non_neg_integer(), 1..12}) -> true | false.
 date_valid(#'ExpDate'{year = ExpYear, month = ExpMonth}, CurrentDate) ->
     {ExpYear, ExpMonth} >= CurrentDate.
 
