@@ -14,6 +14,7 @@
 -type cardholder_data() :: binary().
 -type cvv() :: binary().
 -type unique_card_data() :: binary().
+%% TODO something wrong with this type
 -type thrift_card_data() :: cds_cds_thrift:'CardData'().
 
 -include("cds_cds_thrift.hrl").

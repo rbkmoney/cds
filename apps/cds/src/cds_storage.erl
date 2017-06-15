@@ -1,5 +1,7 @@
 -module(cds_storage).
 
+%% TODO remove circular dependencies in types (cds:hash, cds:token etc.)
+
 -type limit() :: non_neg_integer() | undefined.
 -type continuation() :: term().
 -type timestamp() :: pos_integer().
