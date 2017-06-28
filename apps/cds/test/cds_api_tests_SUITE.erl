@@ -136,7 +136,7 @@ init_per_group(session_management, C) ->
 
     Recrypting = [
         {recrypting, #{
-            interval => 2000
+            interval => 1000
         }}
     ],
     C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanConfig} | C],
@@ -312,7 +312,8 @@ recrypt(C) ->
     [{session_cleaning, #{
         interval := Interval
     }}] = config(session_cleaning_config, C),
-    timer:sleep(Interval + 1000),
+    % we should meet reencryption at least once _after_ rotation
+    _ = timer:sleep(Interval * 3),
     {KeyID, _} = cds_keyring_manager:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),

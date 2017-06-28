@@ -60,7 +60,7 @@ get_current_key() ->
 get_outdated_keys() ->
     {KeyID, _} = get_current_key(),
     #{min := MinID, max := MaxID} = cds_keyring:get_key_id_config(),
-    [ I || {From, To} = I <- [{MinID, KeyID}, {KeyID, MaxID}], From =/= To].
+    [I || {From, To} = I <- [{MinID, KeyID - 1}, {KeyID + 1, MaxID}], From =< To].
 
 -spec unlock(cds_keysharing:masterkey_share()) -> {more, byte()} | ok.
 unlock(Share) ->

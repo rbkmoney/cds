@@ -63,7 +63,7 @@ clean_sessions(From, To, BatchSize, Continuation0) ->
         _ = [
             begin
             _ = cds_storage:delete_session(ID),
-            lager:debug("Deleted session ~p", [ID])
+            lager:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
             end
         || ID <- Sessions],
         case BatchSize of
