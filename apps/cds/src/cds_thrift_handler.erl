@@ -37,7 +37,7 @@ handle_function('Lock', [], _Context, _Opts) ->
     {ok, cds_keyring_manager:lock()};
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     _ = assert_keyring_available(),
-    try {ok, get_cardholder_data(decode_token(Token))} catch
+    try {ok, get_cardholder_data(cds_utils:decode_token(Token))} catch
         not_found ->
             raise(#'CardDataNotFound'{});
         locked ->
@@ -46,7 +46,7 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     _ = assert_keyring_available(),
     try
-        {ok, get_card_data(decode_token(Token), decode_session(Session))}
+        {ok, get_card_data(cds_utils:decode_token(Token), cds_utils:decode_session(Session))}
     catch
         not_found ->
             raise(#'CardDataNotFound'{});
@@ -59,14 +59,14 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
         {Token, Session} = put_card_data(CardData),
         BankCard = #'BankCard'{
-            token = encode_token(Token),
+            token = cds_utils:encode_token(Token),
             payment_system = PaymentSystem,
             bin = BIN,
             masked_pan = MaskedPan
         },
         {ok, #'PutCardDataResult'{
             bank_card = BankCard,
-            session = encode_session(Session)
+            session = cds_utils:encode_session(Session)
         }}
     catch
         invalid_card_data ->
@@ -97,24 +97,6 @@ construct_md(Map = #{}) ->
 
 % local
 
-decode_token(Token) ->
-    base62_decode(Token).
-
-encode_token(Token) ->
-    base62_encode(Token).
-
-decode_session(Session) ->
-    base62_decode(Session).
-
-encode_session(Session) ->
-    base62_encode(Session).
-
-base62_encode(Data) ->
-    genlib_format:format_int_base(binary:decode_unsigned(Data), 62).
-
-base62_decode(Data) ->
-    genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
-
 get_cardholder_data(Token) ->
     MarshalledCardholderData = cds:get_cardholder_data(Token),
     cds_card_data:unmarshall(MarshalledCardholderData).
@@ -139,22 +121,3 @@ assert_keyring_available() ->
 
 raise(Exception) ->
     woody_error:raise(business, Exception).
-
-% test
-
--ifdef(TEST).
--include_lib("eunit/include/eunit.hrl").
-
--spec test() -> _.
--spec isomorphic_marshalling_test_() -> _.
-
-isomorphic_marshalling_test_() ->
-    Vs = [
-        crypto:strong_rand_bytes(16),
-        << <<C>> || C <- lists:seq(1, 16) >>,
-        <<1:16/integer-unit:8>>,
-        <<0:16/integer-unit:8>>
-    ],
-    [?_assertEqual(decode_token(encode_token(V)), V) || V <- Vs].
-
--endif.

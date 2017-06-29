@@ -20,11 +20,11 @@ init(_) ->
         },
         #{
             id => cds_cvv_recrypter,
-            start => {cds_recrypter, start_link, [#{encoding_type => cvv}]}
+            start => {cds_recrypter, start_link, [#{subject => session}]}
         },
         #{
             id => cds_card_data_recrypter,
-            start => {cds_recrypter, start_link, [#{encoding_type => card_data}]}
+            start => {cds_recrypter, start_link, [#{subject => carddata}]}
         }
     ],
     {ok, {{one_for_one, 1, 5}, ChildSpecs}}.

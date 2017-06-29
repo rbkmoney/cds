@@ -15,7 +15,7 @@
 -define(DEFAULT_BATCH_SIZE, 5000).
 
 -type state() :: #{
-    encoding_type := cvv | card_data,
+    subject := session | carddata,
     continuation := undefined | term()
 }.
 
@@ -26,19 +26,19 @@ start_link(Options) ->
 
 -spec init(_) -> {ok, non_neg_integer(), state()}.
 
-init([#{encoding_type := EncodingType}]) when
-    EncodingType =:= cvv;
-    EncodingType =:= card_data
+init([#{subject := Subject}]) when
+    Subject =:= session;
+    Subject =:= carddata
 ->
-    _ = lager:info("Starting recrypter for ~p...", [EncodingType]),
-    _ = cds_utils:logtag_process(encoding_type, EncodingType),
-    {ok, get_interval(), #{encoding_type => EncodingType, continuation => undefined}}.
+    _ = lager:info("Starting recrypter for ~s ...", [Subject]),
+    _ = cds_utils:logtag_process(subject, Subject),
+    {ok, get_interval(), #{subject => Subject, continuation => undefined}}.
 
 -spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
 
-handle_timeout(State = #{encoding_type := EncodingType, continuation := Continuation0}) ->
+handle_timeout(State = #{subject := Subject, continuation := Continuation0}) ->
     _ = lager:info("Starting recrypting", []),
-    case process_recrypting(EncodingType, get_batch_size(), Continuation0) of
+    case process_recrypting(Subject, get_batch_size(), Continuation0) of
         {ok, done} ->
             _ = lager:info("Recrypted all"),
             {ok, done, State#{continuation => undefined}};
@@ -52,10 +52,10 @@ handle_timeout(State = #{encoding_type := EncodingType, continuation := Continua
 
 %% Internals
 
-process_recrypting(EncodingType, BatchSize, Continuation) ->
+process_recrypting(Subject, BatchSize, Continuation) ->
     try
         Intervals = cds_keyring_manager:get_outdated_keys(),
-        process_recrypting(EncodingType, Intervals, BatchSize, Continuation)
+        process_recrypting(Subject, Intervals, BatchSize, Continuation)
     catch
         throw:Reason ->
             {error, Reason}
@@ -69,34 +69,40 @@ process_recrypting(_, _, Left, Continuation) when
 ->
     {ok, more, Continuation};
 
-process_recrypting(EncodingType, [Interval | Rest], BatchSize, Continuation0) ->
-    {Items, Continuation} = get_data_by_key_id_between(EncodingType, Interval, BatchSize, Continuation0),
-    ItemsSize = length(Items),
-    _ = lager:info("Got ~p ~p items to recrypt", [ItemsSize, EncodingType]),
-    _ = [recrypt_item(EncodingType, ItemID) || ItemID <- Items],
-    process_recrypting(EncodingType, Rest, BatchSize - ItemsSize, Continuation).
+process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0) ->
+    {Items, Continuation} = get_data_by_key_id_between(Subject, Interval, BatchSize, Continuation0),
+    Count = length(Items),
+    _ = lager:info("Got ~p ~s items to recrypt", [Count, Subject]),
+    _ = [recrypt_item(Subject, ItemID) || ItemID <- Items],
+    process_recrypting(Subject, Rest, BatchSize - Count, Continuation).
 
-get_data_by_key_id_between(cvv, {From, To}, BatchSize, Continuation) ->
+get_data_by_key_id_between(session, {From, To}, BatchSize, Continuation) ->
     cds_storage:get_sessions_by_key_id_between(From, To, BatchSize, Continuation);
 
-get_data_by_key_id_between(card_data, {From, To}, BatchSize, Continuation) ->
+get_data_by_key_id_between(carddata, {From, To}, BatchSize, Continuation) ->
     cds_storage:get_tokens_by_key_id_between(From, To, BatchSize, Continuation).
 
-recrypt_item(EncodingType, ItemID) ->
+recrypt_item(Subject, ItemID) ->
     try
-        _ = recrypt(EncodingType, ItemID),
-        _ = lager:debug("Recrypted ~p item ~p", [EncodingType, ItemID]),
+        _ = recrypt(Subject, ItemID),
+        _ = lager:debug("Recrypted ~s with id = ~s", [Subject, encode(Subject, ItemID)]),
         ok
     catch
         throw:not_found ->
             ok
     end.
 
-recrypt(cvv, Session) ->
+encode(session, Session) ->
+    cds_utils:encode_session(Session);
+
+encode(carddata, Token) ->
+    cds_utils:encode_token(Token).
+
+recrypt(session, Session) ->
     CVV = cds:get_cvv(Session),
     cds:update_cvv(Session, CVV);
 
-recrypt(card_data, Token) ->
+recrypt(carddata, Token) ->
     CardData = cds:get_cardholder_data(Token),
     cds:update_cardholder_data(Token, CardData).
 
