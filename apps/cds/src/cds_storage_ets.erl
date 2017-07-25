@@ -190,12 +190,13 @@ get_tokens_by_key_id_between(From, To, Limit, Continuation) ->
 get_sessions(Limit, Continuation) ->
     get_keys(?SESSION_TABLE, Limit, Continuation).
 
--spec get_sessions_info(limit(), continuation()) -> {ok, {[{cds:session(), Info :: term()}], continuation()}} | no_return().
+-spec get_sessions_info(limit(), continuation()) ->
+    {ok, {[{cds:session(), Info :: map()}], continuation()}} | no_return().
 
 get_sessions_info(Limit, Continuation) ->
     {ok, {Keys, Cont}} = get_keys(?SESSION_TABLE, Limit, Continuation),
     F = fun(K) ->
-        {K, undefined}
+        {K, #{}}
     end,
     {ok, {[F(Key) || Key <- Keys], Cont}}.
 
