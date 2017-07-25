@@ -19,6 +19,7 @@
 -export([get_tokens_by_key_id_between/4]).
 -export([get_sessions_by_key_id_between/4]).
 -export([get_sessions/2]).
+-export([get_sessions_info/2]).
 -export([get_tokens/2]).
 
 
@@ -220,6 +221,22 @@ get_sessions_by_key_id_between(From, To, Limit, Continuation) ->
 
 get_sessions(Limit, Continuation) ->
     get_keys(?SESSION_BUCKET, Limit, Continuation).
+
+-spec get_sessions_info(limit(), continuation()) -> {ok, {[{cds:session(), Info :: term()}], continuation()}} | no_return().
+
+get_sessions_info(Limit, Continuation) ->
+    {ok, {Keys, Cont}} = get_keys(?SESSION_BUCKET, Limit, Continuation),
+    F = fun(K) ->
+        case get(?SESSION_BUCKET, K) of
+            {ok, Obj} ->
+                Meta = riakc_obj:get_metadata(Obj),
+                [CreatedAt] = riakc_obj:get_secondary_index(Meta, ?CREATED_AT_INDEX),
+                {K, cds_utils:current_time() - CreatedAt};
+            _ ->
+                {K, not_found}
+        end
+    end,
+    {ok, {[F(Key) || Key <- Keys], Cont}}.
 
 -spec get_tokens(limit(), continuation()) ->
     batch_response(cds:token()) | no_return().
