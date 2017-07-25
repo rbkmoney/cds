@@ -18,6 +18,7 @@
 -export([get_tokens_by_key_id_between/4]).
 -export([get_sessions_by_key_id_between/4]).
 -export([get_sessions/2]).
+-export([get_sessions_info/2]).
 -export([get_tokens/2]).
 
 %% gen_server behaviour
@@ -188,6 +189,16 @@ get_tokens_by_key_id_between(From, To, Limit, Continuation) ->
 
 get_sessions(Limit, Continuation) ->
     get_keys(?SESSION_TABLE, Limit, Continuation).
+
+-spec get_sessions_info(limit(), continuation()) ->
+    {ok, {[{cds:session(), Info :: map()}], continuation()}} | no_return().
+
+get_sessions_info(Limit, Continuation) ->
+    {ok, {Keys, Cont}} = get_keys(?SESSION_TABLE, Limit, Continuation),
+    F = fun(K) ->
+        {K, #{}}
+    end,
+    {ok, {[F(Key) || Key <- Keys], Cont}}.
 
 -spec get_tokens(limit(), continuation()) -> batch_response(cds:token()) | no_return().
 

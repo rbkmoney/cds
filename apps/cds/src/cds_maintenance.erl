@@ -3,6 +3,7 @@
 -export([refresh_sessions_created_at/0]).
 -export([refresh_cvv_encryption/0]).
 -export([refresh_cardholder_encryption/0]).
+-export([get_sessions_info/0]).
 
 -define(REFRESH_BATCH, 500).
 
@@ -36,6 +37,23 @@ refresh_cardholder_encryption() ->
     Refresher = fun(Key) ->
         CardData = cds:get_cardholder_data(Key),
         cds:update_cardholder_data(Key, CardData)
+    end,
+    refresh(Getter, Refresher).
+
+-spec get_sessions_info() -> ok.
+
+get_sessions_info() ->
+    ok = assert_keyring_available(),
+    Getter = fun(Continuation) -> cds_storage:get_sessions_info(?REFRESH_BATCH, Continuation) end,
+    Refresher = fun({Key, SessionInfo}) ->
+        case SessionInfo of
+            #{lifetime := Lifetime} ->
+                _ = io:fwrite("Session: ~p; Lifetime (sec): ~p", [Key, Lifetime]);
+            #{error := Error} ->
+                _ = io:fwrite("Session: ~p; Error: ~p", [Key, Error]);
+            _ ->
+                _ = io:fwrite("Session: ~p", [Key])
+        end
     end,
     refresh(Getter, Refresher).
 

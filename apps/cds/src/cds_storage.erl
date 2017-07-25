@@ -46,6 +46,8 @@
     continuation()
 ) -> {ok, {[cds:token()], continuation()}} | no_return().
 -callback get_sessions(limit(), continuation()) -> {ok, {[cds:session()], continuation()}} | no_return().
+-callback get_sessions_info(limit(), continuation()) ->
+    {ok, {[{cds:session(), Info :: map()}], continuation()}} | no_return().
 -callback get_tokens(limit(), continuation()) -> {ok, {[cds:token()], continuation()}} | no_return().
 
 -export([start/0]).
@@ -62,6 +64,7 @@
 -export([update_cardholder_data/4]).
 -export([refresh_session_created_at/1]).
 -export([get_sessions/2]).
+-export([get_sessions_info/2]).
 -export([get_tokens/2]).
 
 -spec start() -> ok.
@@ -137,6 +140,10 @@ refresh_session_created_at(Session) ->
 -spec get_sessions(limit(), continuation()) -> {[cds:session()], continuation()} | no_return().
 get_sessions(Limit, Continuation) ->
     cds_backend:call(storage, get_sessions, [Limit, Continuation]).
+
+-spec get_sessions_info(limit(), continuation()) -> {[{cds:session(), Info :: map()}], continuation()} | no_return().
+get_sessions_info(Limit, Continuation) ->
+    cds_backend:call(storage, get_sessions_info, [Limit, Continuation]).
 
 -spec get_tokens(limit(), continuation()) -> {[cds:token()], continuation()} | no_return().
 get_tokens(Limit, Continuation) ->
