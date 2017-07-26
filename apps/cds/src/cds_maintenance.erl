@@ -45,14 +45,15 @@ refresh_cardholder_encryption() ->
 get_sessions_info() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_storage:get_sessions_info(?REFRESH_BATCH, Continuation) end,
-    Refresher = fun({Key, SessionInfo}) ->
+    Refresher = fun({Session, SessionInfo}) ->
+        Key = cds_utils:encode_session(Session),
         case SessionInfo of
             #{lifetime := Lifetime} ->
-                _ = io:fwrite("Session: ~p; Lifetime (sec): ~p", [Key, Lifetime]);
+                _ = io:fwrite("Session: ~s; Lifetime (sec): ~p~n", [Key, Lifetime]);
             #{error := Error} ->
-                _ = io:fwrite("Session: ~p; Error: ~p", [Key, Error]);
+                _ = io:fwrite("Session: ~s; Error: ~p~n", [Key, Error]);
             _ ->
-                _ = io:fwrite("Session: ~p", [Key])
+                _ = io:fwrite("Session: ~s~n", [Key])
         end
     end,
     refresh(Getter, Refresher).
