@@ -250,7 +250,7 @@ session_cleaning(C) ->
         session_lifetime := Lifetime,
         interval := Interval
     }}] = config(session_cleaning_config, C),
-    timer:sleep((Lifetime + 1) * 1000 + Interval),
+    timer:sleep(Lifetime*1000 + Interval*2),
     ok = try
         _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
         error
