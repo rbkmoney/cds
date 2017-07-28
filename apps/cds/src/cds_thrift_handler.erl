@@ -1,15 +1,10 @@
 -module(cds_thrift_handler).
 -behaviour(woody_server_thrift_handler).
--behaviour(woody_event_handler).
 
 -include("cds_cds_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
-
-%% woody_event_handler callback
--export([handle_event/4]).
-
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
@@ -74,26 +69,6 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
         locked ->
             raise(#'KeyringLocked'{})
     end.
-
--spec handle_event(
-    woody_event_handler:event(),
-    woody:rpc_id(),
-    woody_event_handler:event_meta(),
-    woody:options()
-) -> _.
-handle_event(EventType, RpcID, #{status := error, class := Class, reason := Reason, stack := Stack}, _Opts) ->
-    lager:error(
-        construct_md(RpcID),
-        "[server] ~s with ~s:~p at ~s",
-        [EventType, Class, Reason, genlib_format:format_stacktrace(Stack, [newlines])]
-    );
-handle_event(EventType, RpcID, EventMeta, _Opts) ->
-    lager:debug(construct_md(RpcID), "[server] ~s: ~p", [EventType, EventMeta]).
-
-construct_md(undefined) ->
-    [];
-construct_md(Map = #{}) ->
-    maps:to_list(Map).
 
 % local
 

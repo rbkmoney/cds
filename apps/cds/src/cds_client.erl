@@ -57,7 +57,7 @@ call(Function, Args, RootUrl) ->
     Path = genlib:to_binary(path(Function)),
     CallOpts = #{
         url => <<RootUrl/binary, Path/binary>>,
-        event_handler => cds_thrift_handler
+        event_handler => cds_woody_event_handler
     },
     case woody_client:call(Request, CallOpts) of
         {ok, Result} ->
