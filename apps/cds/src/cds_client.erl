@@ -55,9 +55,11 @@ rotate(RootUrl) ->
 call(Function, Args, RootUrl) ->
     Request = {{cds_cds_thrift, service(Function)}, Function, Args},
     Path = genlib:to_binary(path(Function)),
+    TransportOpts = application:get_env(cds, net_opts, []),
     CallOpts = #{
         url => <<RootUrl/binary, Path/binary>>,
-        event_handler => cds_woody_event_handler
+        event_handler => cds_woody_event_handler,
+        transport_opts => TransportOpts
     },
     case woody_client:call(Request, CallOpts) of
         {ok, Result} ->
