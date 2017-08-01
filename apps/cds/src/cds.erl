@@ -64,7 +64,7 @@ init([]) ->
             event_handler => cds_woody_event_handler,
             ip => IP,
             port => genlib_app:env(?MODULE, port, 8022),
-            net_opts => genlib_app:env(?MODULE, net_opts, #{})
+            net_opts => genlib_app:env(?MODULE, net_opts, [])
         }
     ),
     KeyringManager = #{
