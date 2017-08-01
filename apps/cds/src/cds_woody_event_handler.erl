@@ -29,10 +29,11 @@ format_event(EventType, RpcID, _EventMeta, Msg) when
 
 %% server
 
-format_event(EventType = ?EV_SERVER_RECEIVE, RpcID, #{}, Msg) ->
+format_event(EventType = ?EV_SERVER_RECEIVE, RpcID, #{status := Status}, Msg) ->
     ok = enter(?SERVER, #{}),
     _ = log(RpcID, Msg, collect(?SERVER, #{
-        event => EventType
+        event => EventType,
+        status => Status
     }));
 
 format_event(EventType = ?EV_INVOKE_SERVICE_HANDLER, RpcID, #{
@@ -48,14 +49,16 @@ format_event(EventType = ?EV_INVOKE_SERVICE_HANDLER, RpcID, #{
         event => EventType
     }));
 
-format_event(EventType = ?EV_SERVICE_HANDLER_RESULT, RpcID, #{}, Msg) ->
+format_event(EventType = ?EV_SERVICE_HANDLER_RESULT, RpcID, #{status := Status}, Msg) ->
     _ = log(RpcID, Msg, collect(?SERVER, #{
-        event => EventType
+        event => EventType,
+        status => Status
     }));
 
-format_event(EventType = ?EV_SERVER_SEND, RpcID, #{}, Msg) ->
+format_event(EventType = ?EV_SERVER_SEND, RpcID, #{status := Status}, Msg) ->
     _ = log(RpcID, Msg, collect(?SERVER, #{
-        event => EventType
+        event => EventType,
+        status => Status
     })),
     leave(?SERVER);
 
@@ -75,7 +78,10 @@ log(RpcID, {Level, {Format, Args}}, MD) ->
     lager:log(Level, [{pid, self()}] ++ rpc_id_to_md(RpcID) ++ orddict:to_list(MD), Format, Args).
 
 rpc_id_to_md(RpcID = #{}) ->
-    maps:to_list(RpcID).
+    maps:to_list(RpcID);
+
+rpc_id_to_md(undefined) ->
+    [].
 
 %%
 
