@@ -61,10 +61,10 @@ init([]) ->
                 {"/v1/storage", {{cds_cds_thrift, 'Storage'}, {cds_thrift_handler, []}}},
                 {"/v1/keyring", {{cds_cds_thrift, 'Keyring'}, {cds_thrift_handler, []}}}
             ],
-            event_handler => cds_thrift_handler,
+            event_handler => cds_woody_event_handler,
             ip => IP,
             port => genlib_app:env(?MODULE, port, 8022),
-            net_opts => genlib_app:env(?MODULE, net_opts, #{})
+            net_opts => genlib_app:env(?MODULE, net_opts, [])
         }
     ),
     KeyringManager = #{

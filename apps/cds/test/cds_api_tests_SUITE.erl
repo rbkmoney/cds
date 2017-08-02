@@ -334,7 +334,11 @@ start_clear(Config) ->
     CdsEnv = [
             {ip, IP},
             {port, Port},
-            {keyring_storage, cds_keyring_storage_env}
+            {keyring_storage, cds_keyring_storage_env},
+            {net_opts, [
+                % Bump keepalive timeout up to a minute
+                {timeout, 60000}
+            ]}
     ] ++ StorageConfig ++ CleanConfig ++ Recrypting,
     ok = clean_storage(CdsEnv),
 
