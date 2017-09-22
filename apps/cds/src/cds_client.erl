@@ -25,7 +25,7 @@ get_card_data(Token, RootUrl) ->
 get_session_card_data(Token, Session, RootUrl) ->
     call('GetSessionCardData', [Token, Session], RootUrl).
 
--spec put_card_data(cds_cds_thrift:'CardData'(), woody:url()) -> result().
+-spec put_card_data(dmsl_cds_thrift:'CardData'(), woody:url()) -> result().
 
 put_card_data(Data, RootUrl) ->
     call('PutCardData', [Data], RootUrl).
@@ -53,7 +53,7 @@ rotate(RootUrl) ->
 -spec call(atom(), list(), woody:url()) -> result().
 
 call(Function, Args, RootUrl) ->
-    Request = {{cds_cds_thrift, service(Function)}, Function, Args},
+    Request = {{dmsl_cds_thrift, service(Function)}, Function, Args},
     Path = genlib:to_binary(path(Function)),
     TransportOpts = application:get_env(cds, net_opts, []),
     CallOpts = #{

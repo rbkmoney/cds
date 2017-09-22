@@ -15,9 +15,9 @@
 -type cvv() :: binary().
 -type unique_card_data() :: binary().
 %% TODO something wrong with this type
--type thrift_card_data() :: cds_cds_thrift:'CardData'().
+-type thrift_card_data() :: dmsl_cds_thrift:'CardData'().
 
--include("cds_cds_thrift.hrl").
+-include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 
 
 -spec validate(thrift_card_data()) ->
@@ -125,7 +125,7 @@ luhn_valid(<<N, Rest/binary>>, Sum) when byte_size(Rest) rem 2 =:= 1 ->
 luhn_valid(<<N, Rest/binary>>, Sum) ->
     luhn_valid(Rest, Sum + N - $0).
 
--spec date_valid(cds_cds_thrift:'ExpDate'(), {non_neg_integer(), 1..12}) -> true | false.
+-spec date_valid(dmsl_cds_thrift:'ExpDate'(), {non_neg_integer(), 1..12}) -> true | false.
 date_valid(#'ExpDate'{year = ExpYear, month = ExpMonth}, CurrentDate) ->
     {ExpYear, ExpMonth} >= CurrentDate.
 

@@ -1,7 +1,7 @@
 -module(cds_api_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("cds/src/cds_cds_thrift.hrl").
+-include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -190,7 +190,7 @@ unlock(C) ->
 
 put_card_data(C) ->
     #'PutCardDataResult'{
-        bank_card = #'BankCard'{
+        bank_card = #domain_BankCard{
             token = Token
         }
     } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
@@ -237,10 +237,10 @@ get_session_card_data_keyring_locked(C) ->
 
 session_cleaning(C) ->
     #'PutCardDataResult'{
-        bank_card = #'BankCard'{
+        bank_card = #domain_BankCard{
             token = Token
         },
-        session = Session
+        session_id = Session
     } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
 
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
@@ -264,10 +264,10 @@ session_cleaning(C) ->
 
 refresh_sessions(C) ->
     #'PutCardDataResult'{
-        bank_card = #'BankCard'{
+        bank_card = #domain_BankCard{
             token = Token
         },
-        session = Session
+        session_id = Session
     } = cds_client:put_card_data(?CREDIT_CARD(<<"345">>), root_url(C)),
 
     [{session_cleaning, #{

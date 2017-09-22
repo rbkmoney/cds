@@ -1,6 +1,6 @@
 -module(cds_card_validation_tests_SUITE).
 
--include_lib("cds/src/cds_cds_thrift.hrl").
+-include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).

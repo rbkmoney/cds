@@ -14,7 +14,8 @@
         shamir,
         cowboy, %% temporary kostyl'
         lager,
-        lager_logstash_formatter
+        lager_logstash_formatter,
+        dmsl
     ]},
     {env, []},
     {modules, []},
