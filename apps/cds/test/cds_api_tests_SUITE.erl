@@ -189,6 +189,17 @@ unlock(C) ->
 -spec put_card_data(config()) -> _.
 
 put_card_data(C) ->
+    % check without cardholder
+    CardData = #'CardData'{
+        pan = <<"4242424242424242">>,
+        exp_date = #'ExpDate'{
+            month = 12,
+            year = 3000
+        },
+        cvv = <<"123">>
+    },
+    #'PutCardDataResult'{} = cds_client:put_card_data(CardData, root_url(C)),
+    % check with cardholder
     #'PutCardDataResult'{
         bank_card = #domain_BankCard{
             token = Token
@@ -350,7 +361,7 @@ start_clear(Config) ->
             {suppress_application_start_stop, true},
             {crash_log, false},
             {handlers, [
-                {lager_common_test_backend, debug}
+                {lager_common_test_backend, warning}
             ]}
         ]) ++
         genlib_app:start_application_with(cds, CdsEnv),
