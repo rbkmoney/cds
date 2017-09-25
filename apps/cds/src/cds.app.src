@@ -12,7 +12,6 @@
         riakc,
         woody,
         shamir,
-        cowboy, %% temporary kostyl'
         lager,
         lager_logstash_formatter,
         dmsl
