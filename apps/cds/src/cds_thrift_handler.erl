@@ -1,7 +1,7 @@
 -module(cds_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
--include("cds_cds_thrift.hrl").
+-include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -53,7 +53,7 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
     try
         {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
         {Token, Session} = put_card_data(CardData),
-        BankCard = #'BankCard'{
+        BankCard = #'domain_BankCard'{
             token = cds_utils:encode_token(Token),
             payment_system = PaymentSystem,
             bin = BIN,
@@ -61,7 +61,7 @@ handle_function('PutCardData', [CardData], _Context, _Opts) ->
         },
         {ok, #'PutCardDataResult'{
             bank_card = BankCard,
-            session = cds_utils:encode_session(Session)
+            session_id = cds_utils:encode_session(Session)
         }}
     catch
         invalid_card_data ->

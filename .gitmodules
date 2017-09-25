@@ -1,7 +1,3 @@
-[submodule "apps/cds/damsel"]
-	path = apps/cds/damsel
-	url = "git@github.com:rbkmoney/damsel.git"
-	branch = master
 [submodule "build_utils"]
 	path = build_utils
 	url = git@github.com:rbkmoney/build_utils.git
