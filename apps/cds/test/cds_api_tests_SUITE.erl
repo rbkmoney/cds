@@ -336,9 +336,9 @@ recrypt(C) ->
 %%
 
 start_clear(Config) ->
-    IP = "::1",
+    IP = "127.0.0.1",
     Port = 8022,
-    RootUrl = "http://[" ++ IP ++ "]:" ++ integer_to_list(Port),
+    RootUrl = "http://" ++ IP ++ ":" ++ integer_to_list(Port),
     StorageConfig = config(storage_config, Config, []),
     CleanConfig = config(session_cleaning_config, Config, []),
     Recrypting = config(recrypting_config, Config, []),
@@ -365,7 +365,7 @@ start_clear(Config) ->
             ]}
         ]) ++
         genlib_app:start_application_with(cds, CdsEnv),
-    [{apps, Apps}, {root_url, genlib:to_binary(RootUrl)}].
+    [{apps, lists:reverse(Apps)}, {root_url, genlib:to_binary(RootUrl)}].
 
 stop_clear(C) ->
     _ = (catch cds_keyring_storage_env:delete()),

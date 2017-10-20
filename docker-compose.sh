@@ -51,11 +51,5 @@ volumes:
   schemas:
     external: false
 
-networks:
-  default:
-    driver: bridge
-    driver_opts:
-      com.docker.network.enable_ipv6: "true"
-      com.docker.network.bridge.enable_ip_masquerade: "true"
 EOF
 
