@@ -365,7 +365,7 @@ start_clear(Config) ->
             ]}
         ]) ++
         genlib_app:start_application_with(cds, CdsEnv),
-    [{apps, Apps}, {root_url, genlib:to_binary(RootUrl)}].
+    [{apps, lists:reverse(Apps)}, {root_url, genlib:to_binary(RootUrl)}].
 
 stop_clear(C) ->
     _ = (catch cds_keyring_storage_env:delete()),
