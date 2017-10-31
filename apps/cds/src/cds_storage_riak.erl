@@ -34,9 +34,11 @@
 -define(CARD_DATA_HASH_INDEX, {binary_index, "card_data_salted_hash"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
+-define(DEFAULT_TIMEOUT, 5000). % milliseconds
 
 -type storage_params() :: #{
     conn_params := conn_params(),
+    timeout     => pos_integer(),
     pool_params => pool_params()
 }.
 
@@ -381,8 +383,12 @@ update_indexes(Obj0, Indexes) ->
 get_storage_params() ->
     genlib_app:env(cds, cds_storage_riak).
 
+get_default_timeout() ->
+    Params = get_storage_params(),
+    {timeout, genlib_map:get(timeout, Params, ?DEFAULT_TIMEOUT)}.
+
 get_keys(Bucket, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}]),
+    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_eq(
         Bucket,
         <<"$bucket">>,
@@ -392,7 +398,7 @@ get_keys(Bucket, Limit, Continuation) ->
     prepare_index_result(Result).
 
 get_keys_by_index_range(Bucket, IndexName, From, To, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}]),
+    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_range(
         Bucket,
         IndexName,
@@ -403,7 +409,7 @@ get_keys_by_index_range(Bucket, IndexName, From, To, Limit, Continuation) ->
     prepare_index_result(Result).
 
 get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}]),
+    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_eq(
         Bucket,
         IndexName,
