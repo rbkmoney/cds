@@ -99,7 +99,8 @@ init_per_group(riak_storage_backend, C) ->
             conn_params => #{
                 host => "riakdb",
                 port => 8087
-            }
+            },
+            timeout => 5000
         }}
     ],
     [{storage_config, Storage} | C];
