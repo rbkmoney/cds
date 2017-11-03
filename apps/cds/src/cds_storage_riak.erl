@@ -388,33 +388,30 @@ get_default_timeout() ->
     {timeout, genlib_map:get(timeout, Params, ?DEFAULT_TIMEOUT)}.
 
 get_keys(Bucket, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_eq(
         Bucket,
         <<"$bucket">>,
         <<"_">>,
-        Options
+        construct_index_query_options(Limit, Continuation)
     ),
     prepare_index_result(Result).
 
 get_keys_by_index_range(Bucket, IndexName, From, To, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_range(
         Bucket,
         IndexName,
         From,
         To,
-        Options
+        construct_index_query_options(Limit, Continuation)
     ),
     prepare_index_result(Result).
 
 get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_eq(
         Bucket,
         IndexName,
         IndexValue,
-        Options
+        construct_index_query_options(Limit, Continuation)
     ),
     prepare_index_result(Result).
 
@@ -430,5 +427,8 @@ prepare_index_result(Result) ->
             error(Error)
     end.
 
-options(Opts) ->
+construct_index_query_options(Limit, Continuation) ->
+    prepare_options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]).
+
+prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
