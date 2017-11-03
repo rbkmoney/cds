@@ -7,21 +7,21 @@
 -export([validate/2]).
 -export([validate/3]).
 
--export([marshal_card_data/1]).
+-export([marshal_cardholder_data/1]).
 -export([marshal_cvv/1]).
--export([unmarshal_card_data/1]).
+-export([unmarshal_cardholder_data/1]).
 -export([unmarshal_cvv/1]).
 -export([unique/1]).
 
--type card_number() :: binary().
--type exp_date()    :: {1..12, pos_integer()}.
--type card_holder() :: binary() | undefined.
--type cvv()         :: binary().
+-type cardnumber() :: binary().
+-type exp_date()   :: {1..12, pos_integer()}.
+-type cardholder() :: binary() | undefined.
+-type cvv()        :: binary().
 
--type card_data() :: #{
-    card_number := card_number(),
-    exp_date    := exp_date(),
-    card_holder := card_holder()
+-type cardholder_data() :: #{
+    cardnumber := cardnumber(),
+    exp_date   := exp_date(),
+    cardholder := cardholder()
 }.
 
 -type card_info() :: #{
@@ -30,29 +30,30 @@
     last_digits    := binary()
 }.
 
--export_type([card_number/0]).
+-export_type([cardnumber/0]).
 -export_type([cvv/0]).
--export_type([card_holder/0]).
+-export_type([cardholder/0]).
 -export_type([exp_date/0]).
 -export_type([payment_system/0]).
 -export_type([card_info/0]).
+-export_type([cardholder_data/0]).
 
 %%
 
 -type reason() ::
     unrecognized |
-    {invalid, card_number | cvv | exp_date, check()}.
+    {invalid, cardnumber | cvv | exp_date, check()}.
 
--spec validate(card_data(), cvv()) ->
+-spec validate(cardholder_data(), cvv()) ->
     {ok, card_info()} | {error, reason()}.
 
 validate(CardData, CVV) ->
     validate(CardData, CVV, #{now => calendar:universal_time()}).
 
--spec validate(card_data(), cvv(), Env :: #{now := calendar:datetime()}) ->
+-spec validate(cardholder_data(), cvv(), Env :: #{now := calendar:datetime()}) ->
     {ok, card_info()} | {error, reason()}.
 
-validate(CardData = #{card_number := CardNumber}, CVV, Env) ->
+validate(CardData = #{cardnumber := CardNumber}, CVV, Env) ->
     case detect_payment_system(CardNumber) of
         {ok, PaymentSystem} ->
             #{PaymentSystem := Ruleset} = get_payment_system_map(),
@@ -73,10 +74,10 @@ get_card_info(CardData, PaymentSystem, Ruleset) ->
         last_digits    => get_last_digits(CardData, Ruleset)
     }.
 
-get_card_iin(#{card_number := CardNumber}, #{iin_length := IINLength}) ->
+get_card_iin(#{cardnumber := CardNumber}, #{iin_length := IINLength}) ->
     binary:part(CardNumber, 0, IINLength).
 
-get_last_digits(#{card_number := CardNumber}, #{exposed_length := ExposedLength}) ->
+get_last_digits(#{cardnumber := CardNumber}, #{exposed_length := ExposedLength}) ->
     binary:part(CardNumber, byte_size(CardNumber), -ExposedLength).
 
 detect_payment_system(CardNumber) ->
@@ -87,7 +88,7 @@ detect_payment_system(Size, CardNumber) when Size > 0 ->
     case get_inn_map() of
         #{Pre := PaymentSystem} ->
             {ok, PaymentSystem};
-        error ->
+        #{} ->
             detect_payment_system(Size - 1, CardNumber)
     end;
 detect_payment_system(0, _) ->
@@ -97,12 +98,12 @@ detect_payment_system(0, _) ->
 
 -type marshalled(_T) :: binary().
 
--spec marshal_card_data(card_data()) -> marshalled(card_data()).
+-spec marshal_cardholder_data(cardholder_data()) -> marshalled(cardholder_data()).
 
-marshal_card_data(#{
-    card_number     := CN,
-    exp_date        := {Month, Year},
-    cardholder_name := Cardholder
+marshal_cardholder_data(#{
+    cardnumber := CN,
+    exp_date   := {Month, Year},
+    cardholder := Cardholder
 }) ->
     <<
         (byte_size(CN)),
@@ -121,13 +122,13 @@ marshal(cardholder, undefined) ->
 marshal_cvv(V) when is_binary(V) ->
     V.
 
--spec unmarshal_card_data(marshalled(card_data())) -> card_data().
+-spec unmarshal_cardholder_data(marshalled(cardholder_data())) -> cardholder_data().
 
-unmarshal_card_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardholder/binary>>) ->
+unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardholder/binary>>) ->
     #{
-        card_number     => CN,
-        exp_date        => {Month, Year},
-        cardholder_name => unmarshal(cardholder, Cardholder)
+        cardnumber => CN,
+        exp_date   => {Month, Year},
+        cardholder => unmarshal(cardholder, Cardholder)
     }.
 
 unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
@@ -140,7 +141,7 @@ unmarshal(cardholder, <<>>) ->
 unmarshal_cvv(V) when is_binary(V) ->
     V.
 
--spec unique(marshalled(card_data())) -> binary().
+-spec unique(marshalled(cardholder_data())) -> binary().
 
 unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
     <<CNSize, CN:CNSize/binary, Month:8, Year:16>>.
@@ -220,7 +221,7 @@ get_payment_system_map() ->
 
         visa => #{
             assertions => #{
-                card_number => [{length, [13, 16]}, luhn],
+                cardnumber => [{length, [13, 16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -230,7 +231,7 @@ get_payment_system_map() ->
 
         mastercard => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -240,7 +241,7 @@ get_payment_system_map() ->
 
         visaelectron => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -261,7 +262,7 @@ get_payment_system_map() ->
         %% by the ISO Registration Authority, and must be unique.
         maestro => #{
             assertions => #{
-                card_number => [{length, [19]}, luhn],
+                cardnumber => [{length, [19]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -271,7 +272,7 @@ get_payment_system_map() ->
 
         nspkmir => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -281,7 +282,7 @@ get_payment_system_map() ->
 
         amex => #{
             assertions => #{
-                card_number => [{length, [15]}, luhn],
+                cardnumber => [{length, [15]}, luhn],
                 cvv         => [{length, [3, 4]}],
                 exp_date    => [expiration]
             },
@@ -291,7 +292,7 @@ get_payment_system_map() ->
 
         dinersclub => #{
             assertions => #{
-                card_number => [{length, [{range, 14, 19}]}, luhn],
+                cardnumber => [{length, [{range, 14, 19}]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -301,7 +302,7 @@ get_payment_system_map() ->
 
         discover => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -311,7 +312,7 @@ get_payment_system_map() ->
 
         unionpay => #{
             assertions => #{
-                card_number => [{length, [{range, 16, 19}]}],
+                cardnumber => [{length, [{range, 16, 19}]}],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -321,7 +322,7 @@ get_payment_system_map() ->
 
         jcb => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -331,7 +332,7 @@ get_payment_system_map() ->
 
         forbrugsforeningen => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
@@ -341,7 +342,7 @@ get_payment_system_map() ->
 
         dankort => #{
             assertions => #{
-                card_number => [{length, [16]}, luhn],
+                cardnumber => [{length, [16]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },

@@ -69,7 +69,7 @@ get_token(Hash) ->
             {error, not_found}
     end.
 
--spec get_cardholder_data(cds:token()) -> {ok, cds:encrypted_data()} | {error, not_found}.
+-spec get_cardholder_data(cds:token()) -> {ok, cds:ciphertext()} | {error, not_found}.
 
 get_cardholder_data(Token) ->
     case get(?TOKEN_TABLE, Token) of
@@ -80,7 +80,7 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:encrypted_data(), cds:encrypted_data()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case get(?SESSION_TABLE, Session) of
@@ -99,8 +99,8 @@ get_session_card_data(Token, Session) ->
     cds:token(),
     cds:session(),
     cds:hash(),
-    CardData :: cds:encrypted_data(),
-    CVV :: cds:encrypted_data(),
+    CardData :: cds:ciphertext(),
+    CVV :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
@@ -136,7 +136,7 @@ delete_session(Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
--spec get_cvv(cds:session()) -> {ok, cds:encrypted_data()} | {error, not_found}.
+-spec get_cvv(cds:session()) -> {ok, cds:ciphertext()} | {error, not_found}.
 
 get_cvv(Session) ->
     case get(?SESSION_TABLE, Session) of
@@ -146,12 +146,12 @@ get_cvv(Session) ->
             Error
     end.
 
--spec update_cvv(cds:session(), NewCvv :: cds:encrypted_data(), cds_keyring:key_id()) -> ok | {error, not_found}.
+-spec update_cvv(cds:session(), NewCvv :: cds:ciphertext(), cds_keyring:key_id()) -> ok | {error, not_found}.
 
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_TABLE, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
--spec update_cardholder_data(cds:token(), cds:encrypted_data(), cds:hash(), cds_keyring:key_id()) ->
+-spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
     ok | {error, not_found}.
 
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->

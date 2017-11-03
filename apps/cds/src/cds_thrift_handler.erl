@@ -35,7 +35,7 @@ handle_function('Lock', [], _Context, _Opts) ->
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     _ = assert_keyring_available(),
     try
-        {ok, encode_card_data(
+        {ok, encode_cardholder_data(
             get_cardholder_data(
                 cds_utils:decode_token(Token)
             )
@@ -63,23 +63,23 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     end;
 handle_function('PutCardData', [V], _Context, _Opts) ->
     _ = assert_keyring_available(),
-    {CardData, CVV} = decode_card_data(V),
-    try
-        CardInfo = cds_card_data:validate(CardData, CVV),
-        {Token, Session} = put_card_data(CardData),
-        BankCard = #'domain_BankCard'{
-            token          = cds_utils:encode_token(Token),
-            payment_system = maps:get(payment_system, CardInfo),
-            bin            = maps:get(iin           , CardInfo),
-            masked_pan     = maps:get(last_digits   , CardInfo)
-        },
-        {ok, #'PutCardDataResult'{
-            bank_card      = BankCard,
-            session_id     = cds_utils:encode_session(Session)
-        }}
+    {CardholderData, CVV} = decode_card_data(V),
+    try cds_card_data:validate(CardholderData, CVV) of
+        {ok, CardInfo} ->
+            {Token, Session} = put_card_data(CardholderData, CVV),
+            BankCard = #'domain_BankCard'{
+                token          = cds_utils:encode_token(Token),
+                payment_system = maps:get(payment_system, CardInfo),
+                bin            = maps:get(iin           , CardInfo),
+                masked_pan     = maps:get(last_digits   , CardInfo)
+            },
+            {ok, #'PutCardDataResult'{
+                bank_card      = BankCard,
+                session_id     = cds_utils:encode_session(Session)
+            }};
+        {error, _} ->
+            raise(#'InvalidCardData'{})
     catch
-        invalid_card_data ->
-            raise(#'InvalidCardData'{});
         locked ->
             raise(#'KeyringLocked'{})
     end.
@@ -93,18 +93,19 @@ decode_card_data(#'CardData'{
     cvv             = CVV
 }) ->
     {#{
-        card_number => PAN,
-        exp_date    => {Month, Year},
-        card_holder => CardholderName
+        cardnumber => PAN,
+        exp_date   => {Month, Year},
+        cardholder => CardholderName
     }, CVV}.
 
 encode_card_data({CardData, CVV}) ->
-    V = encode_card_data(CardData),
-    V#'CardData'{cvv = CVV};
-encode_card_data(#{
-    card_number := PAN,
-    exp_date    := {Month, Year},
-    card_holder := CardholderName
+    V = encode_cardholder_data(CardData),
+    V#'CardData'{cvv = CVV}.
+
+encode_cardholder_data(#{
+    cardnumber := PAN,
+    exp_date   := {Month, Year},
+    cardholder := CardholderName
 }) ->
     #'CardData'{
         pan             = PAN,
@@ -116,16 +117,16 @@ encode_card_data(#{
 %
 
 get_cardholder_data(Token) ->
-    CardData = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshal_card_data(CardData).
+    CardholderData = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 get_card_data(Token, Session) ->
-    {CardData, CVV} = cds:get_card_data(Token, Session),
-    {cds_card_data:unmarshal_card_data(CardData), cds_card_data:unmarshal_cvv(CVV)}.
+    {CardholderData, CVV} = cds:get_card_data(Token, Session),
+    {cds_card_data:unmarshal_cardholder_data(CardholderData), cds_card_data:unmarshal_cvv(CVV)}.
 
-put_card_data(CardData = #{cvv := CVV}) ->
+put_card_data(CardholderData, CVV) ->
     cds:put_card_data({
-        cds_card_data:marshal_card_data(CardData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_cvv(CVV)
     }).
 
