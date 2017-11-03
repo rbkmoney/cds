@@ -315,8 +315,16 @@ refresh_sessions(C) ->
 %% dishonest test which uses internal functions
 recrypt(C) ->
     {KeyID0, _} = cds_keyring_manager:get_current_key(),
-    CardData = ?CREDIT_CARD(<<"345">>),
-    {Token, Session} = cds:put_card_data(cds_card_data:marshall(CardData)),
+    CardholderData = #{
+        cardnumber => <<"5321301234567892">>,
+        exp_date => {12, 3000},
+        cardholder => <<"Tony Stark">>
+    },
+    CVV = <<"345">>,
+    {Token, Session} = cds:put_card_data({
+        cds_card_data:marshal_cardholder_data(CardholderData),
+        cds_card_data:marshal_cvv(CVV)
+    }),
     {EncryptedCardData0, EncryptedCvv0} = cds_storage:get_session_card_data(Token, Session),
     <<KeyID0, _/binary>> = EncryptedCardData0,
     <<KeyID0, _/binary>> = EncryptedCvv0,
