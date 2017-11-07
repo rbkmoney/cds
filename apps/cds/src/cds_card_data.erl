@@ -112,7 +112,7 @@ marshal_cardholder_data(#{
         (marshal(cardholder, Cardholder))/binary
     >>.
 
-marshal(cardholder, V) when is_binary(V), V =/= undefined ->
+marshal(cardholder, V) when is_binary(V) ->
     V;
 marshal(cardholder, undefined) ->
     <<>>.
