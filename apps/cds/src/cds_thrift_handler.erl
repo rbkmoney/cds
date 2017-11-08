@@ -8,6 +8,7 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
+
 handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
     try cds_keyring_manager:initialize(Threshold, Count) of
         Shares ->
@@ -30,9 +31,16 @@ handle_function('Rotate', [], _Context, _Opts) ->
     end;
 handle_function('Lock', [], _Context, _Opts) ->
     {ok, cds_keyring_manager:lock()};
+
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     _ = assert_keyring_available(),
-    try {ok, get_cardholder_data(cds_utils:decode_token(Token))} catch
+    try
+        {ok, encode_cardholder_data(
+            get_cardholder_data(
+                cds_utils:decode_token(Token)
+            )
+        )}
+    catch
         not_found ->
             raise(#'CardDataNotFound'{});
         locked ->
@@ -41,48 +49,86 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     _ = assert_keyring_available(),
     try
-        {ok, get_card_data(cds_utils:decode_token(Token), cds_utils:decode_session(Session))}
+        {ok, encode_card_data(
+            get_card_data(
+                cds_utils:decode_token(Token),
+                cds_utils:decode_session(Session)
+            )
+        )}
     catch
         not_found ->
             raise(#'CardDataNotFound'{});
         locked ->
             raise(#'KeyringLocked'{})
     end;
-handle_function('PutCardData', [CardData], _Context, _Opts) ->
+handle_function('PutCardData', [V], _Context, _Opts) ->
     _ = assert_keyring_available(),
-    try
-        {PaymentSystem, BIN, MaskedPan} = cds_card_data:validate(CardData),
-        {Token, Session} = put_card_data(CardData),
-        BankCard = #'domain_BankCard'{
-            token = cds_utils:encode_token(Token),
-            payment_system = PaymentSystem,
-            bin = BIN,
-            masked_pan = MaskedPan
-        },
-        {ok, #'PutCardDataResult'{
-            bank_card = BankCard,
-            session_id = cds_utils:encode_session(Session)
-        }}
+    {CardholderData, CVV} = decode_card_data(V),
+    try cds_card_data:validate(CardholderData, CVV) of
+        {ok, CardInfo} ->
+            {Token, Session} = put_card_data(CardholderData, CVV),
+            BankCard = #'domain_BankCard'{
+                token          = cds_utils:encode_token(Token),
+                payment_system = maps:get(payment_system, CardInfo),
+                bin            = maps:get(iin           , CardInfo),
+                masked_pan     = maps:get(last_digits   , CardInfo)
+            },
+            {ok, #'PutCardDataResult'{
+                bank_card      = BankCard,
+                session_id     = cds_utils:encode_session(Session)
+            }};
+        {error, _} ->
+            raise(#'InvalidCardData'{})
     catch
-        invalid_card_data ->
-            raise(#'InvalidCardData'{});
         locked ->
             raise(#'KeyringLocked'{})
     end.
 
 % local
 
+decode_card_data(#'CardData'{
+    pan             = PAN,
+    exp_date        = #'ExpDate'{month = Month, year = Year},
+    cardholder_name = CardholderName,
+    cvv             = CVV
+}) ->
+    {#{
+        cardnumber => PAN,
+        exp_date   => {Month, Year},
+        cardholder => CardholderName
+    }, CVV}.
+
+encode_card_data({CardData, CVV}) ->
+    V = encode_cardholder_data(CardData),
+    V#'CardData'{cvv = CVV}.
+
+encode_cardholder_data(#{
+    cardnumber := PAN,
+    exp_date   := {Month, Year},
+    cardholder := CardholderName
+}) ->
+    #'CardData'{
+        pan             = PAN,
+        exp_date        = #'ExpDate'{month = Month, year = Year},
+        cardholder_name = CardholderName,
+        cvv             = <<>>
+    }.
+
+%
+
 get_cardholder_data(Token) ->
-    MarshalledCardholderData = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshall(MarshalledCardholderData).
+    CardholderData = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 get_card_data(Token, Session) ->
-    MarshalledCardData = cds:get_card_data(Token, Session),
-    cds_card_data:unmarshall(MarshalledCardData).
+    {CardholderData, CVV} = cds:get_card_data(Token, Session),
+    {cds_card_data:unmarshal_cardholder_data(CardholderData), cds_card_data:unmarshal_cvv(CVV)}.
 
-put_card_data(CardData) ->
-    MarshalledCardData = cds_card_data:marshall(CardData),
-    cds:put_card_data(MarshalledCardData).
+put_card_data(CardholderData, CVV) ->
+    cds:put_card_data({
+        cds_card_data:marshal_cardholder_data(CardholderData),
+        cds_card_data:marshal_cvv(CVV)
+    }).
 
 assert_keyring_available() ->
     case cds_keyring_manager:get_state() of

@@ -26,12 +26,14 @@
 -export_type([hash/0]).
 -export_type([token/0]).
 -export_type([session/0]).
--export_type([encrypted_data/0]).
+-export_type([plaintext/0]).
+-export_type([ciphertext/0]).
 
 -type hash() :: binary().
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
--type encrypted_data() :: binary(). % <<KeyID/byte, EncryptedData/binary>>
+-type plaintext() :: binary().
+-type ciphertext() :: binary(). % <<KeyID/byte, EncryptedData/binary>>
 
 %%
 %% API
@@ -107,17 +109,17 @@ stop(_State) ->
 %% Storage operations
 %%
 
--spec get_cardholder_data(token()) -> cds_card_data:cardholder_data().
+-spec get_cardholder_data(token()) -> plaintext().
 get_cardholder_data(Token) ->
     Encrypted = cds_storage:get_cardholder_data(Token),
     decrypt(Encrypted).
 
--spec get_card_data(token(), session()) -> cds_card_data:card_data().
+-spec get_card_data(token(), session()) -> {plaintext(), plaintext()}.
 get_card_data(Token, Session) ->
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
     {decrypt(EncryptedCardData), decrypt(EncryptedCvv)}.
 
--spec put_card_data(cds_card_data:card_data()) -> {token(), session()}.
+-spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
 put_card_data({MarshalledCardData, Cvv}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
     {Token, Hash} = find_or_create_token(UniqueCardData),
@@ -136,18 +138,18 @@ put_card_data({MarshalledCardData, Cvv}) ->
     ),
     {Token, Session}.
 
--spec get_cvv(session()) -> cds_card_data:cvv().
+-spec get_cvv(session()) -> plaintext().
 get_cvv(Session) ->
     EncryptedCvv = cds_storage:get_cvv(Session),
     decrypt(EncryptedCvv).
 
--spec update_cvv(session(), cds_card_data:cvv()) -> ok.
+-spec update_cvv(session(), plaintext()) -> ok.
 update_cvv(Session, Cvv) ->
     {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
     EncryptedCvv = encrypt(CurrentKey, Cvv),
     cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
 
--spec update_cardholder_data(token(), cds_card_data:cardholder_data()) -> ok.
+-spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
     {KeyID, Key} = CurrentKey = cds_keyring_manager:get_current_key(),
     Hash = hash(cds_card_data:unique(CardData), Key),
@@ -158,12 +160,12 @@ update_cardholder_data(Token, CardData) ->
 %% Internals
 %%
 
--spec encrypt({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> encrypted_data().
+-spec encrypt({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> ciphertext().
 encrypt({KeyID, Key}, Plain) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
     <<KeyID, Cipher/binary>>.
 
--spec decrypt(encrypted_data()) -> binary().
+-spec decrypt(ciphertext()) -> plaintext().
 decrypt(<<KeyID, Cipher/binary>>) ->
     {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
     cds_crypto:decrypt(Key, Cipher).
@@ -173,18 +175,18 @@ hash(Plain, Salt) ->
     {N, R, P} = application:get_env(cds, scrypt_opts, {16384, 8, 1}),
     scrypt:scrypt(Plain, Salt, N, R, P, 16).
 
--spec find_or_create_token(cds_card_data:unique_card_data()) -> {token(), hash()}.
-find_or_create_token(CardData) ->
+-spec find_or_create_token(binary()) -> {token(), hash()}.
+find_or_create_token(UniqueCardData) ->
     {CurrentKeyID, CurrentKey} = cds_keyring_manager:get_current_key(),
     Keys = [Key || {KeyID, Key} <- cds_keyring_manager:get_all_keys(), KeyID =/= CurrentKeyID],
-    CurrentHash = hash(CardData, CurrentKey),
+    CurrentHash = hash(UniqueCardData, CurrentKey),
     FindResult = try
         % let's check current key first
         {cds_storage:get_token(CurrentHash), CurrentHash}
     catch
         not_found ->
             % if not found, check other keys
-            find_token(CardData, Keys)
+            find_token(UniqueCardData, Keys)
     end,
     case FindResult of
         {_Token, _Hash} ->
@@ -195,13 +197,13 @@ find_or_create_token(CardData) ->
 
 find_token(_, []) ->
     not_found;
-find_token(CardData, [Key | Others]) ->
-    Hash = hash(CardData, Key),
+find_token(UniqueCardData, [Key | Others]) ->
+    Hash = hash(UniqueCardData, Key),
     try
         {cds_storage:get_token(Hash), Hash}
     catch
         not_found ->
-            find_token(CardData, Others)
+            find_token(UniqueCardData, Others)
     end.
 
 -spec token() -> token().

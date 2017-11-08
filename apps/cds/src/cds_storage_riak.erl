@@ -102,7 +102,7 @@ get_token_old_style(Hash) ->
             {error, not_found}
     end.
 
--spec get_cardholder_data(cds:token()) -> {ok, cds:encrypted_data()} | {error, not_found}.
+-spec get_cardholder_data(cds:token()) -> {ok, cds:ciphertext()} | {error, not_found}.
 
 get_cardholder_data(Token) ->
     case get(?TOKEN_BUCKET, Token) of
@@ -116,7 +116,7 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:encrypted_data(), cds:encrypted_data()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
@@ -134,8 +134,8 @@ get_session_card_data(Token, Session) ->
     cds:token(),
     cds:session(),
     cds:hash(),
-    CardData :: cds:encrypted_data(),
-    CVV :: cds:encrypted_data(),
+    CardData :: cds:ciphertext(),
+    CVV :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
@@ -160,7 +160,7 @@ delete_session(Session) ->
             error(Reason)
     end.
 
--spec get_cvv(cds:session()) -> {ok, cds:encrypted_data()} | {error, not_found}.
+-spec get_cvv(cds:session()) -> {ok, cds:ciphertext()} | {error, not_found}.
 
 get_cvv(Session) ->
     case get(?SESSION_BUCKET, Session) of
@@ -173,12 +173,12 @@ get_cvv(Session) ->
             error(Reason)
     end.
 
--spec update_cvv(cds:session(), NewCvv :: cds:encrypted_data(), cds_keyring:key_id()) -> ok | {error, not_found}.
+-spec update_cvv(cds:session(), NewCvv :: cds:ciphertext(), cds_keyring:key_id()) -> ok | {error, not_found}.
 
 update_cvv(Session, NewCvv, KeyID) ->
     update(?SESSION_BUCKET, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
 
--spec update_cardholder_data(cds:token(), cds:encrypted_data(), cds:hash(), cds_keyring:key_id()) ->
+-spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
     ok | {error, not_found}.
 
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
@@ -388,33 +388,30 @@ get_default_timeout() ->
     {timeout, genlib_map:get(timeout, Params, ?DEFAULT_TIMEOUT)}.
 
 get_keys(Bucket, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_eq(
         Bucket,
         <<"$bucket">>,
         <<"_">>,
-        Options
+        construct_index_query_options(Limit, Continuation)
     ),
     prepare_index_result(Result).
 
 get_keys_by_index_range(Bucket, IndexName, From, To, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_range(
         Bucket,
         IndexName,
         From,
         To,
-        Options
+        construct_index_query_options(Limit, Continuation)
     ),
     prepare_index_result(Result).
 
 get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit, Continuation) ->
-    Options = options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]),
     Result = get_index_eq(
         Bucket,
         IndexName,
         IndexValue,
-        Options
+        construct_index_query_options(Limit, Continuation)
     ),
     prepare_index_result(Result).
 
@@ -430,5 +427,8 @@ prepare_index_result(Result) ->
             error(Error)
     end.
 
-options(Opts) ->
+construct_index_query_options(Limit, Continuation) ->
+    prepare_options([{max_results, Limit}, {continuation, Continuation}, get_default_timeout()]).
+
+prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
