@@ -262,7 +262,7 @@ get_payment_system_map() ->
         %% by the ISO Registration Authority, and must be unique.
         maestro => #{
             assertions => #{
-                cardnumber => [{length, [19]}, luhn],
+                cardnumber => [{length, [{range, 12, 19}]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
