@@ -27,8 +27,8 @@ services:
     healthcheck:
       test: "riak-admin test"
       interval: 5s
-      timeout: 3s
-      retries: 5
+      timeout: 10s
+      retries: 10
 
   member:
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
