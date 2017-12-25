@@ -52,7 +52,9 @@ full_card_data_validation(_C) ->
     }} = cds_card_data:validate(MC, CVV),
     {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}, CVV),
     {error, {invalid, cardnumber, luhn}}        = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}, CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1, 2000}}, CVV),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1 , 2000}}, CVV),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {0 , 2241}}, CVV),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {13, 2048}}, CVV),
     {error, {invalid, cvv, {length, _}}}        = cds_card_data:validate(MC, <<"12">>),
     MIR = #{
         cardnumber => <<"2204301234567891">>,
