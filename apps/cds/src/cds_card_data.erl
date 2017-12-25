@@ -171,6 +171,8 @@ check_value(V, {length, Ls}, _) ->
 check_value(V, luhn, _) ->
     check_luhn(V, 0);
 check_value({M, Y}, expiration, #{now := {{Y0, M0, _DD}, _Time}}) ->
+    M >=  1 andalso
+    M =< 12 andalso
     {Y, M} >= {Y0, M0}.
 
 check_length(V, {range, L, U}) ->
