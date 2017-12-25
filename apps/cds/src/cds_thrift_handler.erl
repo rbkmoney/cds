@@ -138,6 +138,9 @@ assert_keyring_available() ->
             raise_keyring_locked()
     end.
 
+-spec raise_keyring_locked() ->
+    no_return().
+
 raise_keyring_locked() ->
     woody_error:raise(system, {internal, resource_unavailable, <<"Keyring is locked">>}).
 
