@@ -176,7 +176,10 @@ init(C) ->
 lock(C) ->
     {init, MasterKeys} = config(saved_config, C),
     ok = cds_client:lock(root_url(C)),
-    #'KeyringLocked'{} = (catch cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C))),
+    try cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)) catch
+        error:{woody_error, {external, resource_unavailable, _}} ->
+            ok
+    end,
     {save_config, MasterKeys}.
 
 -spec unlock(config()) -> _.
@@ -234,16 +237,20 @@ rotate_keyring_locked(C) ->
 -spec get_card_data_keyring_locked(config()) -> _.
 
 get_card_data_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_client:get_card_data(<<"No matter what">>, root_url(C))).
+    try cds_client:get_card_data(<<"No matter what">>, root_url(C)) catch
+        error:{woody_error, {external, resource_unavailable, _}} -> ok
+    end.
 
 -spec get_session_card_data_keyring_locked(config()) -> _.
 
 get_session_card_data_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_client:get_session_card_data(
+    try cds_client:get_session_card_data(
         <<"No matter what">>,
         <<"No matter what">>,
-        root_url(C))
-    ).
+        root_url(C)
+    ) catch
+        error:{woody_error, {external, resource_unavailable, _}} -> ok
+    end.
 
 -spec session_cleaning(config()) -> _.
 
@@ -312,7 +319,7 @@ refresh_sessions(C) ->
 
 -spec recrypt(config()) -> _.
 
-%% dishonest test which uses internal functions
+%% dishonest test which uses external functions
 recrypt(C) ->
     {KeyID0, _} = cds_keyring_manager:get_current_key(),
     CardholderData = #{
