@@ -44,7 +44,7 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
         not_found ->
             raise(#'CardDataNotFound'{});
         locked ->
-            raise(#'KeyringLocked'{})
+            raise_keyring_locked()
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     _ = assert_keyring_available(),
@@ -59,7 +59,7 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
         not_found ->
             raise(#'CardDataNotFound'{});
         locked ->
-            raise(#'KeyringLocked'{})
+            raise_keyring_locked()
     end;
 handle_function('PutCardData', [V], _Context, _Opts) ->
     _ = assert_keyring_available(),
@@ -81,7 +81,7 @@ handle_function('PutCardData', [V], _Context, _Opts) ->
             raise(#'InvalidCardData'{})
     catch
         locked ->
-            raise(#'KeyringLocked'{})
+            raise_keyring_locked()
     end.
 
 % local
@@ -135,8 +135,14 @@ assert_keyring_available() ->
         unlocked ->
             ok;
         locked ->
-            raise(#'KeyringLocked'{})
+            raise_keyring_locked()
     end.
+
+-spec raise_keyring_locked() ->
+    no_return().
+
+raise_keyring_locked() ->
+    woody_error:raise(system, {internal, resource_unavailable, <<"Keyring is locked">>}).
 
 -spec raise(_) -> no_return().
 
