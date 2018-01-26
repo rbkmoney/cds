@@ -82,7 +82,7 @@ rotate() ->
 initialize(Threshold, Count) ->
     sync_send_event({initialize, Threshold, Count}).
 
--spec get_state() -> locked | unlocked.
+-spec get_state() -> locked | unlocked | not_initialized.
 get_state() ->
     sync_send_all_state_event(get_state).
 

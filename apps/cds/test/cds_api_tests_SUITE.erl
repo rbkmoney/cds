@@ -19,7 +19,7 @@
 -export([refresh_sessions/1]).
 -export([init_keyring_exists/1]).
 -export([rotate_keyring_locked/1]).
--export([get_card_data_keyring_locked/1]).
+-export([get_card_data_keyring_locked_or_absent/1]).
 -export([get_session_card_data_keyring_locked/1]).
 
 %%
@@ -68,10 +68,13 @@ groups() ->
             get_card_data,
             rotate
         ]},
-        {keyring_errors, [parallel], [
+        {keyring_errors, [sequence], [
+            get_card_data_keyring_locked_or_absent,
+            init,
+            lock,
             init_keyring_exists,
             rotate_keyring_locked,
-            get_card_data_keyring_locked,
+            get_card_data_keyring_locked_or_absent,
             get_session_card_data_keyring_locked
         ]},
         {session_management, [sequence], [
@@ -119,8 +122,6 @@ init_per_group(keyring_errors, C) ->
         {storage, cds_storage_ets}
     ],
     C1 = start_clear([{storage_config, StorageConfig} | C]),
-    _MasterKeys = cds_client:init(2, 3, root_url(C1)),
-    ok = cds_client:lock(root_url(C1)),
     C1 ++ C;
 
 init_per_group(session_management, C) ->
@@ -234,9 +235,9 @@ init_keyring_exists(C) ->
 rotate_keyring_locked(C) ->
     #'KeyringLocked'{} = (catch cds_client:rotate(root_url(C))).
 
--spec get_card_data_keyring_locked(config()) -> _.
+-spec get_card_data_keyring_locked_or_absent(config()) -> _.
 
-get_card_data_keyring_locked(C) ->
+get_card_data_keyring_locked_or_absent(C) ->
     try cds_client:get_card_data(<<"No matter what">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
