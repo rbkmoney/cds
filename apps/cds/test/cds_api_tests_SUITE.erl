@@ -18,9 +18,11 @@
 -export([session_cleaning/1]).
 -export([refresh_sessions/1]).
 -export([init_keyring_exists/1]).
+-export([lock_no_keyring/1]).
 -export([rotate_keyring_locked/1]).
--export([get_card_data_keyring_locked_or_absent/1]).
--export([get_session_card_data_keyring_locked/1]).
+-export([put_card_data_unavailable/1]).
+-export([get_card_data_unavailable/1]).
+-export([get_session_card_data_unavailable/1]).
 
 %%
 
@@ -69,13 +71,18 @@ groups() ->
             rotate
         ]},
         {keyring_errors, [sequence], [
-            get_card_data_keyring_locked_or_absent,
+            get_card_data_unavailable,
+            put_card_data_unavailable,
+            lock_no_keyring,
             init,
+            init_keyring_exists,
+            lock,
             lock,
             init_keyring_exists,
             rotate_keyring_locked,
-            get_card_data_keyring_locked_or_absent,
-            get_session_card_data_keyring_locked
+            put_card_data_unavailable,
+            get_card_data_unavailable,
+            get_session_card_data_unavailable
         ]},
         {session_management, [sequence], [
             init,
@@ -96,7 +103,7 @@ init_per_group(riak_storage_backend, C) ->
     % _ = dbg:tracer(),
     % _ = dbg:p(all, c),
     % _ = dbg:tpl({cds_storage_riak, '_', '_'}, x),
-    Storage = [
+    StorageConfig = [
         {storage, cds_storage_riak},
         {cds_storage_riak, #{
             conn_params => #{
@@ -106,7 +113,7 @@ init_per_group(riak_storage_backend, C) ->
             timeout => 5000
         }}
     ],
-    [{storage_config, Storage} | C];
+    [{storage_config, StorageConfig} | C];
 
 init_per_group(ets_storage_backend, C) ->
     StorageConfig = [
@@ -125,7 +132,7 @@ init_per_group(keyring_errors, C) ->
     C1 ++ C;
 
 init_per_group(session_management, C) ->
-    CleanConfig = [
+    CleanerConfig = [
         {
             session_cleaning,
             #{
@@ -135,13 +142,12 @@ init_per_group(session_management, C) ->
             }
         }
     ],
-
     Recrypting = [
         {recrypting, #{
             interval => 1000
         }}
     ],
-    C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanConfig} | C],
+    C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanerConfig} | C],
     C2 = start_clear(C1),
     C1 ++ C2;
 
@@ -170,26 +176,19 @@ end_per_group(_, C) ->
 init(C) ->
     MasterKeys = cds_client:init(2, 3, root_url(C)),
     3 = length(MasterKeys),
-    {save_config, MasterKeys}.
+    store(master_keys, MasterKeys, C).
 
 -spec lock(config()) -> _.
 
 lock(C) ->
-    {init, MasterKeys} = config(saved_config, C),
-    ok = cds_client:lock(root_url(C)),
-    try cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)) catch
-        error:{woody_error, {external, resource_unavailable, _}} ->
-            ok
-    end,
-    {save_config, MasterKeys}.
+    ok = cds_client:lock(root_url(C)).
 
 -spec unlock(config()) -> _.
 
 unlock(C) ->
-    {lock, [MasterKey1, MasterKey2, _MasterKey3]} = config(saved_config, C),
+    [MasterKey1, MasterKey2, _MasterKey3] = lookup(master_keys, C),
     {more_keys_needed, 1} = cds_client:unlock(MasterKey1, root_url(C)),
-    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, root_url(C)),
-    ok.
+    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, root_url(C)).
 
 -spec put_card_data(config()) -> _.
 
@@ -210,47 +209,53 @@ put_card_data(C) ->
             token = Token
         }
     } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
-    {save_config, Token}.
+    store(token, Token, C).
 
 -spec get_card_data(config()) -> _.
 
 get_card_data(C) ->
-    {put_card_data, Token} = config(saved_config, C),
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
-    ok.
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
 
 -spec rotate(config()) -> _.
 
 rotate(C) ->
-    ok = cds_client:rotate(root_url(C)),
-    ok.
+    ok = cds_client:rotate(root_url(C)).
 
 -spec init_keyring_exists(config()) -> _.
 
 init_keyring_exists(C) ->
     #'KeyringExists'{} = (catch cds_client:init(2, 3, root_url(C))).
 
+-spec lock_no_keyring(config()) -> _.
+
+lock_no_keyring(C) ->
+    #'NoKeyring'{} = (catch cds_client:lock(root_url(C))).
+
 -spec rotate_keyring_locked(config()) -> _.
 
 rotate_keyring_locked(C) ->
     #'KeyringLocked'{} = (catch cds_client:rotate(root_url(C))).
 
--spec get_card_data_keyring_locked_or_absent(config()) -> _.
+-spec get_card_data_unavailable(config()) -> _.
 
-get_card_data_keyring_locked_or_absent(C) ->
+get_card_data_unavailable(C) ->
     try cds_client:get_card_data(<<"No matter what">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
 
--spec get_session_card_data_keyring_locked(config()) -> _.
+-spec get_session_card_data_unavailable(config()) -> _.
 
-get_session_card_data_keyring_locked(C) ->
-    try cds_client:get_session_card_data(
-        <<"No matter what">>,
-        <<"No matter what">>,
-        root_url(C)
-    ) catch
+get_session_card_data_unavailable(C) ->
+    try cds_client:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
+    end.
+
+-spec put_card_data_unavailable(config()) -> _.
+
+put_card_data_unavailable(C) ->
+    try cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)) catch
+        error:{woody_error, {external, resource_unavailable, _}} ->
+            ok
     end.
 
 -spec session_cleaning(config()) -> _.
@@ -359,17 +364,7 @@ start_clear(Config) ->
     StorageConfig = config(storage_config, Config, []),
     CleanConfig = config(session_cleaning_config, Config, []),
     Recrypting = config(recrypting_config, Config, []),
-    CdsEnv = [
-            {ip, IP},
-            {port, Port},
-            {keyring_storage, cds_keyring_storage_env},
-            {net_opts, [
-                % Bump keepalive timeout up to a minute
-                {timeout, 60000}
-            ]}
-    ] ++ StorageConfig ++ CleanConfig ++ Recrypting,
-    ok = clean_storage(CdsEnv),
-
+    ok = clean_storage(StorageConfig),
     Apps =
         genlib_app:start_application_with(lager, [
             {async_threshold, 1},
@@ -381,31 +376,45 @@ start_clear(Config) ->
                 {lager_common_test_backend, warning}
             ]}
         ]) ++
-        genlib_app:start_application_with(cds, CdsEnv),
-    [{apps, lists:reverse(Apps)}, {root_url, genlib:to_binary(RootUrl)}].
+        genlib_app:start_application_with(cds, [
+            {ip, IP},
+            {port, Port},
+            {keyring_storage, cds_keyring_storage_env},
+            {net_opts, [
+                % Bump keepalive timeout up to a minute
+                {timeout, 60000}
+            ]}
+        ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
+    ,
+    start_stash([
+        {apps, lists:reverse(Apps)},
+        {root_url, genlib:to_binary(RootUrl)}
+    ]).
 
 stop_clear(C) ->
     _ = (catch cds_keyring_storage_env:delete()),
     [ok = application:stop(App) || App <- config(apps, C)],
-    C.
+    stop_stash(C).
 
-config(Key, Config) -> config(Key, Config, undefined).
+config(Key, Config) ->
+    config(Key, Config, undefined).
 
 config(Key, Config, Default) ->
     case lists:keysearch(Key, 1, Config) of
-    {value, {Key, Val}} ->
-        Val;
-    _ ->
-        Default
+        {value, {Key, Val}} ->
+            Val;
+        _ ->
+            Default
     end.
 
-root_url(C) -> config(root_url, C).
-
+root_url(C) ->
+    config(root_url, C).
 
 clean_storage(CdsEnv) ->
     case genlib_opts:get(storage, CdsEnv) of
-        cds_storage_riak -> clean_riak_storage(CdsEnv);
-        _ ->
+        cds_storage_riak ->
+            clean_riak_storage(CdsEnv);
+        cds_storage_ets ->
             ok
     end.
 
@@ -429,3 +438,17 @@ clean_riak_storage(CdsEnv) ->
         Buckets
     ),
     ok.
+
+%%
+
+start_stash(C) ->
+    [{stash, cds_ct_stash:start()} | C].
+
+stop_stash(C) ->
+    cds_ct_stash:stop(config(stash, C)).
+
+store(Key, Value, C) ->
+    cds_ct_stash:put(config(stash, C), Key, Value).
+
+lookup(Key, C) ->
+    cds_ct_stash:get(config(stash, C), Key).

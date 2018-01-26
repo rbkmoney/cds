@@ -185,6 +185,8 @@ locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Sha
         More ->
             {reply, {ok, {more, Threshold - maps:size(More)}}, locked, StateData#state{shares = More}}
     end;
+locked({initialize, _, _}, _From, StateData) ->
+    {reply, {error, already_initialized}, locked, StateData};
 locked(_Event, _From, StateData) ->
     {reply, {error, locked}, locked, StateData}.
 
@@ -225,6 +227,8 @@ unlocked(rotate, _From, #state{keyring = OldKeyring, masterkey = MasterKey} = St
         conditional_check_failed ->
             {reply, {error, out_of_date}, unlocked, StateData}
     end;
+unlocked({initialize, _, _}, _From, StateData) ->
+    {reply, {error, already_initialized}, unlocked, StateData};
 unlocked(_Event, _From, StateData) ->
     {reply, ignored, unlocked, StateData}.
 

@@ -14,7 +14,7 @@ handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< C
         Shares ->
             {ok, Shares}
     catch
-        Exists when Exists =:= already_initialized; Exists =:= locked ->
+        already_initialized ->
             raise(#'KeyringExists'{})
     end;
 handle_function('Lock', [], _Context, _Opts) ->
@@ -22,7 +22,7 @@ handle_function('Lock', [], _Context, _Opts) ->
         not_initialized ->
             raise(#'NoKeyring'{});
         locked ->
-            ok
+            {ok, ok}
     end;
 handle_function('Unlock', [Share], _Context, _Opts) ->
     case cds_keyring_manager:unlock(Share) of
