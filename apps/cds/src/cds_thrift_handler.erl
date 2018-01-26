@@ -14,8 +14,15 @@ handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< C
         Shares ->
             {ok, Shares}
     catch
-        Exists when Exists =:= already_exists; Exists =:= locked ->
+        Exists when Exists =:= already_initialized; Exists =:= locked ->
             raise(#'KeyringExists'{})
+    end;
+handle_function('Lock', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:lock()} catch
+        not_initialized ->
+            raise(#'NoKeyring'{});
+        locked ->
+            ok
     end;
 handle_function('Unlock', [Share], _Context, _Opts) ->
     case cds_keyring_manager:unlock(Share) of
@@ -26,11 +33,11 @@ handle_function('Unlock', [Share], _Context, _Opts) ->
     end;
 handle_function('Rotate', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:rotate()} catch
+        not_initialized ->
+            raise(#'NoKeyring'{});
         locked ->
             raise(#'KeyringLocked'{})
     end;
-handle_function('Lock', [], _Context, _Opts) ->
-    {ok, cds_keyring_manager:lock()};
 
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     _ = assert_keyring_available(),
