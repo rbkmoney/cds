@@ -40,7 +40,6 @@ handle_function('Rotate', [], _Context, _Opts) ->
     end;
 
 handle_function('GetCardData', [Token], _Context, _Opts) ->
-    _ = assert_keyring_available(),
     try
         {ok, encode_cardholder_data(
             get_cardholder_data(
@@ -50,11 +49,10 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
     catch
         not_found ->
             raise(#'CardDataNotFound'{});
-        locked ->
-            raise_keyring_unavailable(locked)
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    _ = assert_keyring_available(),
     try
         {ok, encode_card_data(
             get_card_data(
@@ -65,30 +63,31 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     catch
         not_found ->
             raise(#'CardDataNotFound'{});
-        locked ->
-            raise_keyring_unavailable(locked)
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
     end;
 handle_function('PutCardData', [V], _Context, _Opts) ->
-    _ = assert_keyring_available(),
     {CardholderData, CVV} = decode_card_data(V),
-    try cds_card_data:validate(CardholderData, CVV) of
-        {ok, CardInfo} ->
-            {Token, Session} = put_card_data(CardholderData, CVV),
-            BankCard = #'domain_BankCard'{
-                token          = cds_utils:encode_token(Token),
-                payment_system = maps:get(payment_system, CardInfo),
-                bin            = maps:get(iin           , CardInfo),
-                masked_pan     = maps:get(last_digits   , CardInfo)
-            },
-            {ok, #'PutCardDataResult'{
-                bank_card      = BankCard,
-                session_id     = cds_utils:encode_session(Session)
-            }};
-        {error, _} ->
-            raise(#'InvalidCardData'{})
+    try
+        case cds_card_data:validate(CardholderData, CVV) of
+            {ok, CardInfo} ->
+                {Token, Session} = put_card_data(CardholderData, CVV),
+                BankCard = #'domain_BankCard'{
+                    token          = cds_utils:encode_token(Token),
+                    payment_system = maps:get(payment_system, CardInfo),
+                    bin            = maps:get(iin           , CardInfo),
+                    masked_pan     = maps:get(last_digits   , CardInfo)
+                },
+                {ok, #'PutCardDataResult'{
+                    bank_card      = BankCard,
+                    session_id     = cds_utils:encode_session(Session)
+                }};
+            {error, _} ->
+                raise(#'InvalidCardData'{})
+        end
     catch
-        locked ->
-            raise_keyring_unavailable(locked)
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
     end.
 
 % local
@@ -136,14 +135,6 @@ put_card_data(CardholderData, CVV) ->
         cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_cvv(CVV)
     }).
-
-assert_keyring_available() ->
-    case cds_keyring_manager:get_state() of
-        unlocked ->
-            ok;
-        State ->
-            raise_keyring_unavailable(State)
-    end.
 
 -spec raise_keyring_unavailable(locked | not_initialized) ->
     no_return().

@@ -111,22 +111,24 @@ stop(_State) ->
 
 -spec get_cardholder_data(token()) -> plaintext().
 get_cardholder_data(Token) ->
+    Keyring = cds_keyring_manager:get_keyring(),
     Encrypted = cds_storage:get_cardholder_data(Token),
-    decrypt(Encrypted).
+    decrypt(Encrypted, Keyring).
 
 -spec get_card_data(token(), session()) -> {plaintext(), plaintext()}.
 get_card_data(Token, Session) ->
+    Keyring = cds_keyring_manager:get_keyring(),
     {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
-    {decrypt(EncryptedCardData), decrypt(EncryptedCvv)}.
+    {decrypt(EncryptedCardData, Keyring), decrypt(EncryptedCvv, Keyring)}.
 
 -spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
 put_card_data({MarshalledCardData, Cvv}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
     {Token, Hash} = find_or_create_token(UniqueCardData),
     Session = session(),
-    {KeyID, _} = Current = cds_keyring_manager:get_current_key(),
-    EncryptedCardData = encrypt(Current, MarshalledCardData),
-    EncryptedCvv = encrypt(Current, Cvv),
+    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
+    EncryptedCvv = encrypt(Cvv, CurrentKey),
     ok = cds_storage:put_card_data(
         Token,
         Session,
@@ -140,34 +142,35 @@ put_card_data({MarshalledCardData, Cvv}) ->
 
 -spec get_cvv(session()) -> plaintext().
 get_cvv(Session) ->
+    Keyring = cds_keyring_manager:get_keyring(),
     EncryptedCvv = cds_storage:get_cvv(Session),
-    decrypt(EncryptedCvv).
+    decrypt(EncryptedCvv, Keyring).
 
 -spec update_cvv(session(), plaintext()) -> ok.
 update_cvv(Session, Cvv) ->
     {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
-    EncryptedCvv = encrypt(CurrentKey, Cvv),
+    EncryptedCvv = encrypt(Cvv, CurrentKey),
     cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
 
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
-    {KeyID, Key} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {KeyID, Key} = cds_keyring_manager:get_current_key(),
     Hash = hash(cds_card_data:unique(CardData), Key),
-    EncryptedCardData = encrypt(CurrentKey, CardData),
+    EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
 %%
 %% Internals
 %%
 
--spec encrypt({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> ciphertext().
-encrypt({KeyID, Key}, Plain) ->
+-spec encrypt(plaintext(), {cds_keyring:key_id(), cds_keyring:key()}) -> ciphertext().
+encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
     <<KeyID, Cipher/binary>>.
 
--spec decrypt(ciphertext()) -> plaintext().
-decrypt(<<KeyID, Cipher/binary>>) ->
-    {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
+-spec decrypt(ciphertext(), cds_keyring:keyring()) -> plaintext().
+decrypt(<<KeyID, Cipher/binary>>, Keyring) ->
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID, Keyring),
     cds_crypto:decrypt(Key, Cipher).
 
 -spec hash(binary(), binary()) -> hash().
@@ -177,8 +180,9 @@ hash(Plain, Salt) ->
 
 -spec find_or_create_token(binary()) -> {token(), hash()}.
 find_or_create_token(UniqueCardData) ->
-    {CurrentKeyID, CurrentKey} = cds_keyring_manager:get_current_key(),
-    Keys = [Key || {KeyID, Key} <- cds_keyring_manager:get_all_keys(), KeyID =/= CurrentKeyID],
+    Keyring = cds_keyring_manager:get_keyring(),
+    {CurrentKeyID, CurrentKey} = cds_keyring:get_current_key(Keyring),
+    Keys = [Key || {KeyID, Key} <- cds_keyring:get_keys(Keyring), KeyID =/= CurrentKeyID],
     CurrentHash = hash(UniqueCardData, CurrentKey),
     FindResult = try
         % let's check current key first

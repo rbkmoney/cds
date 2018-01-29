@@ -4,7 +4,7 @@
 %% API.
 -export([start_link/0]).
 -export([get_key/1]).
--export([get_all_keys/0]).
+-export([get_keyring/0]).
 -export([get_current_key/0]).
 -export([get_outdated_keys/0]).
 -export([unlock/1]).
@@ -48,9 +48,9 @@ start_link() ->
 get_key(KeyId) ->
     sync_send_event({get_key, KeyId}).
 
--spec get_all_keys() -> [{cds_keyring:key_id(), cds_keyring:key()}].
-get_all_keys() ->
-    sync_send_event(get_all_keys).
+-spec get_keyring() -> cds_keyring:keyring().
+get_keyring() ->
+    sync_send_event(get_keyring).
 
 -spec get_current_key() -> {cds_keyring:key_id(), cds_keyring:key()}.
 get_current_key() ->
@@ -204,19 +204,12 @@ unlocked(update, _From, #state{masterkey = MasterKey} = StateData) ->
         not_found ->
             {reply, ok, not_initialized, StateData#state{keyring = undefined, masterkey = undefined}}
     end;
-unlocked({get_key, KeyId}, _From, #state{keyring = #{keys := Keys}} = StateData) ->
-    try maps:get(KeyId, Keys) of
-        Key ->
-            {reply, {ok, {KeyId, Key}}, unlocked, StateData}
-    catch
-        error:{badkey, KeyId} ->
-            {reply, {error, not_found}, unlocked, StateData}
-    end;
-unlocked(get_all_keys, _From, #state{keyring = #{keys := Keys}} = StateData) ->
-    {reply, {ok, maps:to_list(Keys)}, unlocked, StateData};
-unlocked(get_current_key, _From, #state{keyring = #{current_key := CurrentKeyId, keys := Keys}} = StateData) ->
-    CurrentKey = maps:get(CurrentKeyId, Keys),
-    {reply, {ok, {CurrentKeyId, CurrentKey}}, unlocked, StateData};
+unlocked(get_keyring, _From, #state{keyring = Keyring} = StateData) ->
+    {reply, {ok, Keyring}, unlocked, StateData};
+unlocked({get_key, KeyId}, _From, #state{keyring = Keyring} = StateData) ->
+    {reply, cds_keyring:get_key(KeyId, Keyring), unlocked, StateData};
+unlocked(get_current_key, _From, #state{keyring = Keyring} = StateData) ->
+    {reply, {ok, cds_keyring:get_current_key(Keyring)}, unlocked, StateData};
 unlocked(rotate, _From, #state{keyring = OldKeyring, masterkey = MasterKey} = StateData) ->
     NewKeyring = cds_keyring:rotate(OldKeyring),
     EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
