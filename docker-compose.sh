@@ -27,7 +27,7 @@ services:
     healthcheck:
       test: "riak-admin test"
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 5
 
   member:
