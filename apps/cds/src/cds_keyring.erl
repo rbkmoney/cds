@@ -2,6 +2,10 @@
 
 -export([new/0]).
 -export([rotate/1]).
+-export([get_key/2]).
+-export([get_keys/1]).
+-export([get_current_key/1]).
+
 -export([encrypt/2]).
 -export([decrypt/2]).
 -export([marshall/1]).
@@ -11,6 +15,7 @@
 
 -export_type([key/0]).
 -export_type([key_id/0]).
+-export_type([keyring/0]).
 -export_type([key_id_config/0]).
 
 -type key() :: binary().
@@ -28,6 +33,8 @@
 
 -define(KEY_BYTESIZE, 32).
 
+%%
+
 -spec new() -> keyring().
 new() ->
     #{current_key => 0, keys => #{0 => cds_crypto:key()}}.
@@ -42,6 +49,26 @@ rotate(#{current_key := CurrentKeyId, keys := Keys}) ->
         true ->
             throw(keyring_full)
     end.
+
+-spec get_key(key_id(), keyring()) -> {ok, {key_id(), key()}} | {error, not_found}.
+get_key(KeyId, #{keys := Keys}) ->
+    case maps:find(KeyId, Keys) of
+        {ok, Key} ->
+            {ok, {KeyId, Key}};
+        error ->
+            {error, not_found}
+    end.
+
+-spec get_keys(keyring()) -> [{key_id(), key()}].
+get_keys(#{keys := Keys}) ->
+    maps:to_list(Keys).
+
+-spec get_current_key(keyring()) -> {key_id(), key()}.
+get_current_key(#{current_key := CurrentKeyId, keys := Keys}) ->
+    CurrentKey = maps:get(CurrentKeyId, Keys),
+    {CurrentKeyId, CurrentKey}.
+
+%%
 
 -spec encrypt(key(), keyring()) -> binary().
 encrypt(MasterKey, Keyring) ->

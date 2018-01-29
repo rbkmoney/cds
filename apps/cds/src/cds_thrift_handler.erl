@@ -14,8 +14,15 @@ handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< C
         Shares ->
             {ok, Shares}
     catch
-        Exists when Exists =:= already_exists; Exists =:= locked ->
+        already_initialized ->
             raise(#'KeyringExists'{})
+    end;
+handle_function('Lock', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:lock()} catch
+        not_initialized ->
+            raise(#'NoKeyring'{});
+        locked ->
+            {ok, ok}
     end;
 handle_function('Unlock', [Share], _Context, _Opts) ->
     case cds_keyring_manager:unlock(Share) of
@@ -26,14 +33,13 @@ handle_function('Unlock', [Share], _Context, _Opts) ->
     end;
 handle_function('Rotate', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:rotate()} catch
+        not_initialized ->
+            raise(#'NoKeyring'{});
         locked ->
             raise(#'KeyringLocked'{})
     end;
-handle_function('Lock', [], _Context, _Opts) ->
-    {ok, cds_keyring_manager:lock()};
 
 handle_function('GetCardData', [Token], _Context, _Opts) ->
-    _ = assert_keyring_available(),
     try
         {ok, encode_cardholder_data(
             get_cardholder_data(
@@ -43,11 +49,10 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
     catch
         not_found ->
             raise(#'CardDataNotFound'{});
-        locked ->
-            raise_keyring_locked()
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    _ = assert_keyring_available(),
     try
         {ok, encode_card_data(
             get_card_data(
@@ -58,30 +63,31 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     catch
         not_found ->
             raise(#'CardDataNotFound'{});
-        locked ->
-            raise_keyring_locked()
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
     end;
 handle_function('PutCardData', [V], _Context, _Opts) ->
-    _ = assert_keyring_available(),
     {CardholderData, CVV} = decode_card_data(V),
-    try cds_card_data:validate(CardholderData, CVV) of
-        {ok, CardInfo} ->
-            {Token, Session} = put_card_data(CardholderData, CVV),
-            BankCard = #'domain_BankCard'{
-                token          = cds_utils:encode_token(Token),
-                payment_system = maps:get(payment_system, CardInfo),
-                bin            = maps:get(iin           , CardInfo),
-                masked_pan     = maps:get(last_digits   , CardInfo)
-            },
-            {ok, #'PutCardDataResult'{
-                bank_card      = BankCard,
-                session_id     = cds_utils:encode_session(Session)
-            }};
-        {error, _} ->
-            raise(#'InvalidCardData'{})
+    try
+        case cds_card_data:validate(CardholderData, CVV) of
+            {ok, CardInfo} ->
+                {Token, Session} = put_card_data(CardholderData, CVV),
+                BankCard = #'domain_BankCard'{
+                    token          = cds_utils:encode_token(Token),
+                    payment_system = maps:get(payment_system, CardInfo),
+                    bin            = maps:get(iin           , CardInfo),
+                    masked_pan     = maps:get(last_digits   , CardInfo)
+                },
+                {ok, #'PutCardDataResult'{
+                    bank_card      = BankCard,
+                    session_id     = cds_utils:encode_session(Session)
+                }};
+            {error, _} ->
+                raise(#'InvalidCardData'{})
+        end
     catch
-        locked ->
-            raise_keyring_locked()
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
     end.
 
 % local
@@ -130,19 +136,16 @@ put_card_data(CardholderData, CVV) ->
         cds_card_data:marshal_cvv(CVV)
     }).
 
-assert_keyring_available() ->
-    case cds_keyring_manager:get_state() of
-        unlocked ->
-            ok;
-        locked ->
-            raise_keyring_locked()
-    end.
-
--spec raise_keyring_locked() ->
+-spec raise_keyring_unavailable(locked | not_initialized) ->
     no_return().
 
-raise_keyring_locked() ->
-    woody_error:raise(system, {internal, resource_unavailable, <<"Keyring is locked">>}).
+raise_keyring_unavailable(KeyringState) ->
+    woody_error:raise(system, {internal, resource_unavailable, get_details(KeyringState)}).
+
+get_details(locked) ->
+    <<"Keyring is locked">>;
+get_details(not_initialized) ->
+    <<"Keyring is not initialized">>.
 
 -spec raise(_) -> no_return().
 
