@@ -1,10 +1,18 @@
 {"1.1.0",
 [{<<"certifi">>,{pkg,<<"certifi">>,<<"0.7.0">>},2},
+ {<<"cg_mon">>,
+  {git,"https://github.com/rbkmoney/cg_mon.git",
+       {ref,"5a87a37694e42b6592d3b4164ae54e0e87e24e18"}},
+  1},
  {<<"cowboy">>,{pkg,<<"cowboy">>,<<"1.0.4">>},1},
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"1.0.2">>},2},
  {<<"dmsl">>,
   {git,"git@github.com:rbkmoney/damsel.git",
        {ref,"b6b019ceb5bd43c42cb5fc32d311692eb1d8c831"}},
+  0},
+ {<<"erl_health">>,
+  {git,"https://github.com/rbkmoney/erlang-health.git",
+       {ref,"0398b5c6cf276732cb5d2170f247f04207cb9ebb"}},
   0},
  {<<"genlib">>,
   {git,"git@github.com:rbkmoney/genlib.git",
@@ -30,7 +38,7 @@
   {git,"https://github.com/manopapad/proper.git",
        {ref,"430c05585188b6f96b9d8a18a4a4c400154b80cf"}},
   1},
- {<<"ranch">>,{pkg,<<"ranch">>,<<"1.4.0">>},2},
+ {<<"ranch">>,{pkg,<<"ranch">>,<<"1.5.0">>},2},
  {<<"rfc3339">>,{pkg,<<"rfc3339">>,<<"0.9.0">>},1},
  {<<"riak_pb">>,
   {git,"https://github.com/basho/riak_pb",
@@ -59,7 +67,7 @@
   1},
  {<<"woody">>,
   {git,"git@github.com:rbkmoney/woody_erlang.git",
-       {ref,"ad1e91050c36d8de15f1c7d8dd8a2c682d2d158c"}},
+       {ref,"d9362a5f8128c031300958da09c237ca27076cc5"}},
   0}]}.
 [
 {pkg_hash,[
@@ -74,7 +82,7 @@
  {<<"metrics">>, <<"25F094DEA2CDA98213CECC3AEFF09E940299D950904393B2A29D191C346A8486">>},
  {<<"mimerl">>, <<"993F9B0E084083405ED8252B99460C4F0563E41729AB42D9074FD5E52439BE88">>},
  {<<"pooler">>, <<"0FD4BE5D2976E6A2E9A1617623031758C26F200C1FCA89E4A3C542747BEC6371">>},
- {<<"ranch">>, <<"10272F95DA79340FA7E8774BA7930B901713D272905D0012B06CA6D994F8826B">>},
+ {<<"ranch">>, <<"F04166F456790FEE2AC1AA05A02745CC75783C2BFB26D39FAF6AEFC9A3D3A58A">>},
  {<<"rfc3339">>, <<"2075653DC9407541C84B1E15F8BDA2ABE95FB17C9694025E079583F2D19C1060">>},
  {<<"ssl_verify_fun">>, <<"28A4D65B7F59893BC2C7DE786DEC1E1555BD742D336043FE644AE956C3497FBE">>}]}
 ].
