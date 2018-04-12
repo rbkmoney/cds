@@ -14,7 +14,8 @@
         shamir,
         lager,
         lager_logstash_formatter,
-        dmsl
+        dmsl,
+        erl_health
     ]},
     {env, []},
     {modules, []},
