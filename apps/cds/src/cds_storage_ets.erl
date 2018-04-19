@@ -8,10 +8,12 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
+-export([get_session_data/1]).
 -export([delete_session/1]).
 -export([get_cvv/1]).
 -export([update_cvv/3]).
 -export([update_cardholder_data/4]).
+-export([update_session_data/3]).
 -export([refresh_session_created_at/1]).
 
 -export([get_sessions_created_between/4]).
@@ -45,6 +47,7 @@
 -type batch_response(DataType) :: {ok, {[DataType], continuation()}}.
 -type continuation() :: term().
 -type timestamp() :: pos_integer().
+-type msgpack() :: dmsl_msgpack_thrift:'Value'().
 
 -spec start() -> ok.
 
@@ -80,14 +83,14 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphertext() | msgpack()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case get(?SESSION_TABLE, Session) of
-        {ok, Cvv, _} ->
+        {ok, SessionData, _} ->
             case get(?TOKEN_TABLE, Token) of
                 {ok, CardData, _} ->
-                    {ok, {CardData, Cvv}};
+                    {ok, {CardData, SessionData}};
                 Error ->
                     Error
             end;
@@ -100,12 +103,12 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    CVV :: cds:ciphertext(),
+    SessionData :: msgpack(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
 
-put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     true = insert(
         ?TOKEN_TABLE,
         {
@@ -121,7 +124,7 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
         ?SESSION_TABLE,
         {
             Session,
-            Cvv
+            SessionData
         },
         #{
             ?CREATED_AT_INDEX => CreatedAt,
@@ -129,6 +132,16 @@ put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
         }
     ),
     ok.
+
+-spec get_session_data(cds:session()) -> {ok, cds:ciphertext() | msgpack()} | {error, not_found}.
+
+get_session_data(Session) ->
+    case get(?SESSION_TABLE, Session) of
+        {ok, SessionData, _} ->
+            {ok, SessionData};
+        Error ->
+            Error
+    end.
 
 -spec delete_session(cds:session()) -> ok.
 
@@ -156,6 +169,12 @@ update_cvv(Session, NewCvv, KeyID) ->
 
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
+
+-spec update_session_data(cds:session(), NewSessionData :: msgpack(), cds_keyring:key_id()) ->
+    ok | {error, not_found}.
+
+update_session_data(Session, NewSessionData, KeyID) ->
+    update(?SESSION_TABLE, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec refresh_session_created_at(cds:session()) -> ok.
 

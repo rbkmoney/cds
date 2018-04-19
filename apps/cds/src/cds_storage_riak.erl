@@ -9,9 +9,11 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
+-export([get_session_data/1]).
 -export([delete_session/1]).
 -export([update_cvv/3]).
 -export([update_cardholder_data/4]).
+-export([update_session_data/3]).
 -export([refresh_session_created_at/1]).
 
 %% Many objects functions
@@ -70,6 +72,7 @@
 -type limit() :: non_neg_integer() | undefined.
 -type batch_response(DataType) :: {ok, {[DataType], continuation()}}.
 -type timestamp() :: pos_integer().
+-type msgpack() :: dmsl_msgpack_thrift:'Value'().
 
 -spec start() -> ok.
 
@@ -116,14 +119,14 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphertext() | msgpack()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
-        {ok, [CvvObj, CardDataObj]} ->
+        {ok, [SessionDataObj, CardDataObj]} ->
             CardData = riakc_obj:get_value(CardDataObj),
-            Cvv = riakc_obj:get_value(CvvObj),
-            {ok, {CardData, Cvv}};
+            SessionData = decode_session_data(SessionDataObj),
+            {ok, {CardData, SessionData}};
         {error, notfound} ->
             {error, not_found};
         {error, Reason} ->
@@ -135,17 +138,32 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    CVV :: cds:ciphertext(),
+    SessionData :: msgpack(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
 
-put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     TokenObj = prepare_token_obj(Token, CardData, Hash, KeyID),
-    SessionObj = prepare_session_obj(Session, Cvv, CreatedAt, KeyID),
+    BinSessionData = term_to_binary(SessionData),
+    ContentType = "application/x-erlang-term",
+    SessionObj = prepare_session_obj(Session, BinSessionData, ContentType, CreatedAt, KeyID),
     case batch_put([[TokenObj], [SessionObj]]) of
         ok ->
             ok;
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+-spec get_session_data(cds:session()) ->
+    {ok, cds:ciphertext() | msgpack()} | {error, not_found}.
+
+get_session_data(Session) ->
+    case get(?SESSION_BUCKET, Session) of
+        {ok, SessionDataObj} ->
+            {ok, decode_session_data(SessionDataObj)};
+        {error, notfound} ->
+            {error, not_found};
         {error, Reason} ->
             error(Reason)
     end.
@@ -183,6 +201,24 @@ update_cvv(Session, NewCvv, KeyID) ->
 
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
+
+-spec update_session_data(cds:session(), NewSessionData :: msgpack(), cds_keyring:key_id()) ->
+    ok | {error, not_found}.
+
+update_session_data(Session, NewSessionData, KeyID) ->
+    Indexes = [{?KEY_ID_INDEX, KeyID}],
+    case get(?SESSION_BUCKET, Session) of
+        {ok, Obj0} ->
+            case riakc_obj:get_content_type(Obj0) of
+                "application/x-erlang-term" = ContentType ->
+                    Obj = riakc_obj:update_value(Obj0, term_to_binary(NewSessionData), ContentType),
+                    update_indexes(Obj, Indexes);
+                "application/x-erlang-binary" ->
+                    update(Obj0, NewSessionData, Indexes)
+            end;
+        {error, Reason} ->
+            error(Reason)
+    end.
 
 -spec refresh_session_created_at(cds:session()) -> ok.
 
@@ -328,8 +364,8 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
-prepare_session_obj(Session, Cvv, CreatedAt, KeyID) ->
-    case riakc_obj:new(?SESSION_BUCKET, Session, Cvv)  of
+prepare_session_obj(Session, SessionData, ContentType, CreatedAt, KeyID) ->
+    case riakc_obj:new(?SESSION_BUCKET, Session, SessionData, ContentType) of
         Error = {error, _} ->
             error(Error);
         Obj ->
@@ -432,3 +468,11 @@ construct_index_query_options(Limit, Continuation) ->
 
 prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
+
+decode_session_data(Obj) ->
+    case riakc_obj:get_content_type(Obj) of
+        "application/x-erlang-term" ->
+            binary_to_term(riakc_obj:get_value(Obj));
+        "application/x-erlang-binary" ->
+            riakc_obj:get_value(Obj)
+    end.

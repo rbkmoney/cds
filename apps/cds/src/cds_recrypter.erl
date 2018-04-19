@@ -99,12 +99,16 @@ encode(carddata, Token) ->
     cds_utils:encode_token(Token).
 
 recrypt(session, Session) ->
-    CVV = cds:get_cvv(Session),
-    cds:update_cvv(Session, CVV);
+    recrypt_session_data(Session, cds:get_session_data(Session));
 
 recrypt(carddata, Token) ->
     CardData = cds:get_cardholder_data(Token),
     cds:update_cardholder_data(Token, CardData).
+
+recrypt_session_data(Session, SessionData) when is_binary(SessionData) ->
+    cds:update_cvv(Session, SessionData);
+recrypt_session_data(Session, SessionData) ->
+    cds:update_session_data(Session, SessionData).
 
 get_interval() ->
     maps:get(interval, get_config(), ?DEFAULT_INTERVAL).

@@ -8,20 +8,30 @@
 -export([validate/3]).
 
 -export([marshal_cardholder_data/1]).
--export([marshal_cvv/1]).
+-export([marshal_session_data/1]).
 -export([unmarshal_cardholder_data/1]).
--export([unmarshal_cvv/1]).
+-export([unmarshal_session_data/1]).
 -export([unique/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
 -type cardholder() :: binary() | undefined.
 -type cvv()        :: binary().
+-type cryptogram() :: binary().
+-type eci()        :: binary() | undefined.
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
     exp_date   := exp_date(),
     cardholder := cardholder()
+}.
+
+-type session_data() :: #{auth_data :=
+    #{cvv := cvv()} |
+    #{
+        cryptogram := cryptogram(),
+        eci := eci()
+    }
 }.
 
 -type card_info() :: #{
@@ -44,20 +54,20 @@
     unrecognized |
     {invalid, cardnumber | cvv | exp_date, check()}.
 
--spec validate(cardholder_data(), cvv()) ->
+-spec validate(cardholder_data(), session_data()) ->
     {ok, card_info()} | {error, reason()}.
 
-validate(CardData, CVV) ->
-    validate(CardData, CVV, #{now => calendar:universal_time()}).
+validate(CardData, SessionData) ->
+    validate(CardData, SessionData, #{now => calendar:universal_time()}).
 
--spec validate(cardholder_data(), cvv(), Env :: #{now := calendar:datetime()}) ->
+-spec validate(cardholder_data(), session_data(), Env :: #{now := calendar:datetime()}) ->
     {ok, card_info()} | {error, reason()}.
 
-validate(CardData = #{cardnumber := CardNumber}, CVV, Env) ->
+validate(CardData = #{cardnumber := CardNumber}, #{auth_data := AuthData}, Env) ->
     case detect_payment_system(CardNumber) of
         {ok, PaymentSystem} ->
             #{PaymentSystem := Ruleset} = get_payment_system_map(),
-            case validate_card_data(CardData#{cvv => CVV}, Ruleset, Env) of
+            case validate_card_data(maps:merge(CardData, AuthData), Ruleset, Env) of
                 ok ->
                     {ok, get_card_info(CardData, PaymentSystem, Ruleset)};
                 {error, Reason} ->
@@ -96,7 +106,7 @@ detect_payment_system(0, _) ->
 
 %%
 
--type marshalled(_T) :: binary().
+-type marshalled(_T) :: binary() | dmsl_msgpack_thrift:'Value'().
 
 -spec marshal_cardholder_data(cardholder_data()) -> marshalled(cardholder_data()).
 
@@ -112,15 +122,31 @@ marshal_cardholder_data(#{
         (marshal(cardholder, Cardholder))/binary
     >>.
 
+-spec marshal_session_data(session_data()) -> marshalled(session_data()).
+
+marshal_session_data(#{auth_data := AuthData}) ->
+    {arr, [{i, 2}, {obj, #{{bin, <<"auth_data">>} => marshal_auth_data(AuthData)}}]}.
+
+marshal_auth_data(#{cvv := CVV}) ->
+    {obj, #{{bin, <<"cvv">>} => marshal(cvv, CVV)}};
+marshal_auth_data(#{cryptogram := Cryptogram, eci := ECI}) ->
+    {obj, genlib_map:compact(#{
+        {bin, <<"cryptogram">>} => marshal(cryptogram, Cryptogram),
+        {bin, <<"eci">>} => marshal(eci, ECI)
+    })}.
+
 marshal(cardholder, V) when is_binary(V) ->
     V;
 marshal(cardholder, undefined) ->
-    <<>>.
-
--spec marshal_cvv(cvv()) -> marshalled(cvv()).
-
-marshal_cvv(V) when is_binary(V) ->
-    V.
+    <<>>;
+marshal(cvv, CVV) when is_binary(CVV) ->
+    {bin, CVV};
+marshal(cryptogram, Cryptogram) when is_binary(Cryptogram) ->
+    {bin, Cryptogram};
+marshal(eci, ECI) when is_binary(ECI) ->
+    {bin, ECI};
+marshal(eci, undefined) ->
+    undefined.
 
 -spec unmarshal_cardholder_data(marshalled(cardholder_data())) -> cardholder_data().
 
@@ -131,15 +157,34 @@ unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardhold
         cardholder => unmarshal(cardholder, Cardholder)
     }.
 
+-spec unmarshal_session_data(marshalled(session_data())) -> session_data().
+
+% first version of session data - binary CVV
+unmarshal_session_data(SessionData) when is_binary(SessionData) ->
+    SessionData;
+% second version of session data - msgpack format
+unmarshal_session_data({arr, [{i, 2}, {obj, #{{bin, <<"auth_data">>} := AuthData}}]}) ->
+    #{auth_data => unmarshal_auth_data(AuthData)}.
+
+unmarshal_auth_data({obj, #{{bin, <<"cvv">>} := CVV}}) ->
+    #{cvv => unmarshal(cvv, CVV)};
+unmarshal_auth_data({obj, Obj}) ->
+    Cryptogram = genlib_map:get({bin, <<"cryptogram">>}, Obj),
+    ECI = genlib_map:get({bin, <<"eci">>}, Obj),
+    #{cryptogram => unmarshal(cryptogram, Cryptogram), eci => unmarshal(eci, ECI)}.
+
 unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
     V;
 unmarshal(cardholder, <<>>) ->
+    undefined;
+unmarshal(cvv, {bin, CVV}) ->
+    CVV;
+unmarshal(cryptogram,  {bin, Cryptogram}) ->
+    Cryptogram;
+unmarshal(eci, {bin, ECI}) ->
+    ECI;
+unmarshal(eci, undefined) ->
     undefined.
-
--spec unmarshal_cvv(marshalled(cvv())) -> cvv().
-
-unmarshal_cvv(V) when is_binary(V) ->
-    V.
 
 -spec unique(marshalled(cardholder_data())) -> binary().
 
@@ -148,11 +193,13 @@ unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
 
 %%
 
-validate_card_data(CardData, #{assertions := Assertions}, Env) ->
+validate_card_data(#{cvv := _CVV} = CardData, #{assertions := Assertions}, Env) ->
     try run_assertions(CardData, Assertions, Env) catch
         Reason ->
             {error, Reason}
-    end.
+    end;
+validate_card_data(#{cryptogram := _Cryptogram}, _Ruleset, _Env) ->
+    ok.
 
 run_assertions(CardData, Assertions, Env) ->
     genlib_map:foreach(

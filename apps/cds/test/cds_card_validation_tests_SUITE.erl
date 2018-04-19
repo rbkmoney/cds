@@ -13,6 +13,8 @@
 %% tests descriptions
 %%
 
+-define(AUTH_CVV(CVV), #{auth_data => #{cvv => CVV}}).
+
 -type config() :: term().
 
 -spec all() -> [{group, atom()}].
@@ -39,7 +41,7 @@ groups() ->
 -spec full_card_data_validation(config()) -> _.
 
 full_card_data_validation(_C) ->
-    CVV = <<"345">>,
+    SD = #{auth_data => #{cvv => <<"345">>}},
     MC = #{
         cardnumber => <<"5321301234567892">>,
         exp_date   => {12, 3000},
@@ -49,13 +51,13 @@ full_card_data_validation(_C) ->
         payment_system := mastercard,
         iin            := <<"532130">>,
         last_digits    := <<"7892">>
-    }} = cds_card_data:validate(MC, CVV),
-    {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}, CVV),
-    {error, {invalid, cardnumber, luhn}}        = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}, CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1 , 2000}}, CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {0 , 2241}}, CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {13, 2048}}, CVV),
-    {error, {invalid, cvv, {length, _}}}        = cds_card_data:validate(MC, <<"12">>),
+    }} = cds_card_data:validate(MC, SD),
+    {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}, SD),
+    {error, {invalid, cardnumber, luhn}}        = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}, SD),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1 , 2000}}, SD),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {0 , 2241}}, SD),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {13, 2048}}, SD),
+    {error, {invalid, cvv, {length, _}}}        = cds_card_data:validate(MC, #{auth_data => #{cvv => <<"12">>}}),
     MIR = #{
         cardnumber => <<"2204301234567891">>,
         exp_date   => {12, 3000},
@@ -65,15 +67,15 @@ full_card_data_validation(_C) ->
         payment_system := nspkmir,
         iin            := <<"22043012">>,
         last_digits    := <<"91">>
-    }} = cds_card_data:validate(MIR, CVV),
+    }} = cds_card_data:validate(MIR, SD),
     ok.
 
 -spec payment_system_detection(config()) -> _.
 
 payment_system_detection(_C) ->
     [
-        {ok, #{payment_system := Target}} = cds_card_data:validate(Sample, CVV)
-            || {Target, {Sample, CVV}} <- get_card_data_samples()
+        {ok, #{payment_system := Target}} = cds_card_data:validate(Sample, SessionData)
+            || {Target, {Sample, SessionData}} <- get_card_data_samples()
     ].
 
 %%
@@ -82,36 +84,36 @@ payment_system_detection(_C) ->
 
 get_card_data_samples() ->
     Samples = [
-        {amex               , <<"378282246310005">>  , <<"228">>  },
-        {amex               , <<"371449635398431">>  , <<"3434">> },
-        {amex               , <<"378734493671000">>  , <<"228">>  },
-        {dinersclub         , <<"30569309025904">>   , <<"228">>  },
-        {dinersclub         , <<"38520000023237">>   , <<"228">>  },
-        {dinersclub         , <<"36213154429663">>   , <<"228">>  },
-        {discover           , <<"6011111111111117">> , <<"228">>  },
-        {discover           , <<"6011000990139424">> , <<"228">>  },
-        {jcb                , <<"3530111333300000">> , <<"228">>  },
-        {jcb                , <<"3566002020360505">> , <<"228">>  },
-        {mastercard         , <<"5555555555554444">> , <<"228">>  },
-        {mastercard         , <<"5105105105105100">> , <<"228">>  },
-        {visa               , <<"4716219619821724">> , <<"228">>  },
-        {visa               , <<"4929221444411666">> , <<"228">>  },
-        {visa               , <<"4929003096554179">> , <<"228">>  },
-        {visaelectron       , <<"4508085628009599">> , <<"228">>  },
-        {visaelectron       , <<"4508964269455370">> , <<"228">>  },
-        {visaelectron       , <<"4026524202025897">> , <<"228">>  },
-        {unionpay           , <<"6279227608204863">> , <<"228">>  },
-        {unionpay           , <<"6238464198841867">> , <<"228">>  },
-        {unionpay           , <<"6263242460178483">> , <<"228">>  },
-        {dankort            , <<"5019717010103742">> , <<"228">>  },
-        {nspkmir            , <<"2202243736741990">> , <<"228">>  },
-        {forbrugsforeningen , <<"6007220000000004">> , <<"228">>  }
+        {amex               , <<"378282246310005">>  , ?AUTH_CVV(<<"228">>)  },
+        {amex               , <<"371449635398431">>  , ?AUTH_CVV(<<"3434">>) },
+        {amex               , <<"378734493671000">>  , ?AUTH_CVV(<<"228">>)  },
+        {dinersclub         , <<"30569309025904">>   , ?AUTH_CVV(<<"228">>)  },
+        {dinersclub         , <<"38520000023237">>   , ?AUTH_CVV(<<"228">>)  },
+        {dinersclub         , <<"36213154429663">>   , ?AUTH_CVV(<<"228">>)  },
+        {discover           , <<"6011111111111117">> , ?AUTH_CVV(<<"228">>)  },
+        {discover           , <<"6011000990139424">> , ?AUTH_CVV(<<"228">>)  },
+        {jcb                , <<"3530111333300000">> , ?AUTH_CVV(<<"228">>)  },
+        {jcb                , <<"3566002020360505">> , ?AUTH_CVV(<<"228">>)  },
+        {mastercard         , <<"5555555555554444">> , ?AUTH_CVV(<<"228">>)  },
+        {mastercard         , <<"5105105105105100">> , ?AUTH_CVV(<<"228">>)  },
+        {visa               , <<"4716219619821724">> , ?AUTH_CVV(<<"228">>)  },
+        {visa               , <<"4929221444411666">> , ?AUTH_CVV(<<"228">>)  },
+        {visa               , <<"4929003096554179">> , ?AUTH_CVV(<<"228">>)  },
+        {visaelectron       , <<"4508085628009599">> , ?AUTH_CVV(<<"228">>)  },
+        {visaelectron       , <<"4508964269455370">> , ?AUTH_CVV(<<"228">>)  },
+        {visaelectron       , <<"4026524202025897">> , ?AUTH_CVV(<<"228">>)  },
+        {unionpay           , <<"6279227608204863">> , ?AUTH_CVV(<<"228">>)  },
+        {unionpay           , <<"6238464198841867">> , ?AUTH_CVV(<<"228">>)  },
+        {unionpay           , <<"6263242460178483">> , ?AUTH_CVV(<<"228">>)  },
+        {dankort            , <<"5019717010103742">> , ?AUTH_CVV(<<"228">>)  },
+        {nspkmir            , <<"2202243736741990">> , ?AUTH_CVV(<<"228">>)  },
+        {forbrugsforeningen , <<"6007220000000004">> , ?AUTH_CVV(<<"228">>)  }
     ],
     [
         begin
         {
             Target,
-            {#{cardnumber => CN, exp_date => {1, 3000}, cardholder => undefined}, CVV}
+            {#{cardnumber => CN, exp_date => {1, 3000}, cardholder => undefined}, SD}
         }
         end
-    || {Target, CN, CVV} <- Samples].
+    || {Target, CN, SD} <- Samples].

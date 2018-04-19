@@ -3,7 +3,8 @@
 %% Storage operations
 -export([get_card_data/2]).
 -export([get_session_card_data/3]).
--export([put_card_data/2]).
+-export([put_card_data/3]).
+-export([get_session_data/2]).
 
 %% Keyring operations
 -export([init/3]).
@@ -25,10 +26,15 @@ get_card_data(Token, RootUrl) ->
 get_session_card_data(Token, Session, RootUrl) ->
     call('GetSessionCardData', [Token, Session], RootUrl).
 
--spec put_card_data(dmsl_cds_thrift:'CardData'(), woody:url()) -> result().
+-spec put_card_data(dmsl_cds_thrift:'CardData'(), dmsl_cds_thrift:'SessionData'(), woody:url()) -> result().
 
-put_card_data(Data, RootUrl) ->
-    call('PutCardData', [Data], RootUrl).
+put_card_data(CardData, SessionData, RootUrl) ->
+    call('PutCardData', [CardData, SessionData], RootUrl).
+
+-spec get_session_data(cds:session(), woody:url()) -> result().
+
+get_session_data(Session, RootUrl) ->
+    call('GetSessionData', [Session], RootUrl).
 
 -spec init(integer(), integer(), woody:url()) -> result().
 
@@ -74,6 +80,8 @@ service('GetSessionCardData') ->
     'Storage';
 service('PutCardData') ->
     'Storage';
+service('GetSessionData') ->
+    'Storage';
 service('Init') ->
     'Keyring';
 service('Unlock') ->
@@ -88,6 +96,8 @@ path('GetCardData') ->
 path('GetSessionCardData') ->
     "/v1/storage";
 path('PutCardData') ->
+    "/v1/storage";
+path('GetSessionData') ->
     "/v1/storage";
 path('Init') ->
     "/v1/keyring";
