@@ -41,7 +41,7 @@ groups() ->
 -spec full_card_data_validation(config()) -> _.
 
 full_card_data_validation(_C) ->
-    SD = #{auth_data => #{cvv => <<"345">>}},
+    SD_CVV = #{auth_data => #{cvv => <<"345">>}},
     MC = #{
         cardnumber => <<"5321301234567892">>,
         exp_date   => {12, 3000},
@@ -51,12 +51,12 @@ full_card_data_validation(_C) ->
         payment_system := mastercard,
         iin            := <<"532130">>,
         last_digits    := <<"7892">>
-    }} = cds_card_data:validate(MC, SD),
-    {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}, SD),
-    {error, {invalid, cardnumber, luhn}}        = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}, SD),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1 , 2000}}, SD),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {0 , 2241}}, SD),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {13, 2048}}, SD),
+    }} = cds_card_data:validate(MC, SD_CVV),
+    {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}, SD_CVV),
+    {error, {invalid, cardnumber, luhn}}        = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}, SD_CVV),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1 , 2000}}, SD_CVV),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {0 , 2241}}, SD_CVV),
+    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {13, 2048}}, SD_CVV),
     {error, {invalid, cvv, {length, _}}}        = cds_card_data:validate(MC, #{auth_data => #{cvv => <<"12">>}}),
     MIR = #{
         cardnumber => <<"2204301234567891">>,
@@ -67,7 +67,13 @@ full_card_data_validation(_C) ->
         payment_system := nspkmir,
         iin            := <<"22043012">>,
         last_digits    := <<"91">>
-    }} = cds_card_data:validate(MIR, SD),
+    }} = cds_card_data:validate(MIR, SD_CVV),
+    SD_3DS = #{auth_data => #{cryptogram => <<"cryptogram">>, eci => <<"5">>}},
+    {ok, #{
+        payment_system := mastercard,
+        iin            := <<"532130">>,
+        last_digits    := <<"7892">>
+    }} = cds_card_data:validate(MC, SD_3DS),
     ok.
 
 -spec payment_system_detection(config()) -> _.
