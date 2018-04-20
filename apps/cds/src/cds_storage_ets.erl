@@ -10,8 +10,6 @@
 -export([put_card_data/7]).
 -export([get_session_data/1]).
 -export([delete_session/1]).
--export([get_cvv/1]).
--export([update_cvv/3]).
 -export([update_cardholder_data/4]).
 -export([update_session_data/3]).
 -export([refresh_session_created_at/1]).
@@ -47,7 +45,6 @@
 -type batch_response(DataType) :: {ok, {[DataType], continuation()}}.
 -type continuation() :: term().
 -type timestamp() :: pos_integer().
--type msgpack() :: dmsl_msgpack_thrift:'Value'().
 
 -spec start() -> ok.
 
@@ -83,13 +80,13 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphertext() | msgpack()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:marshalled()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
-    case get(?SESSION_TABLE, Session) of
-        {ok, SessionData, _} ->
-            case get(?TOKEN_TABLE, Token) of
-                {ok, CardData, _} ->
+    case get_session_data(Session) of
+        {ok, SessionData} ->
+            case get_cardholder_data(Token) of
+                {ok, CardData} ->
                     {ok, {CardData, SessionData}};
                 Error ->
                     Error
@@ -103,7 +100,7 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    SessionData :: msgpack(),
+    SessionData :: cds:marshalled(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
@@ -133,7 +130,7 @@ put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     ),
     ok.
 
--spec get_session_data(cds:session()) -> {ok, cds:ciphertext() | msgpack()} | {error, not_found}.
+-spec get_session_data(cds:session()) -> {ok, cds:marshalled()} | {error, not_found}.
 
 get_session_data(Session) ->
     case get(?SESSION_TABLE, Session) of
@@ -149,28 +146,13 @@ delete_session(Session) ->
     true = ets:delete(?SESSION_TABLE, Session),
     ok.
 
--spec get_cvv(cds:session()) -> {ok, cds:ciphertext()} | {error, not_found}.
-
-get_cvv(Session) ->
-    case get(?SESSION_TABLE, Session) of
-        {ok, Cvv, _Index} ->
-            {ok, Cvv};
-        Error ->
-            Error
-    end.
-
--spec update_cvv(cds:session(), NewCvv :: cds:ciphertext(), cds_keyring:key_id()) -> ok | {error, not_found}.
-
-update_cvv(Session, NewCvv, KeyID) ->
-    update(?SESSION_TABLE, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
-
 -spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
     ok | {error, not_found}.
 
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
 
--spec update_session_data(cds:session(), NewSessionData :: msgpack(), cds_keyring:key_id()) ->
+-spec update_session_data(cds:session(), NewSessionData :: cds:marshalled(), cds_keyring:key_id()) ->
     ok | {error, not_found}.
 
 update_session_data(Session, NewSessionData, KeyID) ->

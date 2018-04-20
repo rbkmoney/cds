@@ -17,8 +17,6 @@
 -type exp_date()   :: {1..12, pos_integer()}.
 -type cardholder() :: binary() | undefined.
 -type cvv()        :: binary().
--type cryptogram() :: binary().
--type eci()        :: binary() | undefined.
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
@@ -26,11 +24,10 @@
     cardholder := cardholder()
 }.
 
--type session_data() :: #{auth_data :=
-    #{cvv := cvv()} |
-    #{
-        cryptogram := cryptogram(),
-        eci := eci()
+-type session_data() :: #{
+    auth_data := #{
+        cvv | cryptogram := binary(),
+        eci => binary() | undefined
     }
 }.
 
@@ -40,6 +37,12 @@
     last_digits    := binary()
 }.
 
+-type metadata() :: #{
+    content_type := string()
+}.
+
+-type marshalled() :: binary() | {binary(), metadata()}.
+
 -export_type([cardnumber/0]).
 -export_type([cvv/0]).
 -export_type([cardholder/0]).
@@ -47,6 +50,7 @@
 -export_type([payment_system/0]).
 -export_type([card_info/0]).
 -export_type([cardholder_data/0]).
+-export_type([marshalled/0]).
 
 %%
 
@@ -106,9 +110,7 @@ detect_payment_system(0, _) ->
 
 %%
 
--type marshalled(_T) :: binary() | dmsl_msgpack_thrift:'Value'().
-
--spec marshal_cardholder_data(cardholder_data()) -> marshalled(cardholder_data()).
+-spec marshal_cardholder_data(cardholder_data()) -> marshalled().
 
 marshal_cardholder_data(#{
     cardnumber := CN,
@@ -122,10 +124,11 @@ marshal_cardholder_data(#{
         (marshal(cardholder, Cardholder))/binary
     >>.
 
--spec marshal_session_data(session_data()) -> marshalled(session_data()).
+-spec marshal_session_data(session_data()) -> marshalled().
 
 marshal_session_data(#{auth_data := AuthData}) ->
-    {arr, [{i, 2}, {obj, #{{bin, <<"auth_data">>} => marshal_auth_data(AuthData)}}]}.
+    SessionData = {obj, #{{bin, <<"auth_data">>} => marshal_auth_data(AuthData)}},
+    {term_to_binary(SessionData), #{content_type => "application/vnd.cds.encrypted-session.v2"}}.
 
 marshal_auth_data(#{cvv := CVV}) ->
     {obj, #{{bin, <<"cvv">>} => marshal(cvv, CVV)}};
@@ -148,7 +151,7 @@ marshal(eci, ECI) when is_binary(ECI) ->
 marshal(eci, undefined) ->
     undefined.
 
--spec unmarshal_cardholder_data(marshalled(cardholder_data())) -> cardholder_data().
+-spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
 unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardholder/binary>>) ->
     #{
@@ -157,13 +160,12 @@ unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardhold
         cardholder => unmarshal(cardholder, Cardholder)
     }.
 
--spec unmarshal_session_data(marshalled(session_data())) -> session_data().
+-spec unmarshal_session_data(marshalled()) -> session_data().
 
-% first version of session data - binary CVV
-unmarshal_session_data(SessionData) when is_binary(SessionData) ->
+unmarshal_session_data({SessionData, #{content_type := "application/vnd.cds.encrypted-session.v1"}}) ->
     SessionData;
-% second version of session data - msgpack format
-unmarshal_session_data({arr, [{i, 2}, {obj, #{{bin, <<"auth_data">>} := AuthData}}]}) ->
+unmarshal_session_data({SessionData, #{content_type := "application/vnd.cds.encrypted-session.v2"}}) ->
+    {obj, #{{bin, <<"auth_data">>} := AuthData}} = binary_to_term(SessionData),
     #{auth_data => unmarshal_auth_data(AuthData)}.
 
 unmarshal_auth_data({obj, #{{bin, <<"cvv">>} := CVV}}) ->
@@ -186,25 +188,23 @@ unmarshal(eci, {bin, ECI}) ->
 unmarshal(eci, undefined) ->
     undefined.
 
--spec unique(marshalled(cardholder_data())) -> binary().
+-spec unique(binary()) -> binary().
 
 unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
     <<CNSize, CN:CNSize/binary, Month:8, Year:16>>.
 
 %%
 
-validate_card_data(#{cvv := _CVV} = CardData, #{assertions := Assertions}, Env) ->
+validate_card_data(CardData, #{assertions := Assertions}, Env) ->
     try run_assertions(CardData, Assertions, Env) catch
         Reason ->
             {error, Reason}
-    end;
-validate_card_data(#{cryptogram := _Cryptogram}, _Ruleset, _Env) ->
-    ok.
+    end.
 
 run_assertions(CardData, Assertions, Env) ->
     genlib_map:foreach(
         fun (K, Checks) ->
-            V = maps:get(K, CardData),
+            V = maps:get(K, CardData, undefined),
             lists:foreach(
                 fun (C) -> check_value(V, C, Env) orelse throw({invalid, K, C}) end,
                 Checks
@@ -213,6 +213,8 @@ run_assertions(CardData, Assertions, Env) ->
         Assertions
     ).
 
+check_value(undefined, _, _) ->
+    true;
 check_value(V, {length, Ls}, _) ->
     lists:any(fun (L) -> check_length(V, L) end, Ls);
 check_value(V, luhn, _) ->
