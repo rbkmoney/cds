@@ -28,14 +28,19 @@
 -export_type([session/0]).
 -export_type([plaintext/0]).
 -export_type([ciphertext/0]).
--export_type([marshalled/0]).
+-export_type([msgpack_with_meta/0]).
+-export_type([ciphermsgpack_with_meta/0]).
 
 -type hash() :: binary().
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
 -type plaintext() :: binary().
 -type ciphertext() :: binary(). % <<KeyID/byte, EncryptedData/binary>>
--type marshalled() :: cds_card_data:marshalled().
+-type msgpack() :: binary().
+-type ciphermsgpack() :: binary().
+-type metadata() :: #{content_type := string()}.
+-type msgpack_with_meta() :: {msgpack(), metadata()}.
+-type ciphermsgpack_with_meta() :: {ciphermsgpack(), metadata()}.
 
 %%
 %% API
@@ -119,13 +124,13 @@ get_cardholder_data(Token) ->
     Encrypted = cds_storage:get_cardholder_data(Token),
     decrypt(Encrypted, Keyring).
 
--spec get_card_data(token(), session()) -> {plaintext(), marshalled()}.
+-spec get_card_data(token(), session()) -> {plaintext(), plaintext() | msgpack_with_meta()}.
 get_card_data(Token, Session) ->
     Keyring = cds_keyring_manager:get_keyring(),
     {EncryptedCardData, EncryptedSessionData} = cds_storage:get_session_card_data(Token, Session),
     {decrypt(EncryptedCardData, Keyring), decrypt_session_data(EncryptedSessionData, Keyring)}.
 
--spec put_card_data({plaintext(), marshalled()}) -> {token(), session()}.
+-spec put_card_data({plaintext(), msgpack_with_meta()}) -> {token(), session()}.
 put_card_data({MarshalledCardData, MarshalledSessionData}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
     {Token, Hash} = find_or_create_token(UniqueCardData),
@@ -144,7 +149,7 @@ put_card_data({MarshalledCardData, MarshalledSessionData}) ->
     ),
     {Token, Session}.
 
--spec get_session_data(session()) -> marshalled().
+-spec get_session_data(session()) -> plaintext() | msgpack_with_meta().
 get_session_data(Session) ->
     Keyring = cds_keyring_manager:get_keyring(),
     Encrypted = cds_storage:get_session_data(Session),
@@ -157,7 +162,7 @@ update_cardholder_data(Token, CardData) ->
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
--spec update_session_data(session(), marshalled()) -> ok.
+-spec update_session_data(session(), plaintext() | msgpack_with_meta()) -> ok.
 update_session_data(Session, SessionData) ->
     {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
     EncryptedSessionData = encrypt_session_data(SessionData, CurrentKey),
@@ -177,41 +182,19 @@ decrypt(<<KeyID, Cipher/binary>>, Keyring) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID, Keyring),
     cds_crypto:decrypt(Key, Cipher).
 
--spec encrypt_session_data(marshalled(), {cds_keyring:key_id(), cds_keyring:key()}) ->
-    marshalled().
-encrypt_session_data({Data, #{content_type := "application/vnd.cds.encrypted-session.v1"}}, Keyring) ->
+-spec encrypt_session_data(plaintext() | msgpack_with_meta(), {cds_keyring:key_id(), cds_keyring:key()}) ->
+    ciphertext() | ciphermsgpack_with_meta().
+encrypt_session_data(Data, Keyring) when is_binary(Data) ->
     encrypt(Data, Keyring);
-encrypt_session_data({_, #{content_type := "application/vnd.cds.encrypted-session.v2"}} = SD, Keyring) ->
-    #{auth_data := AuthData} = cds_card_data:unmarshal_session_data(SD),
-    cds_card_data:marshal_session_data(#{auth_data => encrypt_auth_data(AuthData, Keyring)}).
+encrypt_session_data({Data, #{content_type := "application/msgpack"}}, Keyring) ->
+    {encrypt(Data, Keyring), #{content_type => "application/vnd.cds.encrypted-session.v2"}}.
 
-encrypt_auth_data(#{cvv := CVV}, Keyring) ->
-    #{cvv => encrypt(CVV, Keyring)};
-encrypt_auth_data(#{cryptogram := Cryptogram, eci := ECI}, Keyring) ->
-    #{cryptogram => encrypt(Cryptogram, Keyring), eci => encrypt_eci(ECI, Keyring)}.
-
-encrypt_eci(ECI, Keyring) when is_binary(ECI) ->
-    encrypt(ECI, Keyring);
-encrypt_eci(undefined, _) ->
-    undefined.
-
--spec decrypt_session_data(marshalled(), cds_keyring:keyring()) ->
-    marshalled().
+-spec decrypt_session_data(ciphermsgpack_with_meta(), cds_keyring:keyring()) ->
+    plaintext() | msgpack_with_meta().
 decrypt_session_data({Data, #{content_type := "application/vnd.cds.encrypted-session.v1"}}, Keyring) ->
     decrypt(Data, Keyring);
-decrypt_session_data({_, #{content_type := "application/vnd.cds.encrypted-session.v2"}} = SD, Keyring) ->
-    #{auth_data := AuthData} = cds_card_data:unmarshal_session_data(SD),
-    cds_card_data:marshal_session_data(#{auth_data => decrypt_auth_data(AuthData, Keyring)}).
-
-decrypt_auth_data(#{cvv := CVV}, Keyring) ->
-    #{cvv => decrypt(CVV, Keyring)};
-decrypt_auth_data(#{cryptogram := Cryptogram, eci := ECI}, Keyring) ->
-    #{cryptogram => decrypt(Cryptogram, Keyring), eci => decrypt_eci(ECI, Keyring)}.
-
-decrypt_eci(ECI, Keyring) when is_binary(ECI) ->
-    decrypt(ECI, Keyring);
-decrypt_eci(undefined, _) ->
-    undefined.
+decrypt_session_data({Data, #{content_type := "application/vnd.cds.encrypted-session.v2"}}, Keyring) ->
+    {decrypt(Data, Keyring), #{content_type => "application/msgpack"}}.
 
 -spec hash(binary(), binary()) -> hash().
 hash(Plain, Salt) ->

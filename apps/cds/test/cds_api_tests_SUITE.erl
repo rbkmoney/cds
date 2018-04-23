@@ -406,8 +406,7 @@ recrypt(C) ->
 
     {EncryptedCardDataCVV0, {EncryptedSessionDataCVV0, _}} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
     <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
-    {obj,#{{bin,<<"auth_data">>}:={obj,#{{bin,<<"cvv">>}:={bin,<<KeyID0, _/binary>>}}}}} =
-        binary_to_term(EncryptedSessionDataCVV0),
+    <<KeyID0, _/binary>> = EncryptedSessionDataCVV0,
     _ = cds_keyring_manager:rotate(),
     [{recrypting, #{
         interval := Interval
@@ -415,12 +414,7 @@ recrypt(C) ->
 
     {EncryptedCardData3DS0, {EncryptedSessionData3DS0, _}} = cds_storage:get_session_card_data(Token3DS, Session3DS),
     <<KeyID0, _/binary>> = EncryptedCardData3DS0,
-    {obj,#{
-        {bin,<<"auth_data">>}:={obj,#{
-            {bin,<<"cryptogram">>}:={bin,<<KeyID0, _/binary>>},
-            {bin,<<"eci">>}:={bin,<<KeyID0, _/binary>>}
-        }}
-    }} = binary_to_term(EncryptedSessionData3DS0),
+    <<KeyID0, _/binary>> = EncryptedSessionData3DS0,
     _ = cds_keyring_manager:rotate(),
     [{recrypting, #{
         interval := Interval
@@ -432,17 +426,11 @@ recrypt(C) ->
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, {EncryptedSessionDataCVV, _}} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
     <<KeyID, _/binary>> = EncryptedCardDataCVV,
-    {obj,#{{bin,<<"auth_data">>}:={obj,#{{bin,<<"cvv">>}:={bin,<<KeyID, _/binary>>}}}}} =
-        binary_to_term(EncryptedSessionDataCVV),
+    <<KeyID, _/binary>> = EncryptedSessionDataCVV,
 
     {EncryptedCardData3DS, {EncryptedSessionData3DS, _}} = cds_storage:get_session_card_data(Token3DS, Session3DS),
     <<KeyID, _/binary>> = EncryptedCardData3DS,
-    {obj,#{
-        {bin,<<"auth_data">>}:={obj,#{
-            {bin,<<"cryptogram">>}:={bin,<<KeyID, _/binary>>},
-            {bin,<<"eci">>}:={bin,<<KeyID, _/binary>>}
-        }}
-    }} = binary_to_term(EncryptedSessionData3DS).
+    <<KeyID, _/binary>> = EncryptedSessionData3DS.
 
 %%
 %% helpers

@@ -16,7 +16,6 @@
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
 -type cardholder() :: binary() | undefined.
--type cvv()        :: binary().
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
@@ -24,11 +23,19 @@
     cardholder := cardholder()
 }.
 
+-type cvv() :: #{
+    type := cvv,
+    value := binary()
+}.
+
+-type '3ds'() :: #{
+    type := '3ds',
+    cryptogram := binary(),
+    eci := binary() | undefined
+}.
+
 -type session_data() :: #{
-    auth_data := #{
-        cvv | cryptogram := binary(),
-        eci => binary() | undefined
-    }
+    auth_data := cvv() | '3ds'()
 }.
 
 -type card_info() :: #{
@@ -37,12 +44,6 @@
     last_digits    := binary()
 }.
 
--type metadata() :: #{
-    content_type := string()
-}.
-
--type marshalled() :: binary() | {binary(), metadata()}.
-
 -export_type([cardnumber/0]).
 -export_type([cvv/0]).
 -export_type([cardholder/0]).
@@ -50,7 +51,6 @@
 -export_type([payment_system/0]).
 -export_type([card_info/0]).
 -export_type([cardholder_data/0]).
--export_type([marshalled/0]).
 
 %%
 
@@ -110,6 +110,12 @@ detect_payment_system(0, _) ->
 
 %%
 
+-type metadata() :: #{
+    content_type := string()
+}.
+
+-type marshalled() :: binary() | {binary(), metadata()}.
+
 -spec marshal_cardholder_data(cardholder_data()) -> marshalled().
 
 marshal_cardholder_data(#{
@@ -124,32 +130,15 @@ marshal_cardholder_data(#{
         (marshal(cardholder, Cardholder))/binary
     >>.
 
--spec marshal_session_data(session_data()) -> marshalled().
-
-marshal_session_data(#{auth_data := AuthData}) ->
-    SessionData = {obj, #{{bin, <<"auth_data">>} => marshal_auth_data(AuthData)}},
-    {term_to_binary(SessionData), #{content_type => "application/vnd.cds.encrypted-session.v2"}}.
-
-marshal_auth_data(#{cvv := CVV}) ->
-    {obj, #{{bin, <<"cvv">>} => marshal(cvv, CVV)}};
-marshal_auth_data(#{cryptogram := Cryptogram, eci := ECI}) ->
-    {obj, genlib_map:compact(#{
-        {bin, <<"cryptogram">>} => marshal(cryptogram, Cryptogram),
-        {bin, <<"eci">>} => marshal(eci, ECI)
-    })}.
-
 marshal(cardholder, V) when is_binary(V) ->
     V;
 marshal(cardholder, undefined) ->
-    <<>>;
-marshal(cvv, CVV) when is_binary(CVV) ->
-    {bin, CVV};
-marshal(cryptogram, Cryptogram) when is_binary(Cryptogram) ->
-    {bin, Cryptogram};
-marshal(eci, ECI) when is_binary(ECI) ->
-    {bin, ECI};
-marshal(eci, undefined) ->
-    undefined.
+    <<>>.
+
+-spec marshal_session_data(session_data()) -> marshalled().
+
+marshal_session_data(SessionData) ->
+    {msgpack:pack(SessionData), #{content_type => "application/msgpack"}}.
 
 -spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
@@ -160,33 +149,26 @@ unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardhold
         cardholder => unmarshal(cardholder, Cardholder)
     }.
 
--spec unmarshal_session_data(marshalled()) -> session_data().
-
-unmarshal_session_data({SessionData, #{content_type := "application/vnd.cds.encrypted-session.v1"}}) ->
-    SessionData;
-unmarshal_session_data({SessionData, #{content_type := "application/vnd.cds.encrypted-session.v2"}}) ->
-    {obj, #{{bin, <<"auth_data">>} := AuthData}} = binary_to_term(SessionData),
-    #{auth_data => unmarshal_auth_data(AuthData)}.
-
-unmarshal_auth_data({obj, #{{bin, <<"cvv">>} := CVV}}) ->
-    #{cvv => unmarshal(cvv, CVV)};
-unmarshal_auth_data({obj, Obj}) ->
-    Cryptogram = genlib_map:get({bin, <<"cryptogram">>}, Obj),
-    ECI = genlib_map:get({bin, <<"eci">>}, Obj),
-    #{cryptogram => unmarshal(cryptogram, Cryptogram), eci => unmarshal(eci, ECI)}.
-
 unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
     V;
 unmarshal(cardholder, <<>>) ->
-    undefined;
-unmarshal(cvv, {bin, CVV}) ->
-    CVV;
-unmarshal(cryptogram,  {bin, Cryptogram}) ->
-    Cryptogram;
-unmarshal(eci, {bin, ECI}) ->
-    ECI;
-unmarshal(eci, undefined) ->
     undefined.
+
+-spec unmarshal_session_data(marshalled()) -> session_data().
+
+unmarshal_session_data(SessionData) when is_binary(SessionData) ->
+    SessionData;
+unmarshal_session_data({SessionData, #{content_type := "application/msgpack"}}) ->
+    {ok, UnpackedSessionData} = msgpack:unpack(SessionData),
+    normalize_session_data(UnpackedSessionData).
+
+normalize_session_data(#{<<"auth_data">> := AuthData}) ->
+    #{auth_data => normalize_auth_data(AuthData)}.
+
+normalize_auth_data(#{<<"type">> := <<"cvv">>, <<"value">> := Value}) ->
+    #{type => cvv, value => Value};
+normalize_auth_data(#{<<"type">> := <<"3ds">>, <<"cryptogram">> := Cryptogram, <<"eci">> := ECI}) ->
+    #{type => '3ds', cryptogram => Cryptogram, eci => ECI}.
 
 -spec unique(binary()) -> binary().
 

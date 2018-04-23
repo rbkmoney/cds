@@ -116,14 +116,13 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:marshalled()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphermsgpack_with_meta()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
         {ok, [SessionDataObj, CardDataObj]} ->
             CardData = riakc_obj:get_value(CardDataObj),
-            SessionData = get_data(SessionDataObj),
-            {ok, {CardData, SessionData}};
+            {ok, {CardData, get_session_data_with_meta(SessionDataObj)}};
         {error, notfound} ->
             {error, not_found};
         {error, Reason} ->
@@ -135,7 +134,7 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    SessionData :: cds:marshalled(),
+    SessionData :: cds:ciphermsgpack_with_meta(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
@@ -152,12 +151,12 @@ put_card_data(Token, Session, Hash, CardData, {SessionData, Metadata}, KeyID, Cr
     end.
 
 -spec get_session_data(cds:session()) ->
-    {ok, cds:marshalled()} | {error, not_found}.
+    {ok, cds:ciphermsgpack_with_meta()} | {error, not_found}.
 
 get_session_data(Session) ->
     case get(?SESSION_BUCKET, Session) of
         {ok, SessionDataObj} ->
-            {ok, get_data(SessionDataObj)};
+            {ok, get_session_data_with_meta(SessionDataObj)};
         {error, notfound} ->
             {error, not_found};
         {error, Reason} ->
@@ -180,11 +179,17 @@ delete_session(Session) ->
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
 
--spec update_session_data(cds:session(), NewSessionData :: cds:marshalled(), cds_keyring:key_id()) ->
+-spec update_session_data(
+    cds:session(),
+    NewSessionData :: cds:ciphertext() | cds:ciphermsgpack_with_meta(),
+    cds_keyring:key_id()
+) ->
     ok | {error, not_found}.
 
-update_session_data(Session, NewSessionData, KeyID) ->
-    update_data(?SESSION_BUCKET, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]).
+update_session_data(Session, NewSessionData, KeyID) when is_binary(NewSessionData) ->
+    update(?SESSION_BUCKET, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]);
+update_session_data(Session, {NewSessionData, #{content_type := ContentType}}, KeyID) ->
+    update(?SESSION_BUCKET, Session, NewSessionData, ContentType, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec refresh_session_created_at(cds:session()) -> ok.
 
@@ -360,15 +365,27 @@ set_indexes(Obj, Indexes) ->
     ),
     riakc_obj:update_metadata(Obj, MD2).
 
-update(Tab, Key, Value, Indexes) ->
+update(Tab, Key, Value, ContentType, Indexes) ->
     case get(Tab, Key) of
         {ok, Obj0} ->
-            update(Obj0, Value, Indexes);
+            do_update(Obj0, Value, ContentType, Indexes);
         {error, Reason} ->
             error(Reason)
     end.
 
-update(Obj0, Value, Indexes) ->
+update(Tab, Key, Value, Indexes) ->
+    case get(Tab, Key) of
+        {ok, Obj0} ->
+            do_update(Obj0, Value, Indexes);
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+do_update(Obj0, Value, ContentType, Indexes) ->
+    Obj = riakc_obj:update_value(Obj0, Value, ContentType),
+    update_indexes(Obj, Indexes).
+
+do_update(Obj0, Value, Indexes) ->
     Obj = riakc_obj:update_value(Obj0, Value),
     update_indexes(Obj, Indexes).
 
@@ -435,24 +452,12 @@ construct_index_query_options(Limit, Continuation) ->
 prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
 
-define_content_type(Obj) ->
-    case riakc_obj:get_content_type(Obj) of
+get_session_data_with_meta(Obj) ->
+    SessionContentType = case riakc_obj:get_content_type(Obj) of
         "application/x-erlang-binary" ->
             "application/vnd.cds.encrypted-session.v1";
-        ContentType ->
-            ContentType
-    end.
-
-get_data(Obj) ->
-    Data = riakc_obj:get_value(Obj),
-    ContentType = define_content_type(Obj),
-    {Data, #{content_type => ContentType}}.
-
-update_data(Tab, Key, {Data, #{content_type := ContentType}}, Indexes) ->
-    case get(Tab, Key) of
-        {ok, Obj0} ->
-            Obj = riakc_obj:update_value(Obj0, Data, ContentType),
-            update_indexes(Obj, Indexes);
-        {error, Reason} ->
-            error(Reason)
-    end.
+        Other ->
+            Other
+    end,
+    SessionData = riakc_obj:get_value(Obj),
+    {SessionData, #{content_type => SessionContentType}}.

@@ -121,16 +121,16 @@ decode_session_data(#'SessionData'{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
 
 decode_auth_data({card_security_code, #'CardSecurityCode'{value = Value}}) ->
-    #{cvv => Value};
+    #{type => cvv, value => Value};
 decode_auth_data({auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
-    #{cryptogram => Cryptogram, eci => ECI}.
+    #{type => '3ds', cryptogram => Cryptogram, eci => ECI}.
 
 encode_card_data({CardData, #{auth_data := AuthData}}) ->
     V = encode_cardholder_data(CardData),
-    case AuthData of
-        #{cvv := Value} ->
-            V#'CardData'{cvv = Value};
-        #{cryptogram := _Cryptogram} ->
+    case maps:get(type, AuthData) of
+        cvv ->
+            V#'CardData'{cvv = maps:get(value, AuthData)};
+        '3ds' ->
             V
     end.
 
@@ -149,9 +149,9 @@ encode_cardholder_data(#{
 encode_session_data(#{auth_data := AuthData}) ->
     #'SessionData'{auth_data = encode_auth_data(AuthData)}.
 
-encode_auth_data(#{cvv := Value}) ->
+encode_auth_data(#{type := cvv, value := Value}) ->
     {card_security_code, #'CardSecurityCode'{value = Value}};
-encode_auth_data(#{cryptogram := Cryptogram, eci := ECI}) ->
+encode_auth_data(#{type := '3ds', cryptogram := Cryptogram, eci := ECI}) ->
     {auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}.
 
 %
