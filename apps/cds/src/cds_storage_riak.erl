@@ -357,7 +357,7 @@ prepare_token_obj(Token, CardData, Hash, KeyID) ->
 
 prepare_metadata(Obj, Meta) ->
     MD = riakc_obj:get_update_metadata(Obj),
-    riakc_obj:set_user_metadata_entry(MD, {<<"metadata">>, Meta}).
+    riakc_obj:set_user_metadata_entry(MD, {<<"encrypted-application-metadata">>, Meta}).
 
 set_indexes(Obj, Indexes) ->
     MD1 = riakc_obj:get_update_metadata(Obj),
@@ -449,7 +449,7 @@ prepare_options(Opts) ->
 get_session_data_with_meta(Obj) ->
     SD = riakc_obj:get_value(Obj),
     MD = riakc_obj:get_update_metadata(Obj),
-    case riakc_obj:get_user_metadata_entry(MD, <<"metadata">>) of
+    case riakc_obj:get_user_metadata_entry(MD, <<"encrypted-application-metadata">>) of
         Meta when is_binary(Meta) ->
             {SD, Meta};
         notfound ->

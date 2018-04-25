@@ -110,7 +110,9 @@ detect_payment_system(0, _) ->
 
 %%
 
--type metadata() :: binary().
+-type metadata() :: #{
+    content_type := string()
+}.
 
 -type marshalled() :: binary() | {binary(), metadata()}.
 
@@ -133,7 +135,7 @@ marshal_cardholder_data(#{
 marshal_session_data(SessionData) ->
     {
         msgpack:pack(marshal(session_data, SessionData)),
-        term_to_binary(#{content_type => "application/msgpack", vsn => 1})
+        #{content_type => "application/msgpack"}
     }.
 
 marshal(cardholder, V) when is_binary(V) ->
@@ -141,7 +143,7 @@ marshal(cardholder, V) when is_binary(V) ->
 marshal(cardholder, undefined) ->
     <<>>;
 marshal(session_data, #{auth_data := AuthData}) ->
-    #{<<"auth_data">> => marshal(auth_data, AuthData)};
+    #{<<"auth_data">> => marshal(auth_data, AuthData), <<"vsn">> => <<"1">>};
 marshal(auth_data, #{type := cvv, value := Value}) ->
     #{<<"type">> => <<"cvv">>, <<"value">> => Value};
 marshal(auth_data, #{type := '3ds', cryptogram := Cryptogram} = Data) ->
@@ -161,9 +163,7 @@ unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardhold
 
 unmarshal_session_data(CVV) when is_binary(CVV) ->
     #{auth_data => #{type => cvv, value => CVV}};
-unmarshal_session_data({SessionData, Metadata}) when is_binary(Metadata) ->
-    unmarshal_session_data({SessionData, binary_to_term(Metadata)});
-unmarshal_session_data({SessionData, #{content_type := "application/msgpack", vsn := 1}}) ->
+unmarshal_session_data({SessionData, #{content_type := "application/msgpack"}}) ->
     {ok, UnpackedSessionData} = msgpack:unpack(SessionData),
     unmarshal(session_data, UnpackedSessionData).
 
@@ -171,7 +171,7 @@ unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
     V;
 unmarshal(cardholder, <<>>) ->
     undefined;
-unmarshal(session_data, #{<<"auth_data">> := AuthData}) ->
+unmarshal(session_data, #{<<"auth_data">> := AuthData, <<"vsn">> := <<"1">>}) ->
     #{auth_data => unmarshal(auth_data, AuthData)};
 unmarshal(auth_data, #{<<"type">> := <<"cvv">>, <<"value">> := Value}) ->
     #{type => cvv, value => Value};
