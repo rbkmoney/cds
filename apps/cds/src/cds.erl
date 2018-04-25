@@ -32,7 +32,7 @@
 -type hash() :: binary().
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
--type metadata() :: #{content_type := string()}.
+-type metadata() :: #{binary() := binary()}.
 -type ciphermeta() :: binary().
 -type plaintext() :: binary() | {binary(), metadata()}.
 -type ciphertext() :: binary() | {binary(), ciphermeta()}. % <<KeyID/byte, EncryptedData/binary>>
@@ -170,14 +170,15 @@ update_session_data(Session, SessionData) ->
 -spec encrypt(plaintext(), {cds_keyring:key_id(), cds_keyring:key()}) -> ciphertext().
 
 encrypt({Data, Metadata}, Keyring) ->
-    {encrypt(Data, Keyring), encrypt(term_to_binary(Metadata), Keyring)};
+    {encrypt(Data, Keyring), encrypt(msgpack:pack(Metadata), Keyring)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
     <<KeyID, Cipher/binary>>.
 
 -spec decrypt(ciphertext(), cds_keyring:keyring()) -> plaintext().
 decrypt({Data, Metadata}, Keyring) ->
-    {decrypt(Data, Keyring), binary_to_term(decrypt(Metadata, Keyring))};
+    {ok, DecryptedMetadata} = msgpack:unpack(decrypt(Metadata, Keyring)),
+    {decrypt(Data, Keyring), DecryptedMetadata};
 decrypt(<<KeyID, Cipher/binary>>, Keyring) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID, Keyring),
     cds_crypto:decrypt(Key, Cipher).
