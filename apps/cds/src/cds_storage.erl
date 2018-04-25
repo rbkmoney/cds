@@ -165,7 +165,7 @@ update_cardholder_data(Token, CardData, Hash, KeyID) ->
 
 -spec update_session_data(
     cds:session(),
-    cds:ciphertext() | cds:ciphertext(),
+    cds:ciphertext(),
     cds_keyring:key_id()
 ) -> ok.
 update_session_data(Session, SessionData, KeyID) ->

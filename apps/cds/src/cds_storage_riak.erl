@@ -180,7 +180,7 @@ update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
 
 -spec update_session_data(
     cds:session(),
-    NewSessionData :: cds:ciphertext() | cds:ciphertext(),
+    NewSessionData :: cds:ciphertext(),
     cds_keyring:key_id()
 ) ->
     ok | {error, not_found}.
