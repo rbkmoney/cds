@@ -4,14 +4,14 @@
 -export([start/0]).
 
 %% Single object functions
--export([get_cvv/1]).
 -export([get_token/1]).
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([put_card_data/7]).
+-export([get_session_data/1]).
 -export([delete_session/1]).
--export([update_cvv/3]).
 -export([update_cardholder_data/4]).
+-export([update_session_data/3]).
 -export([refresh_session_created_at/1]).
 
 %% Many objects functions
@@ -120,10 +120,9 @@ get_cardholder_data(Token) ->
 
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
-        {ok, [CvvObj, CardDataObj]} ->
+        {ok, [SessionDataObj, CardDataObj]} ->
             CardData = riakc_obj:get_value(CardDataObj),
-            Cvv = riakc_obj:get_value(CvvObj),
-            {ok, {CardData, Cvv}};
+            {ok, {CardData, get_session_data_with_meta(SessionDataObj)}};
         {error, notfound} ->
             {error, not_found};
         {error, Reason} ->
@@ -135,17 +134,30 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    CVV :: cds:ciphertext(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
 
-put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     TokenObj = prepare_token_obj(Token, CardData, Hash, KeyID),
-    SessionObj = prepare_session_obj(Session, Cvv, CreatedAt, KeyID),
+    SessionObj = prepare_session_obj(Session, SessionData, CreatedAt, KeyID),
     case batch_put([[TokenObj], [SessionObj]]) of
         ok ->
             ok;
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+-spec get_session_data(cds:session()) ->
+    {ok, cds:ciphertext()} | {error, not_found}.
+
+get_session_data(Session) ->
+    case get(?SESSION_BUCKET, Session) of
+        {ok, SessionDataObj} ->
+            {ok, get_session_data_with_meta(SessionDataObj)};
+        {error, notfound} ->
+            {error, not_found};
         {error, Reason} ->
             error(Reason)
     end.
@@ -160,29 +172,21 @@ delete_session(Session) ->
             error(Reason)
     end.
 
--spec get_cvv(cds:session()) -> {ok, cds:ciphertext()} | {error, not_found}.
-
-get_cvv(Session) ->
-    case get(?SESSION_BUCKET, Session) of
-        {ok, SessionObj} ->
-            Cvv = riakc_obj:get_value(SessionObj),
-            {ok, Cvv};
-        {error, notfound} ->
-            {error, not_found};
-        {error, Reason} ->
-            error(Reason)
-    end.
-
--spec update_cvv(cds:session(), NewCvv :: cds:ciphertext(), cds_keyring:key_id()) -> ok | {error, not_found}.
-
-update_cvv(Session, NewCvv, KeyID) ->
-    update(?SESSION_BUCKET, Session, NewCvv, [{?KEY_ID_INDEX, KeyID}]).
-
 -spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
     ok | {error, not_found}.
 
 update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
     update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
+
+-spec update_session_data(
+    cds:session(),
+    NewSessionData :: cds:ciphertext(),
+    cds_keyring:key_id()
+) ->
+    ok | {error, not_found}.
+
+update_session_data(Session, NewSessionData, KeyID) ->
+    update(?SESSION_BUCKET, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec refresh_session_created_at(cds:session()) -> ok.
 
@@ -328,13 +332,14 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
-prepare_session_obj(Session, Cvv, CreatedAt, KeyID) ->
-    case riakc_obj:new(?SESSION_BUCKET, Session, Cvv)  of
+prepare_session_obj(Session, {SessionData, Metadata}, CreatedAt, KeyID) ->
+    case riakc_obj:new(?SESSION_BUCKET, Session, SessionData) of
         Error = {error, _} ->
             error(Error);
-        Obj ->
+        Obj0 ->
+            Obj1 = riakc_obj:update_metadata(Obj0, prepare_metadata(Obj0, Metadata)),
             set_indexes(
-                Obj,
+                Obj1,
                 [{?CREATED_AT_INDEX, CreatedAt}, {?KEY_ID_INDEX, KeyID}]
             )
     end.
@@ -349,6 +354,10 @@ prepare_token_obj(Token, CardData, Hash, KeyID) ->
                 [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}]
             )
     end.
+
+prepare_metadata(Obj, Meta) ->
+    MD = riakc_obj:get_update_metadata(Obj),
+    riakc_obj:set_user_metadata_entry(MD, {<<"encrypted-application-metadata">>, Meta}).
 
 set_indexes(Obj, Indexes) ->
     MD1 = riakc_obj:get_update_metadata(Obj),
@@ -366,6 +375,10 @@ update(Tab, Key, Value, Indexes) ->
             error(Reason)
     end.
 
+update(Obj0, {Value, Metadata}, Indexes) ->
+    Obj1 = riakc_obj:update_value(Obj0, Value),
+    Obj2 = riakc_obj:update_metadata(Obj1, prepare_metadata(Obj1, Metadata)),
+    update_indexes(Obj2, Indexes);
 update(Obj0, Value, Indexes) ->
     Obj = riakc_obj:update_value(Obj0, Value),
     update_indexes(Obj, Indexes).
@@ -432,3 +445,13 @@ construct_index_query_options(Limit, Continuation) ->
 
 prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
+
+get_session_data_with_meta(Obj) ->
+    SD = riakc_obj:get_value(Obj),
+    MD = riakc_obj:get_update_metadata(Obj),
+    case riakc_obj:get_user_metadata_entry(MD, <<"encrypted-application-metadata">>) of
+        Meta when is_binary(Meta) ->
+            {SD, Meta};
+        notfound ->
+            SD
+    end.
