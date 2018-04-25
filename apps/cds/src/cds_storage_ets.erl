@@ -80,7 +80,7 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphermsgpack_with_meta()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case get_session_data(Session) of
@@ -100,7 +100,7 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphermsgpack_with_meta(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
@@ -130,7 +130,7 @@ put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     ),
     ok.
 
--spec get_session_data(cds:session()) -> {ok, cds:ciphermsgpack_with_meta()} | {error, not_found}.
+-spec get_session_data(cds:session()) -> {ok, cds:ciphertext()} | {error, not_found}.
 
 get_session_data(Session) ->
     case get(?SESSION_TABLE, Session) of
@@ -154,7 +154,7 @@ update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
 
 -spec update_session_data(
     cds:session(),
-    NewSessionData :: cds:ciphertext() | cds:ciphermsgpack_with_meta(),
+    NewSessionData :: cds:ciphertext() | cds:ciphertext(),
     cds_keyring:key_id()
 ) ->
     ok | {error, not_found}.

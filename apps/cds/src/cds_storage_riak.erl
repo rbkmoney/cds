@@ -116,7 +116,7 @@ get_cardholder_data(Token) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphermsgpack_with_meta()}} | {error, not_found}.
+    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
 
 get_session_card_data(Token, Session) ->
     case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
@@ -134,15 +134,14 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphermsgpack_with_meta(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
 
-put_card_data(Token, Session, Hash, CardData, {SessionData, Metadata}, KeyID, CreatedAt) ->
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     TokenObj = prepare_token_obj(Token, CardData, Hash, KeyID),
-    ContentType = maps:get(content_type, Metadata),
-    SessionObj = prepare_session_obj(Session, SessionData, ContentType, CreatedAt, KeyID),
+    SessionObj = prepare_session_obj(Session, SessionData, CreatedAt, KeyID),
     case batch_put([[TokenObj], [SessionObj]]) of
         ok ->
             ok;
@@ -151,7 +150,7 @@ put_card_data(Token, Session, Hash, CardData, {SessionData, Metadata}, KeyID, Cr
     end.
 
 -spec get_session_data(cds:session()) ->
-    {ok, cds:ciphermsgpack_with_meta()} | {error, not_found}.
+    {ok, cds:ciphertext()} | {error, not_found}.
 
 get_session_data(Session) ->
     case get(?SESSION_BUCKET, Session) of
@@ -181,15 +180,13 @@ update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
 
 -spec update_session_data(
     cds:session(),
-    NewSessionData :: cds:ciphertext() | cds:ciphermsgpack_with_meta(),
+    NewSessionData :: cds:ciphertext() | cds:ciphertext(),
     cds_keyring:key_id()
 ) ->
     ok | {error, not_found}.
 
-update_session_data(Session, NewSessionData, KeyID) when is_binary(NewSessionData) ->
-    update(?SESSION_BUCKET, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]);
-update_session_data(Session, {NewSessionData, #{content_type := ContentType}}, KeyID) ->
-    update(?SESSION_BUCKET, Session, NewSessionData, ContentType, [{?KEY_ID_INDEX, KeyID}]).
+update_session_data(Session, NewSessionData, KeyID) ->
+    update(?SESSION_BUCKET, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]).
 
 -spec refresh_session_created_at(cds:session()) -> ok.
 
@@ -335,13 +332,14 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
-prepare_session_obj(Session, SessionData, ContentType, CreatedAt, KeyID) ->
-    case riakc_obj:new(?SESSION_BUCKET, Session, SessionData, ContentType) of
+prepare_session_obj(Session, {SessionData, Metadata}, CreatedAt, KeyID) ->
+    case riakc_obj:new(?SESSION_BUCKET, Session, SessionData) of
         Error = {error, _} ->
             error(Error);
-        Obj ->
+        Obj0 ->
+            Obj1 = riakc_obj:update_metadata(Obj0, prepare_metadata(Obj0, Metadata)),
             set_indexes(
-                Obj,
+                Obj1,
                 [{?CREATED_AT_INDEX, CreatedAt}, {?KEY_ID_INDEX, KeyID}]
             )
     end.
@@ -357,6 +355,10 @@ prepare_token_obj(Token, CardData, Hash, KeyID) ->
             )
     end.
 
+prepare_metadata(Obj, Meta) ->
+    MD = riakc_obj:get_update_metadata(Obj),
+    riakc_obj:set_user_metadata_entry(MD, {<<"metadata">>, Meta}).
+
 set_indexes(Obj, Indexes) ->
     MD1 = riakc_obj:get_update_metadata(Obj),
     MD2 = riakc_obj:set_secondary_index(
@@ -365,27 +367,19 @@ set_indexes(Obj, Indexes) ->
     ),
     riakc_obj:update_metadata(Obj, MD2).
 
-update(Tab, Key, Value, ContentType, Indexes) ->
-    case get(Tab, Key) of
-        {ok, Obj0} ->
-            do_update(Obj0, Value, ContentType, Indexes);
-        {error, Reason} ->
-            error(Reason)
-    end.
-
 update(Tab, Key, Value, Indexes) ->
     case get(Tab, Key) of
         {ok, Obj0} ->
-            do_update(Obj0, Value, Indexes);
+            update(Obj0, Value, Indexes);
         {error, Reason} ->
             error(Reason)
     end.
 
-do_update(Obj0, Value, ContentType, Indexes) ->
-    Obj = riakc_obj:update_value(Obj0, Value, ContentType),
-    update_indexes(Obj, Indexes).
-
-do_update(Obj0, Value, Indexes) ->
+update(Obj0, {Value, Metadata}, Indexes) ->
+    Obj1 = riakc_obj:update_value(Obj0, Value),
+    Obj2 = riakc_obj:update_metadata(Obj1, prepare_metadata(Obj1, Metadata)),
+    update_indexes(Obj2, Indexes);
+update(Obj0, Value, Indexes) ->
     Obj = riakc_obj:update_value(Obj0, Value),
     update_indexes(Obj, Indexes).
 
@@ -453,11 +447,11 @@ prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
 
 get_session_data_with_meta(Obj) ->
-    SessionContentType = case riakc_obj:get_content_type(Obj) of
-        "application/x-erlang-binary" ->
-            "application/vnd.cds.encrypted-session.v1";
-        Other ->
-            Other
-    end,
-    SessionData = riakc_obj:get_value(Obj),
-    {SessionData, #{content_type => SessionContentType}}.
+    SD = riakc_obj:get_value(Obj),
+    MD = riakc_obj:get_update_metadata(Obj),
+    case riakc_obj:get_user_metadata_entry(MD, <<"metadata">>) of
+        Meta when is_binary(Meta) ->
+            {SD, Meta};
+        notfound ->
+            SD
+    end.

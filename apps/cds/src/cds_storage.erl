@@ -10,23 +10,23 @@
 -callback get_token(cds:hash()) -> {ok, cds:token()} | {error, not_found}.
 -callback get_cardholder_data(cds:token()) -> {ok, cds:ciphertext()} | {error, not_found}.
 -callback get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {CardData :: cds:ciphertext(), SessionData :: cds:ciphermsgpack_with_meta()}} | {error, not_found}.
+    {ok, {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()}} | {error, not_found}.
 -callback put_card_data(
     cds:token(),
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphermsgpack_with_meta(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
 -callback get_session_data(cds:session()) ->
-    {ok, SessionData :: cds:ciphermsgpack_with_meta()} | {error, not_found}.
+    {ok, SessionData :: cds:ciphertext()} | {error, not_found}.
 -callback update_cardholder_data(cds:token(), CardData :: cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
     ok | {error, not_found}.
 -callback update_session_data(
     cds:session(),
-    cds:ciphertext() | cds:ciphermsgpack_with_meta(),
+    cds:ciphertext() | cds:ciphertext(),
     cds_keyring:key_id()
 ) ->
     ok | {error, not_found}.
@@ -86,7 +86,7 @@ get_cardholder_data(Token) ->
     cds_backend:call(storage, get_cardholder_data, [Token]).
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {CardData :: cds:ciphertext(), SessionData :: cds:ciphermsgpack_with_meta()} | no_return().
+    {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
 get_session_card_data(Token, Session) ->
     cds_backend:call(storage, get_session_card_data, [Token, Session]).
 
@@ -95,14 +95,14 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphermsgpack_with_meta(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok | no_return().
 put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
     cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt]).
 
--spec get_session_data(cds:session()) -> cds:ciphermsgpack_with_meta() | no_return().
+-spec get_session_data(cds:session()) -> cds:ciphertext() | no_return().
 get_session_data(Session) ->
     cds_backend:call(storage, get_session_data, [Session]).
 
@@ -165,7 +165,7 @@ update_cardholder_data(Token, CardData, Hash, KeyID) ->
 
 -spec update_session_data(
     cds:session(),
-    cds:ciphertext() | cds:ciphermsgpack_with_meta(),
+    cds:ciphertext() | cds:ciphertext(),
     cds_keyring:key_id()
 ) -> ok.
 update_session_data(Session, SessionData, KeyID) ->

@@ -31,7 +31,7 @@
 -type '3ds'() :: #{
     type := '3ds',
     cryptogram := binary(),
-    eci := binary() | undefined
+    eci => binary()
 }.
 
 -type session_data() :: #{
@@ -110,9 +110,7 @@ detect_payment_system(0, _) ->
 
 %%
 
--type metadata() :: #{
-    content_type := string()
-}.
+-type metadata() :: binary().
 
 -type marshalled() :: binary() | {binary(), metadata()}.
 
@@ -130,15 +128,25 @@ marshal_cardholder_data(#{
         (marshal(cardholder, Cardholder))/binary
     >>.
 
-marshal(cardholder, V) when is_binary(V) ->
-    V;
-marshal(cardholder, undefined) ->
-    <<>>.
-
 -spec marshal_session_data(session_data()) -> marshalled().
 
 marshal_session_data(SessionData) ->
-    {msgpack:pack(SessionData), #{content_type => "application/msgpack"}}.
+    {
+        msgpack:pack(marshal(session_data, SessionData)),
+        term_to_binary(#{content_type => "application/msgpack", vsn => 1})
+    }.
+
+marshal(cardholder, V) when is_binary(V) ->
+    V;
+marshal(cardholder, undefined) ->
+    <<>>;
+marshal(session_data, #{auth_data := AuthData}) ->
+    #{<<"auth_data">> => marshal(auth_data, AuthData)};
+marshal(auth_data, #{type := cvv, value := Value}) ->
+    #{<<"type">> => <<"cvv">>, <<"value">> => Value};
+marshal(auth_data, #{type := '3ds', cryptogram := Cryptogram} = Data) ->
+    ECI = genlib_map:get(eci, Data),
+    genlib_map:compact(#{<<"type">> => <<"3ds">>, <<"cryptogram">> => Cryptogram, <<"eci">> => ECI}).
 
 -spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
@@ -149,26 +157,27 @@ unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardhold
         cardholder => unmarshal(cardholder, Cardholder)
     }.
 
+-spec unmarshal_session_data(marshalled()) -> session_data().
+
+unmarshal_session_data(CVV) when is_binary(CVV) ->
+    #{auth_data => #{type => cvv, value => CVV}};
+unmarshal_session_data({SessionData, Metadata}) when is_binary(Metadata) ->
+    unmarshal_session_data({SessionData, binary_to_term(Metadata)});
+unmarshal_session_data({SessionData, #{content_type := "application/msgpack", vsn := 1}}) ->
+    {ok, UnpackedSessionData} = msgpack:unpack(SessionData),
+    unmarshal(session_data, UnpackedSessionData).
+
 unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
     V;
 unmarshal(cardholder, <<>>) ->
-    undefined.
-
--spec unmarshal_session_data(marshalled()) -> session_data().
-
-unmarshal_session_data(SessionData) when is_binary(SessionData) ->
-    SessionData;
-unmarshal_session_data({SessionData, #{content_type := "application/msgpack"}}) ->
-    {ok, UnpackedSessionData} = msgpack:unpack(SessionData),
-    normalize_session_data(UnpackedSessionData).
-
-normalize_session_data(#{<<"auth_data">> := AuthData}) ->
-    #{auth_data => normalize_auth_data(AuthData)}.
-
-normalize_auth_data(#{<<"type">> := <<"cvv">>, <<"value">> := Value}) ->
+    undefined;
+unmarshal(session_data, #{<<"auth_data">> := AuthData}) ->
+    #{auth_data => unmarshal(auth_data, AuthData)};
+unmarshal(auth_data, #{<<"type">> := <<"cvv">>, <<"value">> := Value}) ->
     #{type => cvv, value => Value};
-normalize_auth_data(#{<<"type">> := <<"3ds">>, <<"cryptogram">> := Cryptogram, <<"eci">> := ECI}) ->
-    #{type => '3ds', cryptogram => Cryptogram, eci => ECI}.
+unmarshal(auth_data, #{<<"type">> := <<"3ds">>, <<"cryptogram">> := Cryptogram} = Data) ->
+    ECI = genlib_map:get(<<"eci">>, Data),
+    genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
 -spec unique(binary()) -> binary().
 

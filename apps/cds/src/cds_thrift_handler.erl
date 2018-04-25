@@ -123,7 +123,7 @@ decode_session_data(#'SessionData'{auth_data = AuthData}) ->
 decode_auth_data({card_security_code, #'CardSecurityCode'{value = Value}}) ->
     #{type => cvv, value => Value};
 decode_auth_data({auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
-    #{type => '3ds', cryptogram => Cryptogram, eci => ECI}.
+    genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
 encode_card_data({CardData, #{auth_data := AuthData}}) ->
     V = encode_cardholder_data(CardData),
@@ -151,7 +151,8 @@ encode_session_data(#{auth_data := AuthData}) ->
 
 encode_auth_data(#{type := cvv, value := Value}) ->
     {card_security_code, #'CardSecurityCode'{value = Value}};
-encode_auth_data(#{type := '3ds', cryptogram := Cryptogram, eci := ECI}) ->
+encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
+    ECI = genlib_map:get(eci, Data),
     {auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}.
 
 %

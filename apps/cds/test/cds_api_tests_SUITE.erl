@@ -392,29 +392,29 @@ recrypt(C) ->
         exp_date => {12, 3000},
         cardholder => <<"Tony Stark">>
     },
-    SessionDataCVV = #{auth_data => #{cvv => <<"345">>}},
+    SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
     {TokenCVV, SessionCVV} = cds:put_card_data({
         cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionDataCVV)
     }),
 
-    SessionData3DS = #{auth_data => #{cryptogram => <<"cryptogram">>, eci => <<"5">>}},
+    SessionData3DS = #{auth_data => #{type => '3ds', cryptogram => <<"cryptogram">>, eci => <<"5">>}},
     {Token3DS, Session3DS} = cds:put_card_data({
         cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData3DS)
     }),
 
-    {EncryptedCardDataCVV0, {EncryptedSessionDataCVV0, _}} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
+    {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
     <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
-    <<KeyID0, _/binary>> = EncryptedSessionDataCVV0,
+    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
     _ = cds_keyring_manager:rotate(),
     [{recrypting, #{
         interval := Interval
     }}] = config(recrypting_config, C),
 
-    {EncryptedCardData3DS0, {EncryptedSessionData3DS0, _}} = cds_storage:get_session_card_data(Token3DS, Session3DS),
+    {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_storage:get_session_card_data(Token3DS, Session3DS),
     <<KeyID0, _/binary>> = EncryptedCardData3DS0,
-    <<KeyID0, _/binary>> = EncryptedSessionData3DS0,
+    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
     _ = cds_keyring_manager:rotate(),
     [{recrypting, #{
         interval := Interval
@@ -424,13 +424,13 @@ recrypt(C) ->
     _ = timer:sleep(Interval * 3),
     {KeyID, _} = cds_keyring_manager:get_current_key(),
     true = (KeyID0 =/= KeyID),
-    {EncryptedCardDataCVV, {EncryptedSessionDataCVV, _}} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
+    {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
     <<KeyID, _/binary>> = EncryptedCardDataCVV,
-    <<KeyID, _/binary>> = EncryptedSessionDataCVV,
+    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
 
-    {EncryptedCardData3DS, {EncryptedSessionData3DS, _}} = cds_storage:get_session_card_data(Token3DS, Session3DS),
+    {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_storage:get_session_card_data(Token3DS, Session3DS),
     <<KeyID, _/binary>> = EncryptedCardData3DS,
-    <<KeyID, _/binary>> = EncryptedSessionData3DS.
+    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
 
 %%
 %% helpers
