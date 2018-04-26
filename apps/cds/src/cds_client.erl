@@ -3,6 +3,7 @@
 %% Storage operations
 -export([get_card_data/2]).
 -export([get_session_card_data/3]).
+-export([put_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
 
@@ -26,7 +27,13 @@ get_card_data(Token, RootUrl) ->
 get_session_card_data(Token, Session, RootUrl) ->
     call('GetSessionCardData', [Token, Session], RootUrl).
 
--spec put_card_data(dmsl_cds_thrift:'CardData'(), dmsl_cds_thrift:'SessionData'(), woody:url()) -> result().
+-spec put_card_data(dmsl_cds_thrift:'CardData'(), woody:url()) -> result().
+
+put_card_data(CardData, RootUrl) ->
+    put_card_data(CardData, undefined, RootUrl).
+
+-spec put_card_data(dmsl_cds_thrift:'CardData'(), dmsl_cds_thrift:'SessionData'() | undefined, woody:url()) ->
+    result().
 
 put_card_data(CardData, SessionData, RootUrl) ->
     call('PutCardData', [CardData, SessionData], RootUrl).

@@ -68,7 +68,9 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     end;
 handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
-    OwnSessionData = decode_session_data(SessionData),
+    OwnSessionData = decode_session_data(
+        define_session_data(SessionData, CardData)
+    ),
     try
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
@@ -174,6 +176,11 @@ put_card_data(CardholderData, SessionData) ->
 get_session_data(Session) ->
     SessionData = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
+
+define_session_data(undefined, #'CardData'{cvv = CVV}) ->
+    #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
+define_session_data(#'SessionData'{} = SessionData, _CardData) ->
+    SessionData.
 
 -spec raise_keyring_unavailable(locked | not_initialized) ->
     no_return().
