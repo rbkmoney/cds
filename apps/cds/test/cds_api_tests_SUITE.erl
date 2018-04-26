@@ -20,6 +20,7 @@
 -export([put_card_data_backward_compatibilty/1]).
 -export([get_card_data_backward_compatibilty/1]).
 -export([get_session_data_backward_compatibilty/1]).
+-export([get_session_card_data_backward_compatibilty/1]).
 -export([rotate/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
@@ -98,6 +99,7 @@ groups() ->
             put_card_data_backward_compatibilty,
             get_card_data_backward_compatibilty,
             get_session_data_backward_compatibilty,
+            get_session_card_data_backward_compatibilty,
             rotate
         ]},
         {keyring_errors, [sequence], [
@@ -294,6 +296,11 @@ get_card_data_backward_compatibilty(C) ->
 
 get_session_data_backward_compatibilty(C) ->
     ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+
+-spec get_session_card_data_backward_compatibilty(config()) -> _.
+
+get_session_card_data_backward_compatibilty(C) ->
+    ?CREDIT_CARD(?CVV) = cds_client:get_session_card_data(lookup(token, C), lookup(session, C), root_url(C)).
 
 -spec rotate(config()) -> _.
 
