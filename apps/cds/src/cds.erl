@@ -17,10 +17,10 @@
 -export([get_cardholder_data/1]).
 -export([get_card_data/2]).
 -export([put_card_data/1]).
+-export([get_session_data/1]).
 
--export([get_cvv/1]).
--export([update_cvv/2]).
 -export([update_cardholder_data/2]).
+-export([update_session_data/2]).
 
 %%
 -export_type([hash/0]).
@@ -32,8 +32,10 @@
 -type hash() :: binary().
 -type token() :: <<_:128>>.
 -type session() :: <<_:128>>.
--type plaintext() :: binary().
--type ciphertext() :: binary(). % <<KeyID/byte, EncryptedData/binary>>
+-type metadata() :: #{binary() := binary()}.
+-type ciphermeta() :: binary().
+-type plaintext() :: binary() | {binary(), metadata()}.
+-type ciphertext() :: binary() | {binary(), ciphermeta()}. % <<KeyID/byte, EncryptedData/binary>>
 
 %%
 %% API
@@ -120,39 +122,33 @@ get_cardholder_data(Token) ->
 -spec get_card_data(token(), session()) -> {plaintext(), plaintext()}.
 get_card_data(Token, Session) ->
     Keyring = cds_keyring_manager:get_keyring(),
-    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
-    {decrypt(EncryptedCardData, Keyring), decrypt(EncryptedCvv, Keyring)}.
+    {EncryptedCardData, EncryptedSessionData} = cds_storage:get_session_card_data(Token, Session),
+    {decrypt(EncryptedCardData, Keyring), decrypt(EncryptedSessionData, Keyring)}.
 
 -spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
-put_card_data({MarshalledCardData, Cvv}) ->
+put_card_data({MarshalledCardData, MarshalledSessionData}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
     {Token, Hash} = find_or_create_token(UniqueCardData),
     Session = session(),
     {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
-    EncryptedCvv = encrypt(Cvv, CurrentKey),
+    EncryptedSessionData = encrypt(MarshalledSessionData, CurrentKey),
     ok = cds_storage:put_card_data(
         Token,
         Session,
         Hash,
         EncryptedCardData,
-        EncryptedCvv,
+        EncryptedSessionData,
         KeyID,
         cds_utils:current_time()
     ),
     {Token, Session}.
 
--spec get_cvv(session()) -> plaintext().
-get_cvv(Session) ->
+-spec get_session_data(session()) -> plaintext().
+get_session_data(Session) ->
     Keyring = cds_keyring_manager:get_keyring(),
-    EncryptedCvv = cds_storage:get_cvv(Session),
-    decrypt(EncryptedCvv, Keyring).
-
--spec update_cvv(session(), plaintext()) -> ok.
-update_cvv(Session, Cvv) ->
-    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
-    EncryptedCvv = encrypt(Cvv, CurrentKey),
-    cds_storage:update_cvv(Session, EncryptedCvv, KeyID).
+    Encrypted = cds_storage:get_session_data(Session),
+    decrypt(Encrypted, Keyring).
 
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
@@ -161,16 +157,28 @@ update_cardholder_data(Token, CardData) ->
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
+-spec update_session_data(session(), plaintext()) -> ok.
+update_session_data(Session, SessionData) ->
+    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    EncryptedSessionData = encrypt(SessionData, CurrentKey),
+    cds_storage:update_session_data(Session, EncryptedSessionData, KeyID).
+
 %%
 %% Internals
 %%
 
 -spec encrypt(plaintext(), {cds_keyring:key_id(), cds_keyring:key()}) -> ciphertext().
+
+encrypt({Data, Metadata}, Keyring) ->
+    {encrypt(Data, Keyring), encrypt(msgpack:pack(Metadata), Keyring)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
     <<KeyID, Cipher/binary>>.
 
 -spec decrypt(ciphertext(), cds_keyring:keyring()) -> plaintext().
+decrypt({Data, Metadata}, Keyring) ->
+    {ok, DecryptedMetadata} = msgpack:unpack(decrypt(Metadata, Keyring)),
+    {decrypt(Data, Keyring), DecryptedMetadata};
 decrypt(<<KeyID, Cipher/binary>>, Keyring) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID, Keyring),
     cds_crypto:decrypt(Key, Cipher).

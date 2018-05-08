@@ -99,8 +99,7 @@ encode(carddata, Token) ->
     cds_utils:encode_token(Token).
 
 recrypt(session, Session) ->
-    CVV = cds:get_cvv(Session),
-    cds:update_cvv(Session, CVV);
+    cds:update_session_data(Session, cds:get_session_data(Session));
 
 recrypt(carddata, Token) ->
     CardData = cds:get_cardholder_data(Token),

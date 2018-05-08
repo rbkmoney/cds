@@ -15,7 +15,8 @@
         lager,
         lager_logstash_formatter,
         dmsl,
-        erl_health
+        erl_health,
+        msgpack
     ]},
     {env, []},
     {modules, []},

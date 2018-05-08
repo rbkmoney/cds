@@ -10,19 +10,25 @@
 -callback get_token(cds:hash()) -> {ok, cds:token()} | {error, not_found}.
 -callback get_cardholder_data(cds:token()) -> {ok, cds:ciphertext()} | {error, not_found}.
 -callback get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {CardData :: cds:ciphertext(), CVV :: cds:ciphertext()}} | {error, not_found}.
+    {ok, {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()}} | {error, not_found}.
 -callback put_card_data(
     cds:token(),
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    CVV :: cds:ciphertext(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok.
--callback get_cvv(cds:token()) -> {ok, CVV :: cds:ciphertext()} | {error, not_found}.
--callback update_cvv(cds:session(), CVV :: cds:ciphertext(), cds_keyring:key_id()) -> ok | {error, not_found}.
+-callback get_session_data(cds:session()) ->
+    {ok, SessionData :: cds:ciphertext()} | {error, not_found}.
 -callback update_cardholder_data(cds:token(), CardData :: cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
+    ok | {error, not_found}.
+-callback update_session_data(
+    cds:session(),
+    cds:ciphertext() | cds:ciphertext(),
+    cds_keyring:key_id()
+) ->
     ok | {error, not_found}.
 -callback refresh_session_created_at(cds:session()) -> ok.
 -callback delete_session(binary()) -> ok.
@@ -54,14 +60,14 @@
 -export([get_token/1]).
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
+-export([get_session_data/1]).
 -export([put_card_data/7]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/4]).
 -export([get_tokens_by_key_id_between/4]).
 -export([get_sessions_by_key_id_between/4]).
--export([get_cvv/1]).
--export([update_cvv/3]).
 -export([update_cardholder_data/4]).
+-export([update_session_data/3]).
 -export([refresh_session_created_at/1]).
 -export([get_sessions/2]).
 -export([get_sessions_info/2]).
@@ -80,7 +86,7 @@ get_cardholder_data(Token) ->
     cds_backend:call(storage, get_cardholder_data, [Token]).
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {CardData :: cds:ciphertext(), CVV :: cds:ciphertext()} | no_return().
+    {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
 get_session_card_data(Token, Session) ->
     cds_backend:call(storage, get_session_card_data, [Token, Session]).
 
@@ -89,12 +95,16 @@ get_session_card_data(Token, Session) ->
     cds:session(),
     cds:hash(),
     CardData :: cds:ciphertext(),
-    CVV :: cds:ciphertext(),
+    SessionData :: cds:ciphertext(),
     cds_keyring:key_id(),
     timestamp()
 ) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt) ->
-    cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, Cvv, KeyID, CreatedAt]).
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
+    cds_backend:call(storage, put_card_data, [Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt]).
+
+-spec get_session_data(cds:session()) -> cds:ciphertext() | no_return().
+get_session_data(Session) ->
+    cds_backend:call(storage, get_session_data, [Session]).
 
 -spec delete_session(cds:session()) -> ok | no_return().
 delete_session(Session) ->
@@ -149,15 +159,14 @@ get_sessions_info(Limit, Continuation) ->
 get_tokens(Limit, Continuation) ->
     cds_backend:call(storage, get_tokens, [Limit, Continuation]).
 
--spec get_cvv(cds:session()) -> cds:ciphertext().
-get_cvv(Session) ->
-    cds_backend:call(storage, get_cvv, [Session]).
-
--spec update_cvv(cds:session(), cds:ciphertext(), cds_keyring:key_id()) -> ok.
-update_cvv(Session, Cvv, KeyID) ->
-    cds_backend:call(storage, update_cvv, [Session, Cvv, KeyID]).
-
 -spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) -> ok.
 update_cardholder_data(Token, CardData, Hash, KeyID) ->
     cds_backend:call(storage, update_cardholder_data, [Token, CardData, Hash, KeyID]).
 
+-spec update_session_data(
+    cds:session(),
+    cds:ciphertext(),
+    cds_keyring:key_id()
+) -> ok.
+update_session_data(Session, SessionData, KeyID) ->
+    cds_backend:call(storage, update_session_data, [Session, SessionData, KeyID]).

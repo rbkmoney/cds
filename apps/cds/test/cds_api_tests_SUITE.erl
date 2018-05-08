@@ -13,6 +13,14 @@
 -export([unlock/1]).
 -export([put_card_data/1]).
 -export([get_card_data/1]).
+-export([get_session_data/1]).
+-export([put_card_data_3ds/1]).
+-export([get_card_data_3ds/1]).
+-export([get_session_data_3ds/1]).
+-export([put_card_data_backward_compatibilty/1]).
+-export([get_card_data_backward_compatibilty/1]).
+-export([get_session_data_backward_compatibilty/1]).
+-export([get_session_card_data_backward_compatibilty/1]).
 -export([rotate/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
@@ -21,12 +29,26 @@
 -export([lock_no_keyring/1]).
 -export([rotate_keyring_locked/1]).
 -export([put_card_data_unavailable/1]).
+-export([put_card_data_3ds_unavailable/1]).
 -export([get_card_data_unavailable/1]).
 -export([get_session_card_data_unavailable/1]).
 
 %%
 
 -define(CVV, <<"777">>).
+-define(CARD_SEC_CODE(Value), {card_security_code, #'CardSecurityCode'{
+    value = Value
+}}).
+
+-define(AUTH_3DS, {auth_3ds, #'Auth3DS'{
+    cryptogram = <<"somecryptogram">>,
+    eci = <<"5">>
+}}).
+
+-define(SESSION_DATA(AuthData), #'SessionData'{
+    auth_data = AuthData
+}).
+
 -define(CREDIT_CARD(CVV), #'CardData'{
     pan = <<"5321301234567892">>,
     exp_date = #'ExpDate'{
@@ -68,11 +90,22 @@ groups() ->
             unlock,
             put_card_data,
             get_card_data,
+            get_session_data,
+            rotate,
+            put_card_data_3ds,
+            get_card_data_3ds,
+            get_session_data_3ds,
+            rotate,
+            put_card_data_backward_compatibilty,
+            get_card_data_backward_compatibilty,
+            get_session_data_backward_compatibilty,
+            get_session_card_data_backward_compatibilty,
             rotate
         ]},
         {keyring_errors, [sequence], [
             get_card_data_unavailable,
             put_card_data_unavailable,
+            put_card_data_3ds_unavailable,
             lock_no_keyring,
             init,
             init_keyring_exists,
@@ -81,6 +114,7 @@ groups() ->
             init_keyring_exists,
             rotate_keyring_locked,
             put_card_data_unavailable,
+            put_card_data_3ds_unavailable,
             get_card_data_unavailable,
             get_session_card_data_unavailable
         ]},
@@ -199,22 +233,74 @@ put_card_data(C) ->
         exp_date = #'ExpDate'{
             month = 12,
             year = 3000
-        },
-        cvv = <<"123">>
+        }
     },
-    #'PutCardDataResult'{} = cds_client:put_card_data(CardData, root_url(C)),
+    #'PutCardDataResult'{} = cds_client:put_card_data(CardData, ?SESSION_DATA(?CARD_SEC_CODE(<<"123">>)), root_url(C)),
     % check with cardholder
     #'PutCardDataResult'{
         bank_card = #domain_BankCard{
             token = Token
-        }
-    } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
-    store(token, Token, C).
+        },
+        session_id = Session
+    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
+    store([{token, Token}, {session, Session}], C).
 
 -spec get_card_data(config()) -> _.
 
 get_card_data(C) ->
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
+
+-spec get_session_data(config()) -> _.
+
+get_session_data(C) ->
+    ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+
+-spec put_card_data_3ds(config()) -> _.
+
+put_card_data_3ds(C) ->
+    #'PutCardDataResult'{
+        bank_card = #domain_BankCard{
+            token = Token
+        },
+        session_id = Session
+    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?AUTH_3DS), root_url(C)),
+    store([{token, Token}, {session, Session}], C).
+
+-spec get_card_data_3ds(config()) -> _.
+
+get_card_data_3ds(C) ->
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
+
+-spec get_session_data_3ds(config()) -> _.
+
+get_session_data_3ds(C) ->
+    ?SESSION_DATA(?AUTH_3DS) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+
+-spec put_card_data_backward_compatibilty(config()) -> _.
+
+put_card_data_backward_compatibilty(C) ->
+    #'PutCardDataResult'{
+        bank_card = #domain_BankCard{
+            token = Token
+        },
+        session_id = Session
+    } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
+    store([{token, Token}, {session, Session}], C).
+
+-spec get_card_data_backward_compatibilty(config()) -> _.
+
+get_card_data_backward_compatibilty(C) ->
+    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
+
+-spec get_session_data_backward_compatibilty(config()) -> _.
+
+get_session_data_backward_compatibilty(C) ->
+    ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+
+-spec get_session_card_data_backward_compatibilty(config()) -> _.
+
+get_session_card_data_backward_compatibilty(C) ->
+    ?CREDIT_CARD(?CVV) = cds_client:get_session_card_data(lookup(token, C), lookup(session, C), root_url(C)).
 
 -spec rotate(config()) -> _.
 
@@ -253,7 +339,15 @@ get_session_card_data_unavailable(C) ->
 -spec put_card_data_unavailable(config()) -> _.
 
 put_card_data_unavailable(C) ->
-    try cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)) catch
+    try cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)) catch
+        error:{woody_error, {external, resource_unavailable, _}} ->
+            ok
+    end.
+
+-spec put_card_data_3ds_unavailable(config()) -> _.
+
+put_card_data_3ds_unavailable(C) ->
+    try cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?AUTH_3DS), root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} ->
             ok
     end.
@@ -266,7 +360,7 @@ session_cleaning(C) ->
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
+    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
 
     ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
     ?CREDIT_CARD(?CVV) = cds_client:get_session_card_data(Token, Session, root_url(C)),
@@ -293,7 +387,7 @@ refresh_sessions(C) ->
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(<<"345">>), root_url(C)),
+    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(<<"345">>)), root_url(C)),
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
@@ -333,25 +427,45 @@ recrypt(C) ->
         exp_date => {12, 3000},
         cardholder => <<"Tony Stark">>
     },
-    CVV = <<"345">>,
-    {Token, Session} = cds:put_card_data({
+    SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
+    {TokenCVV, SessionCVV} = cds:put_card_data({
         cds_card_data:marshal_cardholder_data(CardholderData),
-        cds_card_data:marshal_cvv(CVV)
+        cds_card_data:marshal_session_data(SessionDataCVV)
     }),
-    {EncryptedCardData0, EncryptedCvv0} = cds_storage:get_session_card_data(Token, Session),
-    <<KeyID0, _/binary>> = EncryptedCardData0,
-    <<KeyID0, _/binary>> = EncryptedCvv0,
+
+    SessionData3DS = #{auth_data => #{type => '3ds', cryptogram => <<"cryptogram">>, eci => <<"5">>}},
+    {Token3DS, Session3DS} = cds:put_card_data({
+        cds_card_data:marshal_cardholder_data(CardholderData),
+        cds_card_data:marshal_session_data(SessionData3DS)
+    }),
+
+    {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
+    <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
+    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
     _ = cds_keyring_manager:rotate(),
     [{recrypting, #{
         interval := Interval
     }}] = config(recrypting_config, C),
+
+    {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_storage:get_session_card_data(Token3DS, Session3DS),
+    <<KeyID0, _/binary>> = EncryptedCardData3DS0,
+    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
+    _ = cds_keyring_manager:rotate(),
+    [{recrypting, #{
+        interval := Interval
+    }}] = config(recrypting_config, C),
+
     % we should meet reencryption at least once _after_ rotation
     _ = timer:sleep(Interval * 3),
     {KeyID, _} = cds_keyring_manager:get_current_key(),
     true = (KeyID0 =/= KeyID),
-    {EncryptedCardData, EncryptedCvv} = cds_storage:get_session_card_data(Token, Session),
-    <<KeyID, _/binary>> = EncryptedCardData,
-    <<KeyID, _/binary>> = EncryptedCvv.
+    {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_storage:get_session_card_data(TokenCVV, SessionCVV),
+    <<KeyID, _/binary>> = EncryptedCardDataCVV,
+    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
+
+    {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_storage:get_session_card_data(Token3DS, Session3DS),
+    <<KeyID, _/binary>> = EncryptedCardData3DS,
+    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
 
 %%
 %% helpers
@@ -446,6 +560,9 @@ start_stash(C) ->
 
 stop_stash(C) ->
     cds_ct_stash:stop(config(stash, C)).
+
+store(KVs, C) when is_list(KVs) ->
+    [store(Key, Value, C) || {Key, Value} <- KVs].
 
 store(Key, Value, C) ->
     cds_ct_stash:put(config(stash, C), Key, Value).

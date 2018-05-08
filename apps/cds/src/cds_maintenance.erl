@@ -1,7 +1,8 @@
 -module(cds_maintenance).
 
 -export([refresh_sessions_created_at/0]).
--export([refresh_cvv_encryption/0]).
+-export([refresh_session_data_encryption/0]).
+
 -export([refresh_cardholder_encryption/0]).
 -export([get_sessions_info/0]).
 
@@ -18,14 +19,14 @@ refresh_sessions_created_at() ->
     Refresher = fun(Key) -> cds_storage:refresh_session_created_at(Key) end,
     refresh(Getter, Refresher).
 
--spec refresh_cvv_encryption() -> ok.
+-spec refresh_session_data_encryption() -> ok.
 
-refresh_cvv_encryption() ->
+refresh_session_data_encryption() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
-        CVV = cds:get_cvv(Key),
-        cds:update_cvv(Key, CVV)
+        SessionData = cds:get_session_data(Key),
+        cds:update_session_data(Key, SessionData)
     end,
     refresh(Getter, Refresher).
 
