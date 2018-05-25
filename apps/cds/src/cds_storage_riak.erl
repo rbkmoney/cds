@@ -89,9 +89,10 @@ get_token(Hash) ->
             {ok, Token};
         {ok, {[], _}} ->
             get_token_old_style(Hash);
-        {ok, {[_ | _OtherTokens], _}} ->
+        {ok, {ManyTokens, _}} ->
             % This shouldnt happen, but we need to react somehow.
-            error({<<"Hash collision detected">>, Hash})
+            _ = assert_card_data_equal(ManyTokens, Hash),
+            {ok, hd(ManyTokens)}
     end.
 
 get_token_old_style(Hash) ->
@@ -455,3 +456,12 @@ get_session_data_with_meta(Obj) ->
         notfound ->
             SD
     end.
+
+assert_card_data_equal([Token | OtherTokens], Hash) ->
+    FirstData = get_cardholder_data(Token),
+    lists:all(
+        fun(T) ->
+              FirstData =:= get_cardholder_data(T)
+        end,
+        OtherTokens
+    ) orelse error({<<"Hash collision detected">>, Hash}).
