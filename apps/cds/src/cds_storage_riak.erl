@@ -458,6 +458,7 @@ get_session_data_with_meta(Obj) ->
     end.
 
 assert_card_data_equal([Token | OtherTokens], Hash) ->
+    % TODO same card data could be encrypted with different keys
     FirstData = get_cardholder_data(Token),
     lists:all(
         fun(T) ->
