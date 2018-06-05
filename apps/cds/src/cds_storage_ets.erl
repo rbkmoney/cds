@@ -3,23 +3,14 @@
 -behaviour(gen_server).
 
 %% cds_storage behaviour
--export([start/0]).
--export([get_token/1]).
--export([get_cardholder_data/1]).
--export([get_session_card_data/2]).
--export([put_card_data/7]).
--export([get_session_data/1]).
--export([delete_session/1]).
--export([update_cardholder_data/4]).
--export([update_session_data/3]).
--export([refresh_session_created_at/1]).
-
--export([get_sessions_created_between/4]).
--export([get_tokens_by_key_id_between/4]).
--export([get_sessions_by_key_id_between/4]).
--export([get_sessions/2]).
--export([get_sessions_info/2]).
--export([get_tokens/2]).
+-export([start/1]).
+-export([put/5]).
+-export([get/2]).
+-export([update/5]).
+-export([delete/2]).
+-export([search_by_index_value/5]).
+-export([search_by_index_range/6]).
+-export([get_keys/3]).
 
 %% gen_server behaviour
 -export([init/1]).
@@ -29,186 +20,91 @@
 -export([handle_info/2]).
 -export([code_change/3]).
 
--define(TOKEN_TABLE, cds_ets_storage_token).
--define(SESSION_TABLE, cds_ets_storage_session).
-
-
--define(CREATED_AT_INDEX, "created_at").
--define(KEY_ID_INDEX, "encoding_key_id").
--define(CARD_DATA_HASH_INDEX, "card_data_salted_hash").
-
 %%
 %% cds_storage behaviour
 %%
+-type namespace()   :: cds_storage:namespace().
+-type key()         :: cds_storage:key().
+-type data()        :: cds_storage:data().
+-type metadata()    :: cds_storage:metadata().
+-type indexes()     :: cds_storage:indexes().
+-type index_id()        :: cds_storage:index_id().
+-type index_value()     :: cds_storage:index_value().
+-type limit()           :: cds_storage:limit().
+-type continuation()    :: term().
 
--type limit() :: non_neg_integer() | undefined.
--type batch_response(DataType) :: {ok, {[DataType], continuation()}}.
--type continuation() :: term().
--type timestamp() :: pos_integer().
-
--spec start() -> ok.
-
-start() ->
+-spec start([namespace()]) -> ok.
+start(NSlist) ->
     ChildSpec = #{
         id => ?MODULE,
-        start => {gen_server, start_link, [?MODULE, [], []]}
+        start => {gen_server, start_link, [?MODULE, NSlist, []]}
     },
     {ok, _Child} = supervisor:start_child(cds, ChildSpec),
     ok.
 
--spec get_token(cds:hash()) -> {ok, cds:token()} | {error, not_found}.
+-spec put(namespace(), key(), data(), metadata(), indexes()) -> ok.
+put(NS, Key, Data, Meta, Indexes) ->
+    true = put_(NS, Key, Data, Meta, Indexes),
+    ok.
 
-get_token(Hash) ->
-    case get_keys_by_index_value(?TOKEN_TABLE, ?CARD_DATA_HASH_INDEX, Hash, 2) of
-        {ok, {[Token], _}} ->
-            {ok, Token};
-        {ok, {[_ | _OtherTokens], _}} ->
-            % This shouldnt happen, but we need to react somehow.
-            error({<<"Hash collision detected">>, Hash});
-        {ok, {[], _}} ->
+-spec get(namespace(), key()) -> {ok, {data(), metadata()}} | {error, not_found}.
+get(NS, Key) ->
+    case get_(NS, Key) of
+        {ok, Data, Meta, _Indexes} ->
+            {ok, {Data, Meta}};
+        {error, not_found} ->
             {error, not_found}
     end.
 
--spec get_cardholder_data(cds:token()) -> {ok, cds:ciphertext()} | {error, not_found}.
-
-get_cardholder_data(Token) ->
-    case get(?TOKEN_TABLE, Token) of
-        {ok, V, _Index} ->
-            {ok, V};
-        Error ->
-            Error
-    end.
-
--spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
-
-get_session_card_data(Token, Session) ->
-    case get_session_data(Session) of
-        {ok, SessionData} ->
-            case get_cardholder_data(Token) of
-                {ok, CardData} ->
-                    {ok, {CardData, SessionData}};
-                Error ->
-                    Error
-            end;
-        Error ->
-            Error
-    end.
-
--spec put_card_data(
-    cds:token(),
-    cds:session(),
-    cds:hash(),
-    CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphertext(),
-    cds_keyring:key_id(),
-    timestamp()
-) -> ok.
-
-put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
-    true = insert(
-        ?TOKEN_TABLE,
-        {
-            Token,
-            CardData
-        },
-        #{
-            ?KEY_ID_INDEX => KeyID,
-            ?CARD_DATA_HASH_INDEX => Hash
-        }
-    ),
-    true = insert(
-        ?SESSION_TABLE,
-        {
-            Session,
-            SessionData
-        },
-        #{
-            ?CREATED_AT_INDEX => CreatedAt,
-            ?KEY_ID_INDEX => KeyID
-        }
-    ),
-    ok.
-
--spec get_session_data(cds:session()) -> {ok, cds:ciphertext()} | {error, not_found}.
-
-get_session_data(Session) ->
-    case get(?SESSION_TABLE, Session) of
-        {ok, SessionData, _} ->
-            {ok, SessionData};
-        Error ->
-            Error
-    end.
-
--spec delete_session(cds:session()) -> ok.
-
-delete_session(Session) ->
-    true = ets:delete(?SESSION_TABLE, Session),
-    ok.
-
--spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
-    ok | {error, not_found}.
-
-update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
-    update(?TOKEN_TABLE, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
-
--spec update_session_data(
-    cds:session(),
-    NewSessionData :: cds:ciphertext(),
-    cds_keyring:key_id()
-) ->
-    ok | {error, not_found}.
-
-update_session_data(Session, NewSessionData, KeyID) ->
-    update(?SESSION_TABLE, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]).
-
--spec refresh_session_created_at(cds:session()) -> ok.
-
-refresh_session_created_at(Session) ->
-    case get(?SESSION_TABLE, Session) of
-        {ok, Value, _} ->
-            update(?SESSION_TABLE, Session, Value, [{?CREATED_AT_INDEX, cds_utils:current_time()}]);
+-spec update(namespace(), key(), data(), metadata(), indexes()) -> ok | {error, not_found}.
+update(NS, Key, Data, Meta, Indexes) ->
+    case get_(NS, Key) of
+        {ok, _, _, OldIndex} ->
+            NewIndexes = update_indexes(OldIndex, Indexes),
+            true = put_(NS, Key, Data, Meta, NewIndexes),
+            ok;
         {error, not_found} ->
-            ok
+            {error, not_found}
     end.
 
--spec get_sessions_created_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
-    batch_response(cds:session()) | no_return().
+-spec delete(namespace(), key()) -> ok | {error, not_found}.
+delete(NS, Key) ->
+    true = ets:delete(table_name(NS), Key),
+    ok.
 
-get_sessions_created_between(From, To, Limit, Continuation) ->
-    get_keys_by_index_range(?SESSION_TABLE, ?CREATED_AT_INDEX, {From, To}, Limit, Continuation).
+-spec search_by_index_value(
+    namespace(),
+    index_id(),
+    index_value(),
+    limit(),
+    continuation()
+) ->
+    {ok, {[key()], continuation()}}.
+search_by_index_value(NS, IndexName, IndexValue, Limit, Continuation) ->
+    get_keys_by_index_range(NS, IndexName, IndexValue, IndexValue, Limit, Continuation).
 
--spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
-    batch_response(cds:session()) | no_return().
+-spec search_by_index_range(
+    namespace(),
+    index_id(),
+    StartValue :: index_value(),
+    EndValue :: index_value(),
+    limit(),
+    continuation()
+) ->
+    {ok, {[key()], continuation()}}.
+search_by_index_range(NS, IndexName, StartValue, EndValue, Limit, Continuation) ->
+    get_keys_by_index_range(NS, IndexName, StartValue, EndValue, Limit, Continuation).
 
-get_sessions_by_key_id_between(From, To, Limit, Continuation) ->
-    get_keys_by_index_range(?SESSION_TABLE, ?KEY_ID_INDEX, {From, To}, Limit, Continuation).
-
--spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
-    batch_response(cds:token()) | no_return().
-
-get_tokens_by_key_id_between(From, To, Limit, Continuation) ->
-    get_keys_by_index_range(?TOKEN_TABLE, ?KEY_ID_INDEX, {From, To}, Limit, Continuation).
-
--spec get_sessions(limit(), continuation()) -> batch_response(cds:session()) | no_return().
-
-get_sessions(Limit, Continuation) ->
-    get_keys(?SESSION_TABLE, Limit, Continuation).
-
--spec get_sessions_info(limit(), continuation()) ->
-    {ok, {[{cds:session(), Info :: map()}], continuation()}} | no_return().
-
-get_sessions_info(Limit, Continuation) ->
-    {ok, {Keys, Cont}} = get_keys(?SESSION_TABLE, Limit, Continuation),
-    F = fun(K) ->
-        {K, #{}}
-    end,
-    {ok, {[F(Key) || Key <- Keys], Cont}}.
-
--spec get_tokens(limit(), continuation()) -> batch_response(cds:token()) | no_return().
-
-get_tokens(Limit, Continuation) ->
-    get_keys(?TOKEN_TABLE, Limit, Continuation).
+-spec get_keys(namespace(), limit(), continuation()) -> {ok, {[key()], continuation()}}.
+get_keys(NS, Limit, Continuation) ->
+    MatchSpec = [{
+        {'$1', '_', '_'},
+        [],
+        ['$1']
+    }],
+    prepare_keys_result(
+        select(table_name(NS), MatchSpec, Limit, Continuation)
+    ).
 
 %%
 %% gen_server behaviour
@@ -216,11 +112,16 @@ get_tokens(Limit, Continuation) ->
 
 -type state() :: {}.
 
--spec init([]) -> {ok, state()}.
+-spec init([namespace()]) -> {ok, state()}.
 
-init([]) ->
-    ?TOKEN_TABLE = ets:new(?TOKEN_TABLE, [named_table, public]),
-    ?SESSION_TABLE = ets:new(?SESSION_TABLE, [named_table, public]),
+init(NSlist) ->
+    lists:foreach(
+        fun(NS) ->
+            TableName = table_name(NS),
+            TableName = ets:new(TableName, [named_table, public])
+        end,
+        NSlist
+    ),
     {ok, {}}.
 
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, ok, state()}.
@@ -248,37 +149,28 @@ terminate(_Reason, _State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
-%% Internals
+%%
+%% Internal
+%%
 
-insert(Tab, {Key, Value}, Index) ->
-    true = ets:insert(Tab, {Key, Value, Index}).
+put_(NS, Key, Value, Meta, Index) ->
+    true = ets:insert(table_name(NS), {Key, {Value, Meta}, Index}).
 
-get(Tab, Key) ->
-    case ets:lookup(Tab, Key) of
-        [{_K, V, Index}] ->
-            {ok, V, Index};
+get_(NS, Key) ->
+    case ets:lookup(table_name(NS), Key) of
+        [{_K, {Value, Meta}, Index}] ->
+            {ok, Value, Meta, Index};
         [] ->
             {error, not_found}
     end.
 
-get_keys(Tab, Limit, Continuation) ->
-    MatchSpec = [{
-        {'$1', '_', '_'},
-        [],
-        ['$1']
-    }],
-    prepare_keys_result(select(Tab, MatchSpec, Limit, Continuation)).
-
-get_keys_by_index_value(Tab, IndexName, IndexValue, Limit) ->
-    get_keys_by_index_range(Tab, IndexName, {IndexValue, IndexValue}, Limit, undefined).
-
-get_keys_by_index_range(Tab, IndexName, {From, To}, Limit, Continuation) ->
+get_keys_by_index_range(NS, IndexName, From, To, Limit, Continuation) ->
     MatchSpec = [{
         {'$1', '_', #{IndexName => '$2'}},
         [{'=<', {const, From}, '$2'}, {'=<', '$2', {const, To}}],
         ['$1']
     }],
-    prepare_keys_result(select(Tab, MatchSpec, Limit, Continuation)).
+    prepare_keys_result(select(table_name(NS), MatchSpec, Limit, Continuation)).
 
 select(Tab, MatchSpec, undefined, undefined) ->
     ets:select(Tab, MatchSpec);
@@ -288,19 +180,6 @@ select(Tab, MatchSpec, Limit, undefined) when Limit > 0 ->
 
 select(_, _, _, Continuation) ->
     ets:select(Continuation).
-
-update(Tab, Key, NewValue, NewIndexes) ->
-    case get(Tab, Key) of
-        {ok, _, OldIndex} ->
-            true = insert(
-                Tab,
-                {Key, NewValue},
-                update_indexes(OldIndex, NewIndexes)
-            ),
-            ok;
-        Error ->
-            Error
-    end.
 
 update_indexes(Old, Indexes) ->
     lists:foldl(
@@ -317,3 +196,6 @@ prepare_keys_result({Keys, Continuation}) when is_list(Keys) ->
     {ok, {Keys, Continuation}};
 prepare_keys_result('$end_of_table') ->
     {ok, {[], undefined}}.
+
+table_name(NS) ->
+    binary_to_atom(NS, utf8).
