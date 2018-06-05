@@ -57,12 +57,12 @@ handle_timeout(State = #{continuation := Continuation0}) ->
 
 clean_sessions(From, To, BatchSize, Continuation0) ->
     try
-        {Sessions, Continuation} = cds_storage:get_sessions_created_between(From, To, BatchSize, Continuation0),
+        {Sessions, Continuation} = cds_card_storage:get_sessions_created_between(From, To, BatchSize, Continuation0),
         SessionsSize = length(Sessions),
         _ = lager:info("Got ~p sessions to clean", [SessionsSize]),
         _ = [
             begin
-            _ = cds_storage:delete_session(ID),
+            _ = cds_card_storage:delete_session(ID),
             lager:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
             end
         || ID <- Sessions],

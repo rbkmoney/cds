@@ -77,10 +77,10 @@ process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0) ->
     process_recrypting(Subject, Rest, BatchSize - Count, Continuation).
 
 get_data_by_key_id_between(session, {From, To}, BatchSize, Continuation) ->
-    cds_storage:get_sessions_by_key_id_between(From, To, BatchSize, Continuation);
+    cds_card_storage:get_sessions_by_key_id_between(From, To, BatchSize, Continuation);
 
 get_data_by_key_id_between(carddata, {From, To}, BatchSize, Continuation) ->
-    cds_storage:get_tokens_by_key_id_between(From, To, BatchSize, Continuation).
+    cds_card_storage:get_tokens_by_key_id_between(From, To, BatchSize, Continuation).
 
 recrypt_item(Subject, ItemID) ->
     try
