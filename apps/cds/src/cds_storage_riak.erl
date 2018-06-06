@@ -69,13 +69,14 @@ put(NS, Key, Data, Meta, Indexes) ->
             error(Reason)
     end.
 
--spec get(namespace(), key()) -> {ok, {data(), metadata()}} | {error, not_found}.
+-spec get(namespace(), key()) -> {ok, {data(), metadata(), indexes()}} | {error, not_found}.
 get(NS, Key) ->
     case get_(NS, Key) of
         {ok, DataObj} ->
             Data = riakc_obj:get_value(DataObj),
             Meta = get_metadata(DataObj),
-            {ok, {Data, Meta}};
+            Indexes = get_indexes(DataObj),
+            {ok, {Data, Meta, Indexes}};
         Error ->
             Error
     end.
@@ -238,8 +239,7 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
     end.
 
 -spec prepare_index_result({ok, index_results()} | {error, Reason :: term()}) ->
-    {[key()], continuation()} | no_return().
-
+    {ok, {[key()], continuation()}} | no_return().
 prepare_index_result(Result) ->
     case Result of
         {ok, [#index_results_v1{keys = Keys, continuation = Continuation}]} when Keys =/= undefined ->
@@ -265,6 +265,7 @@ prepare_object(NS, Key, Data, Meta, Indexes) ->
             set_indexes(Obj1, Indexes)
     end.
 
+-spec set_indexes(riakc_obj(), indexes()) -> riakc_obj().
 set_indexes(Obj, Indexes) ->
     MD1 = riakc_obj:get_update_metadata(Obj),
     MD2 = riakc_obj:set_secondary_index(
@@ -273,16 +274,24 @@ set_indexes(Obj, Indexes) ->
     ),
     riakc_obj:update_metadata(Obj, MD2).
 
+-spec get_indexes(riakc_obj()) -> indexes().
+get_indexes(Obj) ->
+    MD = riakc_obj:get_metadata(Obj),
+    Indexes = riakc_obj:get_secondary_indexes(MD),
+    [{Index, Value} || {Index, [Value]} <- Indexes].
+
+-spec set_metadata(riakc_obj(), metadata()) -> riakc_obj().
 set_metadata(Obj, Meta) ->
     MD0 = riakc_obj:get_update_metadata(Obj),
     MD1 = riakc_obj:set_user_metadata_entry(MD0, {<<"encrypted-application-metadata">>, Meta}),
     riakc_obj:update_metadata(Obj, MD1).
 
+-spec get_metadata(riakc_obj()) -> metadata().
 get_metadata(Obj) ->
     MD = riakc_obj:get_update_metadata(Obj),
     case riakc_obj:get_user_metadata_entry(MD, <<"encrypted-application-metadata">>) of
         Meta when is_binary(Meta) ->
             Meta;
         notfound ->
-            #{}
+            <<"">>
     end.

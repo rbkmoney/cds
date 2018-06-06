@@ -44,14 +44,14 @@ start(NSlist) ->
 
 -spec put(namespace(), key(), data(), metadata(), indexes()) -> ok.
 put(NS, Key, Data, Meta, Indexes) ->
-    true = put_(NS, Key, Data, Meta, Indexes),
+    true = put_(NS, Key, Data, Meta, encode_indexes(Indexes)),
     ok.
 
--spec get(namespace(), key()) -> {ok, {data(), metadata()}} | {error, not_found}.
+-spec get(namespace(), key()) -> {ok, {data(), metadata(), indexes()}} | {error, not_found}.
 get(NS, Key) ->
     case get_(NS, Key) of
-        {ok, Data, Meta, _Indexes} ->
-            {ok, {Data, Meta}};
+        {ok, Data, Meta, Indexes} ->
+            {ok, {Data, Meta, decode_indexes(Indexes)}};
         {error, not_found} ->
             {error, not_found}
     end.
@@ -60,7 +60,7 @@ get(NS, Key) ->
 update(NS, Key, Data, Meta, Indexes) ->
     case get_(NS, Key) of
         {ok, _, _, OldIndex} ->
-            NewIndexes = update_indexes(OldIndex, Indexes),
+            NewIndexes = maps:merge(OldIndex, encode_indexes(Indexes)),
             true = put_(NS, Key, Data, Meta, NewIndexes),
             ok;
         {error, not_found} ->
@@ -181,14 +181,11 @@ select(Tab, MatchSpec, Limit, undefined) when Limit > 0 ->
 select(_, _, _, Continuation) ->
     ets:select(Continuation).
 
-update_indexes(Old, Indexes) ->
-    lists:foldl(
-        fun({K, V}, Acc) ->
-            maps:put(K, V, Acc)
-        end,
-        Old,
-        Indexes
-    ).
+encode_indexes(Indexes) when is_list(Indexes) ->
+    maps:from_list(Indexes).
+
+decode_indexes(Indexes) when is_map(Indexes) ->
+    maps:to_list(Indexes).
 
 prepare_keys_result(Keys) when is_list(Keys) ->
     {ok, {Keys, undefined}};

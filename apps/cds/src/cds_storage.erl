@@ -33,7 +33,7 @@
 
 -callback start(list(namespace())) -> ok.
 -callback put(namespace(), key(), data(), metadata(), indexes()) -> ok.
--callback get(namespace(), key()) -> {ok, {data(), metadata()}} | {error, not_found}.
+-callback get(namespace(), key()) -> {ok, {data(), metadata(), indexes()}} | {error, not_found}.
 -callback update(namespace(), key(), data(), metadata(), indexes()) -> ok | {error, not_found}.
 -callback delete(namespace(), key()) -> ok | {error, not_found}.
 
@@ -75,7 +75,7 @@ start(NSlist) ->
 put(NS, Key, Data, Meta, Indexes) ->
     cds_backend:call(storage, put, [NS, Key, Data, Meta, Indexes]).
 
--spec get(namespace(), key()) -> {data(), metadata()} | no_return().
+-spec get(namespace(), key()) -> {data(), metadata(), indexes()} | no_return().
 get(NS, Key) ->
     cds_backend:call(storage, get, [NS, Key]).
 

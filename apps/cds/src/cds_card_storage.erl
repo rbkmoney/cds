@@ -51,12 +51,13 @@ get_token(Hash) ->
 
 -spec get_cardholder_data(cds:token()) -> cds:ciphertext() | no_return().
 get_cardholder_data(Token) ->
-    {CardData, _} = cds_storage:get(?TOKEN_NS, Token),
+    {CardData, _, _} = cds_storage:get(?TOKEN_NS, Token),
     CardData.
 
 -spec get_session_data(cds:session()) -> cds:ciphertext() | no_return().
 get_session_data(Session) ->
-    cds_storage:get(?SESSION_NS, Session).
+    {Data, Meta, _} = cds_storage:get(?SESSION_NS, Session),
+    {Data, Meta}.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
     {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
@@ -121,7 +122,7 @@ get_tokens_by_key_id_between(From, To, Limit, Continuation) when From =< To ->
 
 -spec refresh_session_created_at(cds:session()) -> ok.
 refresh_session_created_at(Session) ->
-    {Data, Meta} = cds_storage:get(?SESSION_NS, Session),
+    {Data, Meta, _} = cds_storage:get(?SESSION_NS, Session),
     ok = cds_storage:update(
         ?SESSION_NS,
         Session,
@@ -135,9 +136,25 @@ get_sessions(Limit, Continuation) ->
     cds_storage:get_keys(?SESSION_NS, Limit, Continuation).
 
 -spec get_sessions_info(limit(), continuation()) -> {[{cds:session(), Info :: map()}], continuation()} | no_return().
-get_sessions_info(_Limit, _Continuation) ->
-    %% TODO need `some_fun(NS, Key)` to get index vaules
-    error(not_implemented).
+get_sessions_info(Limit, Continuation) ->
+    {Keys, Cont} = cds_storage:get_keys(?SESSION_NS, Limit, Continuation),
+    SessionsInfo = lists:foldl(
+        fun(K, Acc) ->
+            try
+                {_, _, Indexes} = cds_storage:get(?SESSION_NS, K),
+                {?CREATED_AT_INDEX, CreatedAt} = lists:keyfind(?CREATED_AT_INDEX, 1, Indexes),
+                [{K, #{lifetime => cds_utils:current_time() - CreatedAt}} | Acc]
+            catch
+                not_found ->
+                    Acc;
+                Class:Error ->
+                    [{K, #{error => {Class, Error}}} | Acc]
+            end
+        end,
+        [],
+        Keys
+    ),
+    {SessionsInfo, Cont}.
 
 -spec get_tokens(limit(), continuation()) -> {[cds:token()], continuation()} | no_return().
 get_tokens(Limit, Continuation) ->
@@ -175,7 +192,7 @@ prepare_card_data_indexes(Hash, KeyID) ->
     [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}].
 
 get_token_old_style(Hash) ->
-    {Token, _} = cds_storage:get(?HASH_NS, Hash),
+    {Token, _, _} = cds_storage:get(?HASH_NS, Hash),
     Token.
 
 assert_card_data_equal([Token | OtherTokens], Hash) ->
