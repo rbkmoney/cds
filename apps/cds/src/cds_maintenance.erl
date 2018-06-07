@@ -15,15 +15,15 @@
 
 refresh_sessions_created_at() ->
     ok = assert_keyring_available(),
-    Getter = fun(Continuation) -> cds_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
-    Refresher = fun(Key) -> cds_storage:refresh_session_created_at(Key) end,
+    Getter = fun(Continuation) -> cds_card_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
+    Refresher = fun(Key) -> cds_card_storage:refresh_session_created_at(Key) end,
     refresh(Getter, Refresher).
 
 -spec refresh_session_data_encryption() -> ok.
 
 refresh_session_data_encryption() ->
     ok = assert_keyring_available(),
-    Getter = fun(Continuation) -> cds_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
+    Getter = fun(Continuation) -> cds_card_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
         SessionData = cds:get_session_data(Key),
         cds:update_session_data(Key, SessionData)
@@ -34,7 +34,7 @@ refresh_session_data_encryption() ->
 
 refresh_cardholder_encryption() ->
     ok = assert_keyring_available(),
-    Getter = fun(Continuation) -> cds_storage:get_tokens(?REFRESH_BATCH, Continuation) end,
+    Getter = fun(Continuation) -> cds_card_storage:get_tokens(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
         CardData = cds:get_cardholder_data(Key),
         cds:update_cardholder_data(Key, CardData)
@@ -45,7 +45,7 @@ refresh_cardholder_encryption() ->
 
 get_sessions_info() ->
     ok = assert_keyring_available(),
-    Getter = fun(Continuation) -> cds_storage:get_sessions_info(?REFRESH_BATCH, Continuation) end,
+    Getter = fun(Continuation) -> cds_card_storage:get_sessions_info(?REFRESH_BATCH, Continuation) end,
     Refresher = fun({Session, SessionInfo}) ->
         Key = cds_utils:encode_session(Session),
         case SessionInfo of

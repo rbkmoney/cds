@@ -1,37 +1,16 @@
 -module(cds_storage_riak).
 -behaviour(cds_storage).
 
--export([start/0]).
-
-%% Single object functions
--export([get_token/1]).
--export([get_cardholder_data/1]).
--export([get_session_card_data/2]).
--export([put_card_data/7]).
--export([get_session_data/1]).
--export([delete_session/1]).
--export([update_cardholder_data/4]).
--export([update_session_data/3]).
--export([refresh_session_created_at/1]).
-
-%% Many objects functions
--export([get_sessions_created_between/4]).
--export([get_tokens_by_key_id_between/4]).
--export([get_sessions_by_key_id_between/4]).
--export([get_sessions/2]).
--export([get_sessions_info/2]).
--export([get_tokens/2]).
-
+-export([start/1]).
+-export([put/5]).
+-export([get/2]).
+-export([update/5]).
+-export([delete/2]).
+-export([search_by_index_value/5]).
+-export([search_by_index_range/6]).
+-export([get_keys/3]).
 
 -include_lib("riakc/include/riakc.hrl").
-
--define(TOKEN_BUCKET, <<"t">>).
--define(HASH_BUCKET, <<"h">>).
--define(SESSION_BUCKET, <<"s">>).
-
--define(CREATED_AT_INDEX, {integer_index, "created_at"}).
--define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
--define(CARD_DATA_HASH_INDEX, {binary_index, "card_data_salted_hash"}).
 
 -define(POOLER_TIMEOUT, {5, sec}).
 -define(DEFAULT_TIMEOUT, 5000). % milliseconds
@@ -66,201 +45,117 @@
 %%
 %% cds_storage behaviour
 %%
+-type namespace()   :: cds_storage:namespace().
+-type data()        :: cds_storage:data().
+-type metadata()    :: cds_storage:metadata().
+-type indexes()     :: cds_storage:indexes().
+-type index_id()    :: cds_storage:index_id().
+-type index_value() :: cds_storage:index_value().
+-type limit()       :: cds_storage:limit().
 
--type limit() :: non_neg_integer() | undefined.
--type batch_response(DataType) :: {ok, {[DataType], continuation()}}.
--type timestamp() :: pos_integer().
+-spec start([namespace()]) -> ok.
 
--spec start() -> ok.
-
-start() ->
+start(NSlist) ->
     _ = start_pool(get_storage_params()),
-    lists:foreach(fun set_bucket/1, [?TOKEN_BUCKET, ?HASH_BUCKET, ?SESSION_BUCKET]).
+    lists:foreach(fun set_bucket/1, NSlist).
 
-%%
-%% Single object functions
-%%
-
--spec get_token(cds:hash()) -> {ok, cds:token()} | {error, not_found}.
-
-get_token(Hash) ->
-    case get_keys_by_index_value(?TOKEN_BUCKET, ?CARD_DATA_HASH_INDEX, Hash, 2, undefined) of
-        {ok, {[Token], _}} ->
-            {ok, Token};
-        {ok, {[], _}} ->
-            get_token_old_style(Hash);
-        {ok, {ManyTokens, _}} ->
-            % This shouldnt happen, but we need to react somehow.
-            _ = assert_card_data_equal(ManyTokens, Hash),
-            {ok, hd(ManyTokens)}
-    end.
-
-get_token_old_style(Hash) ->
-    case get(?HASH_BUCKET, Hash) of
-        {ok, TokenObj} ->
-            {ok, riakc_obj:get_value(TokenObj)};
-        {error, notfound} ->
-            {error, not_found}
-    end.
-
--spec get_cardholder_data(cds:token()) -> {ok, cds:ciphertext()} | {error, not_found}.
-
-get_cardholder_data(Token) ->
-    case get(?TOKEN_BUCKET, Token) of
-        {ok, CardDataObj} ->
-            CardData = riakc_obj:get_value(CardDataObj),
-            {ok, CardData};
-        {error, notfound} ->
-            {error, not_found};
-        {error, Reason} ->
-            error(Reason)
-    end.
-
--spec get_session_card_data(cds:token(), cds:session()) ->
-    {ok, {cds:ciphertext(), cds:ciphertext()}} | {error, not_found}.
-
-get_session_card_data(Token, Session) ->
-    case batch_get([[?SESSION_BUCKET, Session], [?TOKEN_BUCKET, Token]]) of
-        {ok, [SessionDataObj, CardDataObj]} ->
-            CardData = riakc_obj:get_value(CardDataObj),
-            {ok, {CardData, get_session_data_with_meta(SessionDataObj)}};
-        {error, notfound} ->
-            {error, not_found};
-        {error, Reason} ->
-            error(Reason)
-    end.
-
--spec put_card_data(
-    cds:token(),
-    cds:session(),
-    cds:hash(),
-    CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphertext(),
-    cds_keyring:key_id(),
-    timestamp()
-) -> ok.
-
-put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
-    TokenObj = prepare_token_obj(Token, CardData, Hash, KeyID),
-    SessionObj = prepare_session_obj(Session, SessionData, CreatedAt, KeyID),
-    case batch_put([[TokenObj], [SessionObj]]) of
+-spec put(namespace(), key(), data(), metadata(), indexes()) -> ok.
+put(NS, Key, Data, Meta, Indexes) ->
+    Obj = prepare_object(NS, Key, Data, Meta, Indexes),
+    case batch_put([[Obj]]) of
         ok ->
             ok;
         {error, Reason} ->
             error(Reason)
     end.
 
--spec get_session_data(cds:session()) ->
-    {ok, cds:ciphertext()} | {error, not_found}.
-
-get_session_data(Session) ->
-    case get(?SESSION_BUCKET, Session) of
-        {ok, SessionDataObj} ->
-            {ok, get_session_data_with_meta(SessionDataObj)};
-        {error, notfound} ->
-            {error, not_found};
-        {error, Reason} ->
-            error(Reason)
+-spec get(namespace(), key()) -> {ok, {data(), metadata(), indexes()}} | {error, not_found}.
+get(NS, Key) ->
+    case get_(NS, Key) of
+        {ok, DataObj} ->
+            Data = riakc_obj:get_value(DataObj),
+            Meta = get_metadata(DataObj),
+            Indexes = get_indexes(DataObj),
+            {ok, {Data, Meta, Indexes}};
+        Error ->
+            Error
     end.
 
--spec delete_session(cds:session()) -> ok.
-
-delete_session(Session) ->
-    case delete(?SESSION_BUCKET, Session) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            error(Reason)
-    end.
-
--spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) ->
-    ok | {error, not_found}.
-
-update_cardholder_data(Token, NewCardData, NewHash, KeyID) ->
-    update(?TOKEN_BUCKET, Token, NewCardData, [{?KEY_ID_INDEX, KeyID}, {?CARD_DATA_HASH_INDEX, NewHash}]).
-
--spec update_session_data(
-    cds:session(),
-    NewSessionData :: cds:ciphertext(),
-    cds_keyring:key_id()
-) ->
-    ok | {error, not_found}.
-
-update_session_data(Session, NewSessionData, KeyID) ->
-    update(?SESSION_BUCKET, Session, NewSessionData, [{?KEY_ID_INDEX, KeyID}]).
-
--spec refresh_session_created_at(cds:session()) -> ok.
-
-refresh_session_created_at(Session) ->
-    case get(?SESSION_BUCKET, Session) of
+-spec update(namespace(), key(), data(), metadata(), indexes()) -> ok | {error, not_found}.
+update(NS, Key, Data, Meta, Indexes) ->
+    case get_(NS, Key) of
         {ok, Obj} ->
-            update_indexes(Obj, [{?CREATED_AT_INDEX, cds_utils:current_time()}]);
-        {error, notfound} ->
+            update_(Obj, Data, Meta, Indexes);
+        Error ->
+            Error
+    end.
+
+-spec delete(namespace(), key()) -> ok | {error, not_found}.
+delete(NS, Key) ->
+    case batch_delete([[NS, Key]]) of
+        ok ->
             ok;
         {error, Reason} ->
             error(Reason)
     end.
 
-%%
-%% Batch functions
-%%
-
--spec get_sessions_created_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
-    batch_response(cds:session()) | no_return().
-
-get_sessions_created_between(From, To, Limit, Continuation) ->
-    get_keys_by_index_range(?SESSION_BUCKET, ?CREATED_AT_INDEX, From, To, Limit, Continuation).
-
--spec get_tokens_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
-    batch_response(cds:token()) | no_return().
-
-get_tokens_by_key_id_between(From, To, Limit, Continuation) ->
-    get_keys_by_index_range(?TOKEN_BUCKET, ?KEY_ID_INDEX, From, To, Limit, Continuation).
-
--spec get_sessions_by_key_id_between(non_neg_integer(), non_neg_integer(), limit(), continuation()) ->
-    batch_response(cds:session()) | no_return().
-
-get_sessions_by_key_id_between(From, To, Limit, Continuation) ->
-    get_keys_by_index_range(?SESSION_BUCKET, ?KEY_ID_INDEX, From, To, Limit, Continuation).
-
--spec get_sessions(limit(), continuation()) ->
-    batch_response(cds:session()) | no_return().
-
-get_sessions(Limit, Continuation) ->
-    get_keys(?SESSION_BUCKET, Limit, Continuation).
-
--spec get_sessions_info(limit(), continuation()) ->
-    {ok, {[{cds:session(), Info :: map()}], continuation()}} | no_return().
-
-get_sessions_info(Limit, Continuation) ->
-    {ok, {Keys, Cont}} = get_keys(?SESSION_BUCKET, Limit, Continuation),
-    SessionsInfo = lists:foldl(
-        fun(K, Acc) ->
-            case get(?SESSION_BUCKET, K) of
-                {ok, Obj} ->
-                    Meta = riakc_obj:get_metadata(Obj),
-                    [CreatedAt] = riakc_obj:get_secondary_index(Meta, ?CREATED_AT_INDEX),
-                    [{K, #{lifetime => cds_utils:current_time() - CreatedAt}} | Acc];
-                {error, notfound} ->
-                    Acc;
-                {error, Error} ->
-                    [{K, #{error => Error}} | Acc]
-            end
-        end,
-        [],
-        Keys
+-spec search_by_index_value(
+    namespace(),
+    index_id(),
+    index_value(),
+    limit(),
+    continuation()
+) ->
+    {ok, {[key()], continuation()}}.
+search_by_index_value(NS, IndexName, IndexValue, Limit, Continuation) ->
+    Result = get_index_eq(
+        NS,
+        IndexName,
+        IndexValue,
+        construct_index_query_options(Limit, Continuation)
     ),
-    {ok, {SessionsInfo, Cont}}.
+    prepare_index_result(Result).
 
--spec get_tokens(limit(), continuation()) ->
-    batch_response(cds:token()) | no_return().
+-spec search_by_index_range(
+    namespace(),
+    index_id(),
+    StartValue :: index_value(),
+    EndValue :: index_value(),
+    limit(),
+    continuation()
+) ->
+    {ok, {[key()], continuation()}}.
+search_by_index_range(NS, IndexName, StartValue, EndValue, Limit, Continuation) ->
+    Result = get_index_range(
+        NS,
+        IndexName,
+        StartValue,
+        EndValue,
+        construct_index_query_options(Limit, Continuation)
+    ),
+    prepare_index_result(Result).
 
-get_tokens(Limit, Continuation) ->
-    get_keys(?TOKEN_BUCKET, Limit, Continuation).
+-spec get_keys(namespace(), limit(), continuation()) -> {ok, {[key()], continuation()}}.
+get_keys(NS, Limit, Continuation) ->
+    Result = get_index_eq(
+        NS,
+        <<"$bucket">>,
+        <<"_">>,
+        construct_index_query_options(Limit, Continuation)
+    ),
+    prepare_index_result(Result).
 
 %%
 %% Internal
 %%
+
+-spec get_storage_params() -> storage_params().
+get_storage_params() ->
+    genlib_app:env(cds, cds_storage_riak).
+
+get_default_timeout() ->
+    Params = get_storage_params(),
+    {timeout, genlib_map:get(timeout, Params, ?DEFAULT_TIMEOUT)}.
 
 -spec start_pool(storage_params()) -> ok | no_return().
 
@@ -275,22 +170,26 @@ start_pool(#{conn_params := #{host := Host, port := Port}} = StorageParams) ->
     {ok, _Pid} = pooler:new_pool(PoolConfig),
     ok.
 
-get(Bucket, Key) ->
+get_(Bucket, Key) ->
     case batch_get([[Bucket, Key]]) of
-        {ok, [Response]} ->
-            {ok, Response};
-        Error ->
-            Error
+        {ok, [Obj]} ->
+            {ok, Obj};
+        {error, notfound} ->
+            {error, not_found};
+        {error, Reason} ->
+            error(Reason)
     end.
 
-delete(Bucket, Key) ->
-    batch_delete([[Bucket, Key]]).
-
-get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
-    batch_request(get_index_range, [[Bucket, Index, StartKey, EndKey, Opts]], []).
-
-get_index_eq(Bucket, Index, Key, Opts) ->
-    batch_request(get_index_eq, [[Bucket, Index, Key, Opts]], []).
+update_(Obj0, Data, Meta, Indexes) ->
+    Obj1 = riakc_obj:update_value(Obj0, Data),
+    Obj2 = set_metadata(Obj1, Meta),
+    Obj3 = set_indexes(Obj2, Indexes),
+    case batch_put([[Obj3]]) of
+        ok ->
+            ok;
+        {error, Reason} ->
+            error(Reason)
+    end.
 
 set_bucket(Bucket) ->
     batch_request(set_bucket, [[Bucket, [{allow_mult, false}]]], ok).
@@ -303,6 +202,12 @@ batch_put(Args) ->
 
 batch_delete(Args) ->
     batch_request(delete, Args, ok).
+
+get_index_range(Bucket, Index, StartKey, EndKey, Opts) ->
+    batch_request(get_index_range, [[Bucket, Index, StartKey, EndKey, Opts]], []).
+
+get_index_eq(Bucket, Index, Key, Opts) ->
+    batch_request(get_index_eq, [[Bucket, Index, Key, Opts]], []).
 
 batch_request(Method, Args, Acc) ->
     Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
@@ -333,104 +238,8 @@ batch_request(Method, Client, [Args | Rest], Acc) ->
             erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
-prepare_session_obj(Session, {SessionData, Metadata}, CreatedAt, KeyID) ->
-    case riakc_obj:new(?SESSION_BUCKET, Session, SessionData) of
-        Error = {error, _} ->
-            error(Error);
-        Obj0 ->
-            Obj1 = riakc_obj:update_metadata(Obj0, prepare_metadata(Obj0, Metadata)),
-            set_indexes(
-                Obj1,
-                [{?CREATED_AT_INDEX, CreatedAt}, {?KEY_ID_INDEX, KeyID}]
-            )
-    end.
-
-prepare_token_obj(Token, CardData, Hash, KeyID) ->
-    case riakc_obj:new(?TOKEN_BUCKET, Token, CardData)  of
-        Error = {error, _} ->
-            error(Error);
-        Obj ->
-            set_indexes(
-                Obj,
-                [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}]
-            )
-    end.
-
-prepare_metadata(Obj, Meta) ->
-    MD = riakc_obj:get_update_metadata(Obj),
-    riakc_obj:set_user_metadata_entry(MD, {<<"encrypted-application-metadata">>, Meta}).
-
-set_indexes(Obj, Indexes) ->
-    MD1 = riakc_obj:get_update_metadata(Obj),
-    MD2 = riakc_obj:set_secondary_index(
-        MD1,
-        [{Index, [Value]} || {Index, Value} <- Indexes]
-    ),
-    riakc_obj:update_metadata(Obj, MD2).
-
-update(Tab, Key, Value, Indexes) ->
-    case get(Tab, Key) of
-        {ok, Obj0} ->
-            update(Obj0, Value, Indexes);
-        {error, Reason} ->
-            error(Reason)
-    end.
-
-update(Obj0, {Value, Metadata}, Indexes) ->
-    Obj1 = riakc_obj:update_value(Obj0, Value),
-    Obj2 = riakc_obj:update_metadata(Obj1, prepare_metadata(Obj1, Metadata)),
-    update_indexes(Obj2, Indexes);
-update(Obj0, Value, Indexes) ->
-    Obj = riakc_obj:update_value(Obj0, Value),
-    update_indexes(Obj, Indexes).
-
-update_indexes(Obj0, Indexes) ->
-    Obj = set_indexes(Obj0, Indexes),
-    case batch_put([[Obj]]) of
-        ok ->
-            ok;
-        {error, Reason} ->
-            error(Reason)
-    end.
-
--spec get_storage_params() -> storage_params().
-get_storage_params() ->
-    genlib_app:env(cds, cds_storage_riak).
-
-get_default_timeout() ->
-    Params = get_storage_params(),
-    {timeout, genlib_map:get(timeout, Params, ?DEFAULT_TIMEOUT)}.
-
-get_keys(Bucket, Limit, Continuation) ->
-    Result = get_index_eq(
-        Bucket,
-        <<"$bucket">>,
-        <<"_">>,
-        construct_index_query_options(Limit, Continuation)
-    ),
-    prepare_index_result(Result).
-
-get_keys_by_index_range(Bucket, IndexName, From, To, Limit, Continuation) ->
-    Result = get_index_range(
-        Bucket,
-        IndexName,
-        From,
-        To,
-        construct_index_query_options(Limit, Continuation)
-    ),
-    prepare_index_result(Result).
-
-get_keys_by_index_value(Bucket, IndexName, IndexValue, Limit, Continuation) ->
-    Result = get_index_eq(
-        Bucket,
-        IndexName,
-        IndexValue,
-        construct_index_query_options(Limit, Continuation)
-    ),
-    prepare_index_result(Result).
-
--spec prepare_index_result({ok, index_results()} | {error, Reason :: term()}) -> batch_response(term()) | no_return().
-
+-spec prepare_index_result({ok, index_results()} | {error, Reason :: term()}) ->
+    {ok, {[key()], continuation()}} | no_return().
 prepare_index_result(Result) ->
     case Result of
         {ok, [#index_results_v1{keys = Keys, continuation = Continuation}]} when Keys =/= undefined ->
@@ -447,22 +256,46 @@ construct_index_query_options(Limit, Continuation) ->
 prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
 
-get_session_data_with_meta(Obj) ->
-    SD = riakc_obj:get_value(Obj),
+prepare_object(NS, Key, Data, Meta, Indexes) ->
+    case riakc_obj:new(NS, Key, Data)  of
+        Error = {error, _} ->
+            error(Error);
+        Obj0 ->
+            Obj1 = set_metadata(Obj0, Meta),
+            set_indexes(Obj1, Indexes)
+    end.
+
+-spec set_indexes(riakc_obj(), indexes()) -> riakc_obj().
+set_indexes(Obj, Indexes) ->
+    MD1 = riakc_obj:get_update_metadata(Obj),
+    MD2 = riakc_obj:set_secondary_index(
+        MD1,
+        [{Index, [Value]} || {Index, Value} <- Indexes]
+    ),
+    riakc_obj:update_metadata(Obj, MD2).
+
+-spec get_indexes(riakc_obj()) -> indexes().
+get_indexes(Obj) ->
+    MD = riakc_obj:get_metadata(Obj),
+    Indexes = riakc_obj:get_secondary_indexes(MD),
+    [{Index, Value} || {Index, [Value]} <- Indexes].
+
+-spec set_metadata(riakc_obj(), metadata()) -> riakc_obj().
+set_metadata(Obj, Meta) when is_binary(Meta) ->
+    MD0 = riakc_obj:get_update_metadata(Obj),
+    MD1 = riakc_obj:set_user_metadata_entry(MD0, {<<"encrypted-application-metadata">>, Meta}),
+    riakc_obj:update_metadata(Obj, MD1);
+set_metadata(Obj, undefined) ->
+    MD0 = riakc_obj:get_update_metadata(Obj),
+    MD1 = riakc_obj:delete_user_metadata_entry(MD0, <<"encrypted-application-metadata">>),
+    riakc_obj:update_metadata(Obj, MD1).
+
+-spec get_metadata(riakc_obj()) -> metadata().
+get_metadata(Obj) ->
     MD = riakc_obj:get_update_metadata(Obj),
     case riakc_obj:get_user_metadata_entry(MD, <<"encrypted-application-metadata">>) of
         Meta when is_binary(Meta) ->
-            {SD, Meta};
+            Meta;
         notfound ->
-            SD
+            undefined
     end.
-
-assert_card_data_equal([Token | OtherTokens], Hash) ->
-    % TODO same card data could be encrypted with different keys
-    FirstData = get_cardholder_data(Token),
-    lists:all(
-        fun(T) ->
-              FirstData =:= get_cardholder_data(T)
-        end,
-        OtherTokens
-    ) orelse error({<<"Hash collision detected">>, Hash}).
