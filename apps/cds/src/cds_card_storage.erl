@@ -25,7 +25,6 @@
 
 %% TODO Those names looks so shitty for backward compatibility
 -define(TOKEN_NS, <<"t">>).
--define(HASH_NS, <<"h">>).
 -define(SESSION_NS, <<"s">>).
 
 -define(CREATED_AT_INDEX, {integer_index, "created_at"}).
@@ -34,16 +33,15 @@
 
 -spec get_namespaces() -> [cds_storage:namespace()].
 get_namespaces() ->
-    [?TOKEN_NS, ?HASH_NS, ?SESSION_NS].
+    [?TOKEN_NS, ?SESSION_NS].
 
 -spec get_token(cds:hash()) -> cds:token() | no_return().
 get_token(Hash) ->
-    %% TODO `limit = 2` is probably leftover and should be replaced (undefined?)
-    case cds_storage:search_by_index_value(?TOKEN_NS, ?CARD_DATA_HASH_INDEX, Hash, 2, undefined) of
+    case cds_storage:search_by_index_value(?TOKEN_NS, ?CARD_DATA_HASH_INDEX, Hash, undefined, undefined) of
         {[Token], _} ->
             Token;
         {[], _} ->
-            get_token_old_style(Hash);
+            throw(not_found);
         {ManyTokens, _} ->
             _ = assert_card_data_equal(ManyTokens, Hash),
             hd(ManyTokens)
@@ -194,10 +192,6 @@ update_session_data(Session, {SessionData, SessionMeta}, KeyID) ->
 
 prepare_card_data_indexes(Hash, KeyID) ->
     [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}].
-
-get_token_old_style(Hash) ->
-    {Token, _, _} = cds_storage:get(?HASH_NS, Hash),
-    Token.
 
 assert_card_data_equal([Token | OtherTokens], Hash) ->
     % TODO same card data could be encrypted with different keys
