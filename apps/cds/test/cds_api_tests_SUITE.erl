@@ -442,14 +442,11 @@ recrypt(C) ->
     {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
     <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
-    _ = cds_keyring_manager:rotate(),
-    [{recrypting, #{
-        interval := Interval
-    }}] = config(recrypting_config, C),
 
     {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
     <<KeyID0, _/binary>> = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
+
     _ = cds_keyring_manager:rotate(),
     [{recrypting, #{
         interval := Interval
