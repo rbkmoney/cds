@@ -2,12 +2,18 @@
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
+
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
+
+%%
+%% Keyring
+%%
 
 handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
     try cds_keyring_manager:initialize(Threshold, Count) of
@@ -38,6 +44,10 @@ handle_function('Rotate', [], _Context, _Opts) ->
         locked ->
             raise(#'KeyringLocked'{})
     end;
+
+%%
+%% Storage
+%%
 
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     try
@@ -102,6 +112,31 @@ handle_function('GetSessionData', [Session], _Context, _Opts) ->
     catch
         not_found ->
             raise(#'SessionDataNotFound'{});
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
+    end;
+
+%%
+%% IdentityDocumentStorage
+%%
+
+handle_function('Put', [IdentityDocument], _Context, _Opts) ->
+    Doc = cds_identity_document:decode(IdentityDocument),
+    try
+        SafeIdentityDocumentData = cds_id_storage:put_identity_document(Doc),
+        {ok, cds_identity_document:encode_safe_data(SafeIdentityDocumentData)}
+    catch
+        Reason when Reason == locked; Reason == not_initialized ->
+            raise_keyring_unavailable(Reason)
+    end;
+
+handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
+    try
+        Doc = cds_id_storage:get_identity_document(IdentityDocumentToken),
+        {ok, cds_identity_document:encode(Doc)}
+    catch
+        not_found ->
+            raise(#id_storage_IdentityDocumentNotFound{});
         Reason when Reason == locked; Reason == not_initialized ->
             raise_keyring_unavailable(Reason)
     end.

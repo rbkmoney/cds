@@ -63,8 +63,18 @@ init([]) ->
         cds_thrift_service_sup,
         #{
             handlers => [
-                {"/v1/storage", {{dmsl_cds_thrift, 'Storage'}, {cds_thrift_handler, []}}},
-                {"/v1/keyring", {{dmsl_cds_thrift, 'Keyring'}, {cds_thrift_handler, []}}}
+                {
+                    "/v1/storage",
+                    {{dmsl_cds_thrift, 'Storage'}, {cds_thrift_handler, []}}
+                },
+                {
+                    "/v1/keyring",
+                    {{dmsl_cds_thrift, 'Keyring'}, {cds_thrift_handler, []}}
+                },
+                {
+                    "/v1/identity_document_storage",
+                    {{dmsl_identity_document_storage_thrift, 'IdentityDocumentStorage'}, {cds_thrift_handler, []}}
+                }
             ],
             event_handler     => cds_woody_event_handler,
             ip                => IP,
