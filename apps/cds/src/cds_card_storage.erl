@@ -56,8 +56,12 @@ get_cardholder_data(Token) ->
 
 -spec get_session_data(cds:session()) -> cds:ciphertext() | no_return().
 get_session_data(Session) ->
-    {Data, Meta, _} = cds_storage:get(?SESSION_NS, Session),
-    {Data, Meta}.
+    case cds_storage:get(?SESSION_NS, Session) of
+        {Data, undefined, _} ->
+            Data;
+        {Data, Meta, _} ->
+            {Data, Meta}
+    end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
     {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
@@ -78,7 +82,7 @@ put_card_data(Token, Session, Hash, CardData, {SessionData, SessionMeta}, KeyID,
         ?TOKEN_NS,
         Token,
         CardData,
-        <<"">>, % empty metadata
+        undefined,
         prepare_card_data_indexes(Hash, KeyID)
     ),
     ok = cds_storage:put(

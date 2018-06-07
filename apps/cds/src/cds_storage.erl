@@ -5,7 +5,7 @@
 -type namespace()   :: binary(). %% e.g. <<"stuff_you_want_to_store">>, but dont be too fancy
 -type key()         :: binary().
 -type data()        :: binary().
--type metadata()    :: binary().
+-type metadata()    :: binary() | undefined.
 -type indexes()     :: [index()].
 -type index()       :: integer_index() | binary_index().
 -type integer_index()       :: {integer_index_id(), integer()}.

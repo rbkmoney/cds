@@ -281,9 +281,13 @@ get_indexes(Obj) ->
     [{Index, Value} || {Index, [Value]} <- Indexes].
 
 -spec set_metadata(riakc_obj(), metadata()) -> riakc_obj().
-set_metadata(Obj, Meta) ->
+set_metadata(Obj, Meta) when is_binary(Meta) ->
     MD0 = riakc_obj:get_update_metadata(Obj),
     MD1 = riakc_obj:set_user_metadata_entry(MD0, {<<"encrypted-application-metadata">>, Meta}),
+    riakc_obj:update_metadata(Obj, MD1);
+set_metadata(Obj, undefined) ->
+    MD0 = riakc_obj:get_update_metadata(Obj),
+    MD1 = riakc_obj:delete_user_metadata_entry(MD0, <<"encrypted-application-metadata">>),
     riakc_obj:update_metadata(Obj, MD1).
 
 -spec get_metadata(riakc_obj()) -> metadata().
@@ -293,5 +297,5 @@ get_metadata(Obj) ->
         Meta when is_binary(Meta) ->
             Meta;
         notfound ->
-            <<"">>
+            undefined
     end.
