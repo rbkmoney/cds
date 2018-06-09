@@ -37,7 +37,7 @@ handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
 %%
 
 -spec decode(dmsl_identity_document_storage_thrift:'IdentityDocument'()) ->
-    cds_identity_document:identity_document().
+    cds_ident_doc:identity_document().
 decode({
     russian_domestic_passport,
     #ident_doc_store_RussianDomesticPassport{
@@ -77,7 +77,7 @@ decode({
         number => Number
     }.
 
--spec encode(cds_identity_document:identity_document()) ->
+-spec encode(cds_ident_doc:identity_document()) ->
     dmsl_identity_document_storage_thrift:'IdentityDocument'().
 encode(#{type := russian_domestic_passport} = Doc) ->
     {russian_domestic_passport, encode_russian_domestic_passport(Doc)};

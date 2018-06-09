@@ -19,7 +19,7 @@
 
 -type path() :: woody:path().
 -type thrift_service() :: woody:service().
--type hadler_spec() :: woody:handler().
+-type hadler_spec() :: woody:handler(list()).
 
 -type service_hadler_spec() :: {path(), {thrift_service(), hadler_spec()}}.
 
