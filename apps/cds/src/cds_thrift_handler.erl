@@ -114,31 +114,6 @@ handle_function('GetSessionData', [Session], _Context, _Opts) ->
             raise(#'SessionDataNotFound'{});
         Reason when Reason == locked; Reason == not_initialized ->
             raise_keyring_unavailable(Reason)
-    end;
-
-%%
-%% IdentityDocumentStorage
-%%
-
-handle_function('Put', [IdentityDocument], _Context, _Opts) ->
-    Doc = cds_identity_document:decode(IdentityDocument),
-    try
-        SafeIdentityDocumentData = cds_id_storage:put_identity_document(Doc),
-        {ok, cds_identity_document:encode_safe_data(SafeIdentityDocumentData)}
-    catch
-        Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
-    end;
-
-handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
-    try
-        Doc = cds_id_storage:get_identity_document(IdentityDocumentToken),
-        {ok, cds_identity_document:encode(Doc)}
-    catch
-        not_found ->
-            raise(#id_storage_IdentityDocumentNotFound{});
-        Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
     end.
 
 % local

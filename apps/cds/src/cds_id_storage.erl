@@ -4,7 +4,7 @@
 -export([put_identity_document/1]).
 -export([get_identity_document/1]).
 
--define(IDENTITY_DOCUMENT_NS, <<"identity_document">>).
+-define(IDENTITY_DOCUMENT_NS, <<"identdoc">>).
 
 -define(CREATED_AT_INDEX, {integer_index, "created_at"}).
 -define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
@@ -13,8 +13,7 @@
 get_namespaces() ->
     [?IDENTITY_DOCUMENT_NS].
 
--spec put_identity_document(cds_identity_document:identity_document()) ->
-    {binary(), cds_identity_document:safe_identity_document()}.
+-spec put_identity_document(cds_identity_document:identity_document()) -> cds:token().
 put_identity_document(Doc) ->
     Token = token(),
     {KeyID, Key} = cds_keyring_manager:get_current_key(),
@@ -26,13 +25,14 @@ put_identity_document(Doc) ->
         undefined,
         [{?CREATED_AT_INDEX, cds_utils:current_time()}, {?KEY_ID_INDEX, KeyID}]
     ),
-    {Token, cds_identity_document:get_safe_data(Doc)}.
+    Token.
 
--spec get_identity_document(binary()) -> cds_identity_document:identity_document() | no_return().
+-spec get_identity_document(cds:token()) -> cds_identity_document:identity_document() | no_return().
 get_identity_document(Token) ->
     {Data, _, _} = cds_storage:get(?IDENTITY_DOCUMENT_NS, Token),
     decode_document(Data).
 
+-spec token() -> cds:token().
 token() ->
     crypto:strong_rand_bytes(16).
 

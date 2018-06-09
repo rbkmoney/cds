@@ -8,7 +8,7 @@
  {<<"cowlib">>,{pkg,<<"cowlib">>,<<"1.0.2">>},2},
  {<<"dmsl">>,
   {git,"git@github.com:rbkmoney/damsel.git",
-       {ref,"02fe0f70ffaee4142054f8a6f7596c503ed0096e"}},
+       {ref,"19fea1dda569f5b8c2ca896a4481f640c2cbe993"}},
   0},
  {<<"erl_health">>,
   {git,"https://github.com/rbkmoney/erlang-health.git",
