@@ -49,8 +49,8 @@ thrift_service(identity_doc) ->
 
 -spec handler_module(storage_code()) -> hadler_spec().
 handler_module(keyring) ->
-    {cds_thrift_handler, []};
+    {cds_thrift_handler_keyring, []};
 handler_module(card) ->
-    {cds_thrift_handler, []};
+    {cds_thrift_handler_card, []};
 handler_module(identity_doc) ->
-    {cds_identity_thrift_handler, []}.
+    {cds_thrift_handler_identity, []}.

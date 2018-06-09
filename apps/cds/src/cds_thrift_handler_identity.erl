@@ -1,4 +1,4 @@
--module(cds_identity_thrift_handler).
+-module(cds_thrift_handler_identity).
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").

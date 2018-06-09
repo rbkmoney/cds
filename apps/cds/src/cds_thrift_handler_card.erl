@@ -1,54 +1,18 @@
--module(cds_thrift_handler).
+-module(cds_thrift_handler_card).
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 -include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
 
-
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
 
+%%
+%% woody_server_thrift_handler callbacks
+%%
+
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-
-%%
-%% Keyring
-%%
-
-handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
-    try cds_keyring_manager:initialize(Threshold, Count) of
-        Shares ->
-            {ok, Shares}
-    catch
-        already_initialized ->
-            raise(#'KeyringExists'{})
-    end;
-handle_function('Lock', [], _Context, _Opts) ->
-    try {ok, cds_keyring_manager:lock()} catch
-        not_initialized ->
-            raise(#'NoKeyring'{});
-        locked ->
-            {ok, ok}
-    end;
-handle_function('Unlock', [Share], _Context, _Opts) ->
-    case cds_keyring_manager:unlock(Share) of
-        {more, More} ->
-            {ok, {more_keys_needed, More}};
-        ok ->
-            {ok, {unlocked, #'Unlocked'{}}}
-    end;
-handle_function('Rotate', [], _Context, _Opts) ->
-    try {ok, cds_keyring_manager:rotate()} catch
-        not_initialized ->
-            raise(#'NoKeyring'{});
-        locked ->
-            raise(#'KeyringLocked'{})
-    end;
-
-%%
-%% Storage
-%%
-
 handle_function('GetCardData', [Token], _Context, _Opts) ->
     try
         {ok, encode_cardholder_data(
@@ -58,9 +22,9 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
         )}
     catch
         not_found ->
-            raise(#'CardDataNotFound'{});
+            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
         Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
 handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
@@ -72,9 +36,9 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
         )}
     catch
         not_found ->
-            raise(#'CardDataNotFound'{});
+            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
         Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
 handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
@@ -96,11 +60,11 @@ handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                     session_id     = cds_utils:encode_session(Session)
                 }};
             {error, _} ->
-                raise(#'InvalidCardData'{})
+                cds_thrift_handler_utils:raise(#'InvalidCardData'{})
         end
     catch
         Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
 handle_function('GetSessionData', [Session], _Context, _Opts) ->
     try
@@ -111,12 +75,14 @@ handle_function('GetSessionData', [Session], _Context, _Opts) ->
         )}
     catch
         not_found ->
-            raise(#'SessionDataNotFound'{});
+            cds_thrift_handler_utils:raise(#'SessionDataNotFound'{});
         Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end.
 
-% local
+%%
+%% Internals
+%%
 
 decode_card_data(#'CardData'{
     pan             = PAN,
@@ -191,19 +157,3 @@ define_session_data(undefined, #'CardData'{cvv = CVV}) ->
     #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
 define_session_data(#'SessionData'{} = SessionData, _CardData) ->
     SessionData.
-
--spec raise_keyring_unavailable(locked | not_initialized) ->
-    no_return().
-
-raise_keyring_unavailable(KeyringState) ->
-    woody_error:raise(system, {internal, resource_unavailable, get_details(KeyringState)}).
-
-get_details(locked) ->
-    <<"Keyring is locked">>;
-get_details(not_initialized) ->
-    <<"Keyring is not initialized">>.
-
--spec raise(_) -> no_return().
-
-raise(Exception) ->
-    woody_error:raise(business, Exception).
