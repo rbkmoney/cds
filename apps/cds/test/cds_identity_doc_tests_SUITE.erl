@@ -58,7 +58,7 @@ groups() ->
 init_per_group(riak_storage_backend, C) ->
     cds_ct_utils:set_riak_storage(C);
 init_per_group(ets_storage_backend, C) ->
-    cds_ct_utils:set_etc_storage(C);
+    cds_ct_utils:set_ets_storage(C);
 init_per_group(Group, C) when
     Group =:= all;
     Group =:= general_flow 
@@ -87,8 +87,7 @@ end_per_group(_, C) ->
 -spec init(config()) -> any() | no_return().
 init(C) ->
     MasterKeys = cds_client:init(2, 3, root_url(C)),
-    3 = length(MasterKeys),
-    cds_ct_utils:store(master_keys, MasterKeys, C).
+    3 = length(MasterKeys).
 
 -spec put_passport(config()) -> any() | no_return().
 put_passport(C) ->

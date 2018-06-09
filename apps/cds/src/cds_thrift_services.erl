@@ -10,16 +10,16 @@
 %%
 
 -type storage_code() :: keyring
-                      | card
-                      | identity_doc.
+    | card
+    | identity_doc.
 
 -export_type([storage_code/0]).
 
 %% Internal types
 
--type path() :: string().
--type thrift_service() :: {atom(), atom()}.
--type hadler_spec() :: {atom(), list()}.
+-type path() :: woody:path().
+-type thrift_service() :: woody:service().
+-type hadler_spec() :: woody:handler().
 
 -type service_hadler_spec() :: {path(), {thrift_service(), hadler_spec()}}.
 

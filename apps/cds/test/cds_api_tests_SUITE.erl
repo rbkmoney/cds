@@ -137,7 +137,7 @@ init_per_group(riak_storage_backend, C) ->
     cds_ct_utils:set_riak_storage(C);
 
 init_per_group(ets_storage_backend, C) ->
-    cds_ct_utils:set_etc_storage(C);
+    cds_ct_utils:set_ets_storage(C);
 
 init_per_group(general_flow, C) ->
     C;

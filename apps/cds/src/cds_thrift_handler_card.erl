@@ -2,7 +2,6 @@
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
--include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).

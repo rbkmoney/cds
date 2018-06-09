@@ -22,8 +22,8 @@
 %%
 
 -type result() :: woody:result()
-                | {exception, woody_error:business_error()}
-                | no_return().
+    | {exception, woody_error:business_error()}
+    | no_return().
 -type card_data() :: dmsl_cds_thrift:'CardData'().
 -type session_data() :: dmsl_cds_thrift:'SessionData'() | undefined.
 -type identity_doc() :: dmsl_identity_document_storage_thrift:'IdentityDocument'().

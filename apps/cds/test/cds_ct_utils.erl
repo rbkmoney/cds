@@ -4,7 +4,7 @@
 -export([stop_clear/1]).
 
 -export([set_riak_storage/1]).
--export([set_etc_storage/1]).
+-export([set_ets_storage/1]).
 
 -export([store/2]).
 -export([store/3]).
@@ -77,8 +77,8 @@ set_riak_storage(C) ->
     ],
     [{storage_config, StorageConfig} | C].
 
--spec set_etc_storage(config()) -> config().
-set_etc_storage(C) ->
+-spec set_ets_storage(config()) -> config().
+set_ets_storage(C) ->
     StorageConfig = [
         {storage, cds_storage_ets}
     ],
