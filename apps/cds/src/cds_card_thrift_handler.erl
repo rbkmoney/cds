@@ -1,4 +1,4 @@
--module(cds_thrift_handler_card).
+-module(cds_card_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").

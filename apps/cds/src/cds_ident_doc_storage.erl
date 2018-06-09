@@ -1,4 +1,4 @@
--module(cds_id_storage).
+-module(cds_ident_doc_storage).
 
 -export([get_namespaces/0]).
 -export([put_identity_document/1]).
@@ -13,7 +13,7 @@
 get_namespaces() ->
     [?IDENTITY_DOCUMENT_NS].
 
--spec put_identity_document(cds_identity_document:identity_document()) -> cds:token().
+-spec put_identity_document(cds_ident_doc:identity_document()) -> cds:token().
 put_identity_document(Doc) ->
     Token = token(),
     {KeyID, Key} = cds_keyring_manager:get_current_key(),
@@ -27,7 +27,7 @@ put_identity_document(Doc) ->
     ),
     Token.
 
--spec get_identity_document(cds:token()) -> cds_identity_document:identity_document() | no_return().
+-spec get_identity_document(cds:token()) -> cds_ident_doc:identity_document() | no_return().
 get_identity_document(Token) ->
     {Data, _, _} = cds_storage:get(?IDENTITY_DOCUMENT_NS, Token),
     decode_document(Data).
@@ -37,11 +37,11 @@ token() ->
     crypto:strong_rand_bytes(16).
 
 encode_document(Doc, {KeyID, Key}) ->
-    Bin = cds_identity_document:marshal(Doc),
+    Bin = cds_ident_doc:marshal(Doc),
     Cipher = cds_crypto:encrypt(Key, Bin),
     <<KeyID, Cipher/binary>>.
 
 decode_document(<<KeyID, Cipher/binary>>) ->
     {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
     Bin = cds_crypto:decrypt(Key, Cipher),
-    cds_identity_document:unmarshal(Bin).
+    cds_ident_doc:unmarshal(Bin).

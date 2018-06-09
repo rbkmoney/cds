@@ -1,4 +1,4 @@
--module(cds_identity_document).
+-module(cds_ident_doc).
 
 -include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
 

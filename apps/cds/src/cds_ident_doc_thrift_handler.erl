@@ -1,4 +1,4 @@
--module(cds_thrift_handler_identity).
+-module(cds_ident_doc_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
@@ -15,21 +15,21 @@
 handle_function('Put', [IdentityDocument], _Context, _Opts) ->
     Doc = decode(IdentityDocument),
     try
-        Token = cds_id_storage:put_identity_document(Doc),
+        Token = cds_ident_doc_storage:put_identity_document(Doc),
         {ok, Token}
     catch
         Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
 handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
     try
-        Doc = cds_id_storage:get_identity_document(IdentityDocumentToken),
+        Doc = cds_ident_doc_storage:get_identity_document(IdentityDocumentToken),
         {ok, encode(Doc)}
     catch
         not_found ->
-            raise(#ident_doc_store_IdentityDocumentNotFound{});
+            cds_thrift_handler_utils:raise(#ident_doc_store_IdentityDocumentNotFound{});
         Reason when Reason == locked; Reason == not_initialized ->
-            raise_keyring_unavailable(Reason)
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end.
 
 %%
@@ -102,17 +102,3 @@ encode_russian_retiree_insurance_certificate(Doc) ->
     #ident_doc_store_RussianRetireeInsuranceCertificate{
         number = maps:get(number, Doc)
     }.
-
--spec raise_keyring_unavailable(locked | not_initialized) ->
-    no_return().
-raise_keyring_unavailable(KeyringState) ->
-    woody_error:raise(system, {internal, resource_unavailable, get_details(KeyringState)}).
-
-get_details(locked) ->
-    <<"Keyring is locked">>;
-get_details(not_initialized) ->
-    <<"Keyring is not initialized">>.
-
--spec raise(_) -> no_return().
-raise(Exception) ->
-    woody_error:raise(business, Exception).

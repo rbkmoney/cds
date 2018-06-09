@@ -101,7 +101,7 @@ start(normal, _StartArgs) ->
         {ok, Sup} ->
             NSlist = lists:flatten([
                 cds_card_storage:get_namespaces(),
-                cds_id_storage:get_namespaces()
+                cds_ident_doc_storage:get_namespaces()
             ]),
             cds_storage:start(NSlist),
             {ok, Sup}
