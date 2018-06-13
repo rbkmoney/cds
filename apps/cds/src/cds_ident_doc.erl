@@ -1,7 +1,5 @@
 -module(cds_ident_doc).
 
--include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
-
 -type identity_document() :: russian_domestic_passport() | russian_retiree_insurance_certificate().
 -type russian_domestic_passport() :: #{
     type := russian_domestic_passport,

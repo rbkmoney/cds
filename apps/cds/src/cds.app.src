@@ -15,6 +15,7 @@
         lager,
         lager_logstash_formatter,
         dmsl,
+        identdocstore_proto,
         erl_health,
         msgpack
     ]},

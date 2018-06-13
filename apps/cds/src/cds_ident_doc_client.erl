@@ -9,7 +9,7 @@
 %%
 
 -type result() :: cds_woody_client:result().
--type identity_doc() :: dmsl_identity_document_storage_thrift:'IdentityDocument'().
+-type identity_doc() :: identdocstore_identity_document_storage_thrift:'IdentityDocument'().
 
 %%
 %% API

@@ -1,7 +1,7 @@
 -module(cds_identity_doc_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
+-include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
 
 %% common_test callbacks
 -export([all/0]).
@@ -128,7 +128,7 @@ config(Key, Config, Default) ->
     end.
 
 build_passport() ->
-    {russian_domestic_passport, #ident_doc_store_RussianDomesticPassport{
+    {russian_domestic_passport, #identdocstore_RussianDomesticPassport{
         series = <<"">>,
         number = <<"">>,
         issuer = <<"">>,
@@ -142,6 +142,6 @@ build_passport() ->
     }}.
 
 build_insurance_cert() ->
-    {russian_retiree_insurance_certificate, #ident_doc_store_RussianRetireeInsuranceCertificate{
+    {russian_retiree_insurance_certificate, #identdocstore_RussianRetireeInsuranceCertificate{
         number = <<"">>
     }}.

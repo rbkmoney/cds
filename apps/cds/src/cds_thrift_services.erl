@@ -45,7 +45,7 @@ thrift_service(keyring) ->
 thrift_service(card) ->
     {dmsl_cds_thrift, 'Storage'};
 thrift_service(identity_doc) ->
-    {dmsl_identity_document_storage_thrift, 'IdentityDocumentStorage'}.
+    {identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'}.
 
 -spec handler_module(storage_code()) -> hadler_spec().
 handler_module(keyring) ->

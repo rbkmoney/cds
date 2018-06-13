@@ -1,7 +1,7 @@
 -module(cds_ident_doc_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_identity_document_storage_thrift.hrl").
+-include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -27,7 +27,7 @@ handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
         {ok, encode(Doc)}
     catch
         not_found ->
-            cds_thrift_handler_utils:raise(#ident_doc_store_IdentityDocumentNotFound{});
+            cds_thrift_handler_utils:raise(#identdocstore_IdentityDocumentNotFound{});
         Reason when Reason == locked; Reason == not_initialized ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end.
@@ -36,11 +36,11 @@ handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
 %% Internals
 %%
 
--spec decode(dmsl_identity_document_storage_thrift:'IdentityDocument'()) ->
+-spec decode(identdocstore_identity_document_storage_thrift:'IdentityDocument'()) ->
     cds_ident_doc:identity_document().
 decode({
     russian_domestic_passport,
-    #ident_doc_store_RussianDomesticPassport{
+    #identdocstore_RussianDomesticPassport{
         series = Series,
         number = Number,
         issuer = Issuer,
@@ -68,7 +68,7 @@ decode({
     };
 decode({
     russian_retiree_insurance_certificate,
-    #ident_doc_store_RussianRetireeInsuranceCertificate{
+    #identdocstore_RussianRetireeInsuranceCertificate{
         number = Number
     }
 }) ->
@@ -78,14 +78,14 @@ decode({
     }.
 
 -spec encode(cds_ident_doc:identity_document()) ->
-    dmsl_identity_document_storage_thrift:'IdentityDocument'().
+    identdocstore_identity_document_storage_thrift:'IdentityDocument'().
 encode(#{type := russian_domestic_passport} = Doc) ->
     {russian_domestic_passport, encode_russian_domestic_passport(Doc)};
 encode(#{type := russian_retiree_insurance_certificate} = Doc) ->
     {russian_retiree_insurance_certificate, encode_russian_retiree_insurance_certificate(Doc)}.
 
 encode_russian_domestic_passport(Doc) ->
-    #ident_doc_store_RussianDomesticPassport{
+    #identdocstore_RussianDomesticPassport{
         series = maps:get(series, Doc),
         number = maps:get(number, Doc),
         issuer = maps:get(issuer, Doc),
@@ -99,6 +99,6 @@ encode_russian_domestic_passport(Doc) ->
     }.
 
 encode_russian_retiree_insurance_certificate(Doc) ->
-    #ident_doc_store_RussianRetireeInsuranceCertificate{
+    #identdocstore_RussianRetireeInsuranceCertificate{
         number = maps:get(number, Doc)
     }.
