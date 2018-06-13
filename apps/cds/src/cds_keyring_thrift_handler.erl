@@ -41,7 +41,3 @@ handle_function('Rotate', [], _Context, _Opts) ->
         locked ->
             cds_thrift_handler_utils:raise(#'KeyringLocked'{})
     end.
-
-%%
-%% Internals
-%%

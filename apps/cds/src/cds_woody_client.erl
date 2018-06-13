@@ -1,4 +1,4 @@
--module(cds_client_utils).
+-module(cds_woody_client).
 
 -export([call/4]).
 
@@ -32,7 +32,3 @@ call(ServiceCode, Function, Args, RootUrl) ->
         {exception, Exception} ->
             throw(Exception)
     end.
-
-%%
-%% Internals
-%%
