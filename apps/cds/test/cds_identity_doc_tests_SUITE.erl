@@ -92,14 +92,14 @@ init(C) ->
 -spec put_passport(config()) -> any() | no_return().
 put_passport(C) ->
     Doc = build_passport(),
-    Token = cds_ident_doc_client:put_identity_doc(Doc, root_url(C)),
+    Token = cds_ident_doc_client:put_ident_doc(Doc, root_url(C)),
     true = erlang:is_binary(Token),
     ok = cds_ct_utils:store([{token, Token}, {doc, Doc}], C).
 
 -spec put_insurance_cert(config()) -> any() | no_return().
 put_insurance_cert(C) ->
     Doc = build_insurance_cert(),
-    Token = cds_ident_doc_client:put_identity_doc(Doc, root_url(C)),
+    Token = cds_ident_doc_client:put_ident_doc(Doc, root_url(C)),
     true = erlang:is_binary(Token),
     ok = cds_ct_utils:store([{token, Token}, {doc, Doc}], C).
 
@@ -107,7 +107,7 @@ put_insurance_cert(C) ->
 assert_doc_stored(C) ->
     Token = cds_ct_utils:lookup(token, C),
     Doc = cds_ct_utils:lookup(doc, C),
-    Doc = cds_ident_doc_client:get_identity_doc(Token, root_url(C)).
+    Doc = cds_ident_doc_client:get_ident_doc(Token, root_url(C)).
 
 %%
 %% Internals

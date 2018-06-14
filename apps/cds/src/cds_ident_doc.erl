@@ -10,7 +10,7 @@
     issued_at := binary(),
     family_name := binary(),
     first_name := binary(),
-    patronymic := binary(),
+    patronymic := binary() | undefined,
     birth_date := binary(),
     birth_place := binary()
 }.
