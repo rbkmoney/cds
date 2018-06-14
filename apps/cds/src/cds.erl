@@ -63,8 +63,9 @@ init([]) ->
         cds_thrift_service_sup,
         #{
             handlers => [
-                {"/v1/storage", {{dmsl_cds_thrift, 'Storage'}, {cds_thrift_handler, []}}},
-                {"/v1/keyring", {{dmsl_cds_thrift, 'Keyring'}, {cds_thrift_handler, []}}}
+                cds_thrift_services:handler_spec(card),
+                cds_thrift_services:handler_spec(keyring),
+                cds_thrift_services:handler_spec(identity_doc)
             ],
             event_handler     => cds_woody_event_handler,
             ip                => IP,
@@ -98,7 +99,11 @@ init([]) ->
 start(normal, _StartArgs) ->
     case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
         {ok, Sup} ->
-            cds_storage:start(cds_card_storage:get_namespaces()),
+            NSlist = lists:flatten([
+                cds_card_storage:get_namespaces(),
+                cds_ident_doc_storage:get_namespaces()
+            ]),
+            cds_storage:start(NSlist),
             {ok, Sup}
     end.
 
