@@ -134,26 +134,10 @@ groups() ->
 -spec init_per_group(atom(), config()) -> config().
 
 init_per_group(riak_storage_backend, C) ->
-    % _ = dbg:tracer(),
-    % _ = dbg:p(all, c),
-    % _ = dbg:tpl({cds_storage_riak, '_', '_'}, x),
-    StorageConfig = [
-        {storage, cds_storage_riak},
-        {cds_storage_riak, #{
-            conn_params => #{
-                host => "riakdb",
-                port => 8087
-            },
-            timeout => 5000
-        }}
-    ],
-    [{storage_config, StorageConfig} | C];
+    cds_ct_utils:set_riak_storage(C);
 
 init_per_group(ets_storage_backend, C) ->
-    StorageConfig = [
-        {storage, cds_storage_ets}
-    ],
-    [{storage_config, StorageConfig} | C];
+    cds_ct_utils:set_ets_storage(C);
 
 init_per_group(general_flow, C) ->
     C;
@@ -162,7 +146,7 @@ init_per_group(keyring_errors, C) ->
     StorageConfig = [
         {storage, cds_storage_ets}
     ],
-    C1 = start_clear([{storage_config, StorageConfig} | C]),
+    C1 = cds_ct_utils:start_clear([{storage_config, StorageConfig} | C]),
     C1 ++ C;
 
 init_per_group(session_management, C) ->
@@ -182,11 +166,11 @@ init_per_group(session_management, C) ->
         }}
     ],
     C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanerConfig} | C],
-    C2 = start_clear(C1),
+    C2 = cds_ct_utils:start_clear(C1),
     C1 ++ C2;
 
 init_per_group(_, C) ->
-    C1 = start_clear(C),
+    C1 = cds_ct_utils:start_clear(C),
     C1 ++ C.
 
 -spec end_per_group(atom(), config()) -> _.
@@ -199,7 +183,7 @@ end_per_group(Group, C) when
     C;
 
 end_per_group(_, C) ->
-    stop_clear(C).
+    cds_ct_utils:stop_clear(C).
 
 %%
 %% tests
@@ -208,21 +192,21 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    MasterKeys = cds_client:init(2, 3, root_url(C)),
+    MasterKeys = cds_keyring_client:init(2, 3, root_url(C)),
     3 = length(MasterKeys),
-    store(master_keys, MasterKeys, C).
+    cds_ct_utils:store(master_keys, MasterKeys, C).
 
 -spec lock(config()) -> _.
 
 lock(C) ->
-    ok = cds_client:lock(root_url(C)).
+    ok = cds_keyring_client:lock(root_url(C)).
 
 -spec unlock(config()) -> _.
 
 unlock(C) ->
-    [MasterKey1, MasterKey2, _MasterKey3] = lookup(master_keys, C),
-    {more_keys_needed, 1} = cds_client:unlock(MasterKey1, root_url(C)),
-    {unlocked, #'Unlocked'{}} = cds_client:unlock(MasterKey2, root_url(C)).
+    [MasterKey1, MasterKey2, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
+    {more_keys_needed, 1} = cds_keyring_client:unlock(MasterKey1, root_url(C)),
+    {unlocked, #'Unlocked'{}} = cds_keyring_client:unlock(MasterKey2, root_url(C)).
 
 -spec put_card_data(config()) -> _.
 
@@ -235,25 +219,35 @@ put_card_data(C) ->
             year = 3000
         }
     },
-    #'PutCardDataResult'{} = cds_client:put_card_data(CardData, ?SESSION_DATA(?CARD_SEC_CODE(<<"123">>)), root_url(C)),
+    #'PutCardDataResult'{} = cds_card_client:put_card_data(
+        CardData,
+        ?SESSION_DATA(?CARD_SEC_CODE(<<"123">>)),
+        root_url(C)
+    ),
     % check with cardholder
     #'PutCardDataResult'{
         bank_card = #domain_BankCard{
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
-    store([{token, Token}, {session, Session}], C).
+    } = cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
+    cds_ct_utils:store([{token, Token}, {session, Session}], C).
 
 -spec get_card_data(config()) -> _.
 
 get_card_data(C) ->
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
+    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(
+        cds_ct_utils:lookup(token, C),
+        root_url(C)
+    ).
 
 -spec get_session_data(config()) -> _.
 
 get_session_data(C) ->
-    ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+    ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_card_client:get_session_data(
+        cds_ct_utils:lookup(session, C),
+        root_url(C)
+    ).
 
 -spec put_card_data_3ds(config()) -> _.
 
@@ -263,18 +257,22 @@ put_card_data_3ds(C) ->
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?AUTH_3DS), root_url(C)),
-    store([{token, Token}, {session, Session}], C).
+    } = cds_card_client:put_card_data(
+        ?CREDIT_CARD(undefined),
+        ?SESSION_DATA(?AUTH_3DS),
+        root_url(C)
+    ),
+    cds_ct_utils:store([{token, Token}, {session, Session}], C).
 
 -spec get_card_data_3ds(config()) -> _.
 
 get_card_data_3ds(C) ->
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
+    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(cds_ct_utils:lookup(token, C), root_url(C)).
 
 -spec get_session_data_3ds(config()) -> _.
 
 get_session_data_3ds(C) ->
-    ?SESSION_DATA(?AUTH_3DS) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+    ?SESSION_DATA(?AUTH_3DS) = cds_card_client:get_session_data(cds_ct_utils:lookup(session, C), root_url(C)).
 
 -spec put_card_data_backward_compatibilty(config()) -> _.
 
@@ -284,62 +282,69 @@ put_card_data_backward_compatibilty(C) ->
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
-    store([{token, Token}, {session, Session}], C).
+    } = cds_card_client:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
+    cds_ct_utils:store([{token, Token}, {session, Session}], C).
 
 -spec get_card_data_backward_compatibilty(config()) -> _.
 
 get_card_data_backward_compatibilty(C) ->
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(lookup(token, C), root_url(C)).
+    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(cds_ct_utils:lookup(token, C), root_url(C)).
 
 -spec get_session_data_backward_compatibilty(config()) -> _.
 
 get_session_data_backward_compatibilty(C) ->
-    ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_client:get_session_data(lookup(session, C), root_url(C)).
+    ?SESSION_DATA(?CARD_SEC_CODE(?CVV)) = cds_card_client:get_session_data(
+        cds_ct_utils:lookup(session, C),
+        root_url(C)
+    ).
 
 -spec get_session_card_data_backward_compatibilty(config()) -> _.
 
 get_session_card_data_backward_compatibilty(C) ->
-    ?CREDIT_CARD(?CVV) = cds_client:get_session_card_data(lookup(token, C), lookup(session, C), root_url(C)).
+    ?CREDIT_CARD(?CVV) = cds_card_client:get_session_card_data(
+        cds_ct_utils:lookup(token, C),
+        cds_ct_utils:lookup(session, C),
+        root_url(C)
+    ).
 
 -spec rotate(config()) -> _.
 
 rotate(C) ->
-    ok = cds_client:rotate(root_url(C)).
+    ok = cds_keyring_client:rotate(root_url(C)).
 
 -spec init_keyring_exists(config()) -> _.
 
 init_keyring_exists(C) ->
-    #'KeyringExists'{} = (catch cds_client:init(2, 3, root_url(C))).
+    #'KeyringExists'{} = (catch cds_keyring_client:init(2, 3, root_url(C))).
 
 -spec lock_no_keyring(config()) -> _.
 
 lock_no_keyring(C) ->
-    #'NoKeyring'{} = (catch cds_client:lock(root_url(C))).
+    #'NoKeyring'{} = (catch cds_keyring_client:lock(root_url(C))).
 
 -spec rotate_keyring_locked(config()) -> _.
 
 rotate_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_client:rotate(root_url(C))).
+    #'KeyringLocked'{} = (catch cds_keyring_client:rotate(root_url(C))).
 
 -spec get_card_data_unavailable(config()) -> _.
 
 get_card_data_unavailable(C) ->
-    try cds_client:get_card_data(<<"No matter what">>, root_url(C)) catch
+    try cds_card_client:get_card_data(<<"No matter what">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
 
 -spec get_session_card_data_unavailable(config()) -> _.
 
 get_session_card_data_unavailable(C) ->
-    try cds_client:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
+    try cds_card_client:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
 
 -spec put_card_data_unavailable(config()) -> _.
 
 put_card_data_unavailable(C) ->
-    try cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)) catch
+    try cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} ->
             ok
     end.
@@ -347,7 +352,7 @@ put_card_data_unavailable(C) ->
 -spec put_card_data_3ds_unavailable(config()) -> _.
 
 put_card_data_3ds_unavailable(C) ->
-    try cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?AUTH_3DS), root_url(C)) catch
+    try cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?AUTH_3DS), root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} ->
             ok
     end.
@@ -360,10 +365,10 @@ session_cleaning(C) ->
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
+    } = cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
 
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)),
-    ?CREDIT_CARD(?CVV) = cds_client:get_session_card_data(Token, Session, root_url(C)),
+    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)),
+    ?CREDIT_CARD(?CVV) = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
@@ -371,13 +376,13 @@ session_cleaning(C) ->
     }}] = config(session_cleaning_config, C),
     timer:sleep(Lifetime*1000 + Interval*2),
     ok = try
-        _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
+        _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
         error
     catch
         throw:#'CardDataNotFound'{} ->
             ok
     end,
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
+    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)).
 
 -spec refresh_sessions(config()) -> _.
 
@@ -387,7 +392,7 @@ refresh_sessions(C) ->
             token = Token
         },
         session_id = Session
-    } = cds_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(<<"345">>)), root_url(C)),
+    } = cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(<<"345">>)), root_url(C)),
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
@@ -403,18 +408,18 @@ refresh_sessions(C) ->
 
     timer:sleep(Interval),
 
-    _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
+    _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
 
     timer:sleep(Lifetime * 1000 + Interval),
 
     ok = try
-        _ = cds_client:get_session_card_data(Token, Session, root_url(C)),
+        _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
         error
     catch
         throw:#'CardDataNotFound'{} ->
             ok
     end,
-    ?CREDIT_CARD(<<>>) = cds_client:get_card_data(Token, root_url(C)).
+    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)).
 
 
 -spec recrypt(config()) -> _.
@@ -468,44 +473,6 @@ recrypt(C) ->
 %% helpers
 %%
 
-start_clear(Config) ->
-    IP = "127.0.0.1",
-    Port = 8022,
-    RootUrl = "http://" ++ IP ++ ":" ++ integer_to_list(Port),
-    StorageConfig = config(storage_config, Config, []),
-    CleanConfig = config(session_cleaning_config, Config, []),
-    Recrypting = config(recrypting_config, Config, []),
-    ok = clean_storage(StorageConfig),
-    Apps =
-        genlib_app:start_application_with(lager, [
-            {async_threshold, 1},
-            {async_threshold_window, 0},
-            {error_logger_hwm, 600},
-            {suppress_application_start_stop, true},
-            {crash_log, false},
-            {handlers, [
-                {lager_common_test_backend, warning}
-            ]}
-        ]) ++
-        genlib_app:start_application_with(cds, [
-            {ip, IP},
-            {port, Port},
-            {keyring_storage, cds_keyring_storage_env},
-            {net_opts, [
-                % Bump keepalive timeout up to a minute
-                {timeout, 60000}
-            ]}
-        ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
-    ,
-    start_stash([
-        {apps, lists:reverse(Apps)},
-        {root_url, genlib:to_binary(RootUrl)}
-    ]).
-
-stop_clear(C) ->
-    _ = (catch cds_keyring_storage_env:delete()),
-    [ok = application:stop(App) || App <- config(apps, C)],
-    stop_stash(C).
 
 config(Key, Config) ->
     config(Key, Config, undefined).
@@ -521,48 +488,3 @@ config(Key, Config, Default) ->
 root_url(C) ->
     config(root_url, C).
 
-clean_storage(CdsEnv) ->
-    case genlib_opts:get(storage, CdsEnv) of
-        cds_storage_riak ->
-            clean_riak_storage(CdsEnv);
-        cds_storage_ets ->
-            ok
-    end.
-
-clean_riak_storage(CdsEnv) ->
-    _ = application:start(riakc),
-    _ = application:set_env(riakc, allow_listing, true),
-    #{conn_params := #{
-        host := Host,
-        port := Port
-    }} = genlib_opts:get(cds_storage_riak, CdsEnv),
-    {ok, Client} = riakc_pb_socket:start_link(Host, Port),
-    {ok, Buckets} = riakc_pb_socket:list_buckets(Client),
-    lists:foreach(
-        fun(B) ->
-            {ok, Keys} = riakc_pb_socket:list_keys(Client, B),
-            [
-                ok = riakc_pb_socket:delete(Client, B, K)
-                    || K <- Keys
-            ]
-        end,
-        Buckets
-    ),
-    ok.
-
-%%
-
-start_stash(C) ->
-    [{stash, cds_ct_stash:start()} | C].
-
-stop_stash(C) ->
-    cds_ct_stash:stop(config(stash, C)).
-
-store(KVs, C) when is_list(KVs) ->
-    [store(Key, Value, C) || {Key, Value} <- KVs].
-
-store(Key, Value, C) ->
-    cds_ct_stash:put(config(stash, C), Key, Value).
-
-lookup(Key, C) ->
-    cds_ct_stash:get(config(stash, C), Key).
