@@ -16,14 +16,16 @@ handle_function('Put', [IdentityDocument], _Context, _Opts) ->
     Doc = decode(IdentityDocument),
     try
         Token = cds_ident_doc_storage:put_identity_document(Doc),
-        {ok, Token}
+        EToken = cds_utils:encode_token(Token),
+        {ok, EToken}
     catch
         Reason when Reason == locked; Reason == not_initialized ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
 handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
     try
-        Doc = cds_ident_doc_storage:get_identity_document(IdentityDocumentToken),
+        DToken = cds_utils:decode_token(IdentityDocumentToken),
+        Doc = cds_ident_doc_storage:get_identity_document(DToken),
         {ok, encode(Doc)}
     catch
         not_found ->
