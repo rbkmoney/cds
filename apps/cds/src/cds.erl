@@ -65,7 +65,7 @@ init([]) ->
             handlers => [
                 cds_thrift_services:handler_spec(card),
                 cds_thrift_services:handler_spec(keyring),
-                cds_thrift_services:handler_spec(identity_doc)
+                cds_thrift_services:handler_spec(ident_doc)
             ],
             event_handler     => cds_woody_event_handler,
             ip                => IP,

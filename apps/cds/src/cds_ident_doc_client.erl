@@ -17,8 +17,8 @@
 
 -spec get_ident_doc(cds:token(), woody:url()) -> result().
 get_ident_doc(Token, RootUrl) ->
-    cds_woody_client:call(identity_doc, 'Get', [Token], RootUrl).
+    cds_woody_client:call(ident_doc, 'Get', [Token], RootUrl).
 
 -spec put_ident_doc(ident_doc(), woody:url()) -> result().
 put_ident_doc(IdentityDoc, RootUrl) ->
-    cds_woody_client:call(identity_doc, 'Put', [IdentityDoc], RootUrl).
+    cds_woody_client:call(ident_doc, 'Put', [IdentityDoc], RootUrl).
