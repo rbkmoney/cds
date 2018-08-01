@@ -205,8 +205,12 @@ find_or_create_token(UniqueCardData) ->
         {[Token], Hash} ->
             {Token, Hash};
         {ManyTokens, Hash} ->
-            _ = assert_card_data_equal(ManyTokens, Hash),
-            {hd(ManyTokens), Hash};
+            case is_card_data_equal(ManyTokens) of
+                true ->
+                    {hd(ManyTokens), Hash};
+                false ->
+                    error({<<"Hash collision detected">>, Hash})
+            end;
         not_found ->
             {token(), CurrentHash}
     end.
@@ -234,11 +238,11 @@ token() ->
 session() ->
     crypto:strong_rand_bytes(16).
 
-assert_card_data_equal([Token | OtherTokens], Hash) ->
+is_card_data_equal([Token | OtherTokens]) ->
     FirstData = get_cardholder_data(Token),
     lists:all(
         fun(T) ->
               FirstData =:= get_cardholder_data(T)
         end,
         OtherTokens
-    ) orelse error({<<"Hash collision detected">>, Hash}).
+    ).
