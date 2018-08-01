@@ -197,33 +197,34 @@ hash(Plain, Salt) ->
 find_or_create_token(UniqueCardData) ->
     Keyring = cds_keyring_manager:get_keyring(),
     {CurrentKeyID, CurrentKey} = cds_keyring:get_current_key(Keyring),
-    Keys = [Key || {KeyID, Key} <- cds_keyring:get_keys(Keyring), KeyID =/= CurrentKeyID],
+    OtherKeys = [Key || {KeyID, Key} <- cds_keyring:get_keys(Keyring), KeyID =/= CurrentKeyID],
     CurrentHash = hash(UniqueCardData, CurrentKey),
-    FindResult = try
-        % let's check current key first
-        {cds_card_storage:get_token(CurrentHash), CurrentHash}
-    catch
-        not_found ->
-            % if not found, check other keys
-            find_token(UniqueCardData, Keys)
-    end,
+    % let's check current key first
+    FindResult = find_tokens(UniqueCardData, CurrentHash, OtherKeys),
     case FindResult of
-        {_Token, _Hash} ->
-            FindResult;
+        {[Token], Hash} ->
+            {Token, Hash};
+        {ManyTokens, Hash} ->
+            _ = assert_card_data_equal(ManyTokens, Hash),
+            {hd(ManyTokens), Hash};
         not_found ->
             {token(), CurrentHash}
     end.
 
-find_token(_, []) ->
+find_tokens(_, []) ->
     not_found;
-find_token(UniqueCardData, [Key | Others]) ->
+find_tokens(UniqueCardData, [Key | OtherKeys]) ->
     Hash = hash(UniqueCardData, Key),
-    try
-        {cds_card_storage:get_token(Hash), Hash}
-    catch
-        not_found ->
-            find_token(UniqueCardData, Others)
+    find_tokens(UniqueCardData, Hash, OtherKeys).
+
+find_tokens(UniqueCardData, Hash, OtherKeys) ->
+    case cds_card_storage:get_tokens_by_hash(Hash) of
+        [] ->
+            find_tokens(UniqueCardData, OtherKeys);
+        NotEmptyList ->
+            {NotEmptyList, Hash}
     end.
+
 
 -spec token() -> token().
 token() ->
@@ -232,3 +233,12 @@ token() ->
 -spec session() -> session().
 session() ->
     crypto:strong_rand_bytes(16).
+
+assert_card_data_equal([Token | OtherTokens], Hash) ->
+    FirstData = get_cardholder_data(Token),
+    lists:all(
+        fun(T) ->
+              FirstData =:= get_cardholder_data(T)
+        end,
+        OtherTokens
+    ) orelse error({<<"Hash collision detected">>, Hash}).
