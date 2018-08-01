@@ -133,9 +133,9 @@ get_card_data(Token, Session) ->
 -spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
 put_card_data({MarshalledCardData, MarshalledSessionData}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
-    {Token, Hash} = find_or_create_token(UniqueCardData),
-    Session = session(),
     {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {Token, Hash} = find_or_create_token(CurrentKey, UniqueCardData),
+    Session = session(),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     EncryptedSessionData = encrypt(MarshalledSessionData, CurrentKey),
     ok = cds_card_storage:put_card_data(
@@ -173,7 +173,6 @@ update_session_data(Session, SessionData) ->
 %%
 
 -spec encrypt(plaintext(), {cds_keyring:key_id(), cds_keyring:key()}) -> ciphertext().
-
 encrypt({Data, Metadata}, Keyring) ->
     {encrypt(Data, Keyring), encrypt(msgpack:pack(Metadata), Keyring)};
 encrypt(Plain, {KeyID, Key}) ->
@@ -193,10 +192,9 @@ hash(Plain, Salt) ->
     {N, R, P} = application:get_env(cds, scrypt_opts, {16384, 8, 1}),
     scrypt:scrypt(Plain, Salt, N, R, P, 16).
 
--spec find_or_create_token(binary()) -> {token(), hash()}.
-find_or_create_token(UniqueCardData) ->
+-spec find_or_create_token({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> {token(), hash()}.
+find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
     Keyring = cds_keyring_manager:get_keyring(),
-    {CurrentKeyID, CurrentKey} = cds_keyring:get_current_key(Keyring),
     OtherKeys = [Key || {KeyID, Key} <- cds_keyring:get_keys(Keyring), KeyID =/= CurrentKeyID],
     CurrentHash = hash(UniqueCardData, CurrentKey),
     % let's check current key first
