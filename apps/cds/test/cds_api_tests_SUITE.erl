@@ -100,8 +100,7 @@ groups() ->
             get_card_data_backward_compatibilty,
             get_session_data_backward_compatibilty,
             get_session_card_data_backward_compatibilty,
-            rotate,
-            {group, hash_collision_check}
+            rotate
         ]},
         {keyring_errors, [sequence], [
             get_card_data_unavailable,
@@ -126,22 +125,6 @@ groups() ->
             session_cleaning,
             refresh_sessions,
             recrypt
-        ]},
-        {hash_collision_check, [parallel], [
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            put_card_data,
-            rotate
         ]}
     ].
 %%
