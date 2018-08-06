@@ -83,10 +83,16 @@ init([]) ->
         start => {cds_maintenance_sup, start_link, []},
         type => supervisor
     },
+    HashSup = #{
+        id => cds_hash_sup,
+        start => {cds_hash, start_link, []},
+        type => supervisor
+    },
     Procs = [
         Service,
         KeyringManager,
-        Maintenance
+        Maintenance,
+        HashSup
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.
 
@@ -158,7 +164,7 @@ get_session_data(Session) ->
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
     {KeyID, Key} = cds_keyring_manager:get_current_key(),
-    Hash = hash(cds_card_data:unique(CardData), Key),
+    Hash = cds_hash:hash(cds_card_data:unique(CardData), Key),
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
@@ -187,16 +193,11 @@ decrypt(<<KeyID, Cipher/binary>>, Keyring) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID, Keyring),
     cds_crypto:decrypt(Key, Cipher).
 
--spec hash(binary(), binary()) -> hash().
-hash(Plain, Salt) ->
-    {N, R, P} = application:get_env(cds, scrypt_opts, {16384, 8, 1}),
-    scrypt:scrypt(Plain, Salt, N, R, P, 16).
-
 -spec find_or_create_token({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> {token(), hash()}.
 find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
     Keyring = cds_keyring_manager:get_keyring(),
     OtherKeys = [Key || {KeyID, Key} <- cds_keyring:get_keys(Keyring), KeyID =/= CurrentKeyID],
-    CurrentHash = hash(UniqueCardData, CurrentKey),
+    CurrentHash = cds_hash:hash(UniqueCardData, CurrentKey),
     % let's check current key first
     FindResult = find_tokens(UniqueCardData, CurrentHash, OtherKeys),
     case FindResult of
@@ -216,7 +217,7 @@ find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
 find_tokens(_, []) ->
     not_found;
 find_tokens(UniqueCardData, [Key | OtherKeys]) ->
-    Hash = hash(UniqueCardData, Key),
+    Hash = cds_hash:hash(UniqueCardData, Key),
     find_tokens(UniqueCardData, Hash, OtherKeys).
 
 find_tokens(UniqueCardData, Hash, OtherKeys) ->
