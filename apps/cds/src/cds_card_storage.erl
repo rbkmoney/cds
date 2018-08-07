@@ -7,14 +7,12 @@
 -type timestamp() :: pos_integer().
 
 -export([get_namespaces/0]).
--export([get_token/1]).
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([get_session_data/1]).
 -export([put_card_data/7]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/4]).
--export([get_tokens_by_key_id_between/4]).
 -export([get_sessions_by_key_id_between/4]).
 -export([update_cardholder_data/4]).
 -export([update_session_data/3]).
@@ -22,6 +20,8 @@
 -export([get_sessions/2]).
 -export([get_sessions_info/2]).
 -export([get_tokens/2]).
+-export([get_tokens_by_hash/1]).
+-export([get_tokens_by_key_id_between/4]).
 
 %% TODO Those names looks so shitty for backward compatibility
 -define(TOKEN_NS, <<"t">>).
@@ -35,17 +35,10 @@
 get_namespaces() ->
     [?TOKEN_NS, ?SESSION_NS].
 
--spec get_token(cds:hash()) -> cds:token() | no_return().
-get_token(Hash) ->
-    case cds_storage:search_by_index_value(?TOKEN_NS, ?CARD_DATA_HASH_INDEX, Hash, undefined, undefined) of
-        {[Token], _} ->
-            Token;
-        {[], _} ->
-            throw(not_found);
-        {ManyTokens, _} ->
-            _ = assert_card_data_equal(ManyTokens, Hash),
-            hd(ManyTokens)
-    end.
+-spec get_tokens_by_hash(cds:hash()) -> [cds:token()] | no_return().
+get_tokens_by_hash(Hash) ->
+    {Tokens, _} = cds_storage:search_by_index_value(?TOKEN_NS, ?CARD_DATA_HASH_INDEX, Hash, undefined, undefined),
+    Tokens.
 
 -spec get_cardholder_data(cds:token()) -> cds:ciphertext() | no_return().
 get_cardholder_data(Token) ->
@@ -192,13 +185,3 @@ update_session_data(Session, {SessionData, SessionMeta}, KeyID) ->
 
 prepare_card_data_indexes(Hash, KeyID) ->
     [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}].
-
-assert_card_data_equal([Token | OtherTokens], Hash) ->
-    % TODO same card data could be encrypted with different keys
-    FirstData = get_cardholder_data(Token),
-    lists:all(
-        fun(T) ->
-              FirstData =:= get_cardholder_data(T)
-        end,
-        OtherTokens
-    ) orelse error({<<"Hash collision detected">>, Hash}).
