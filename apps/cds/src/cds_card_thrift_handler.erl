@@ -60,7 +60,7 @@ handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                 }};
             {error, ValidationError} ->
                 cds_thrift_handler_utils:raise(#'InvalidCardData'{
-                    reason         = list_to_binary(io_lib:format("~p", [ValidationError]))
+                    reason         = cds_card_data:map_validation_error(ValidationError)
                 })
         end
     catch
