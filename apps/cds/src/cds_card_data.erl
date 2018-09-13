@@ -13,8 +13,6 @@
 -export([unmarshal_session_data/1]).
 -export([unique/1]).
 
--export([map_validation_error/1]).
-
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
 -type cardholder() :: binary() | undefined.
@@ -53,6 +51,7 @@
 -export_type([payment_system/0]).
 -export_type([card_info/0]).
 -export_type([cardholder_data/0]).
+-export_type([reason/0]).
 
 %%
 
@@ -109,22 +108,6 @@ detect_payment_system(Size, CardNumber) when Size > 0 ->
     end;
 detect_payment_system(0, _) ->
     {error, unrecognized}.
-
--spec map_validation_error(reason()) ->
-    Error :: binary().
-
-map_validation_error(unrecognized) ->
-    <<"Unrecognized payment system">>;
-map_validation_error({invalid, Field, Check}) ->
-    Formatted = io_lib:format("Invalid ~p: ~p", [
-        Field,
-        map_validation_check(Check)
-    ]),
-
-    list_to_binary(Formatted).
-
-map_validation_check({length, _}) -> length;
-map_validation_check(Check) -> Check.
 
 %%
 
