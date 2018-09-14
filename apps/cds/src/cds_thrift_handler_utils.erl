@@ -28,7 +28,6 @@ map_validation_error({invalid, Field, Check}) ->
         Field,
         map_validation_check(Check)
     ]),
-
     list_to_binary(Formatted).
 
 %%
