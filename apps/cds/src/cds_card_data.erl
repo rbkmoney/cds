@@ -51,6 +51,7 @@
 -export_type([payment_system/0]).
 -export_type([card_info/0]).
 -export_type([cardholder_data/0]).
+-export_type([reason/0]).
 
 %%
 

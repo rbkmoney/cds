@@ -58,8 +58,10 @@ handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                     bank_card      = BankCard,
                     session_id     = cds_utils:encode_session(Session)
                 }};
-            {error, _} ->
-                cds_thrift_handler_utils:raise(#'InvalidCardData'{})
+            {error, ValidationError} ->
+                cds_thrift_handler_utils:raise(#'InvalidCardData'{
+                    reason         = cds_thrift_handler_utils:map_validation_error(ValidationError)
+                })
         end
     catch
         Reason when Reason == locked; Reason == not_initialized ->
