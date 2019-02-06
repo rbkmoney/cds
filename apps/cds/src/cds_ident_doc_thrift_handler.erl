@@ -12,7 +12,12 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('Put', [IdentityDocument], _Context, _Opts) ->
+
+handle_function(OperationID, Args, Context, Opts) ->
+    ok = cds_utils:add_rpc_id(woody_context:get_rpc_id(Context)),
+    handle_function_(OperationID, Args, Context, Opts).
+
+handle_function_('Put', [IdentityDocument], _Context, _Opts) ->
     Doc = decode(IdentityDocument),
     try
         Token = cds_ident_doc_storage:put_identity_document(Doc),
@@ -22,7 +27,7 @@ handle_function('Put', [IdentityDocument], _Context, _Opts) ->
         Reason when Reason == locked; Reason == not_initialized ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
-handle_function('Get', [IdentityDocumentToken], _Context, _Opts) ->
+handle_function_('Get', [IdentityDocumentToken], _Context, _Opts) ->
     try
         DToken = cds_utils:decode_token(IdentityDocumentToken),
         Doc = cds_ident_doc_storage:get_identity_document(DToken),
