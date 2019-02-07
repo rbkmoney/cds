@@ -24,7 +24,7 @@ get_rpc_id() ->
         {ok, Result} ->
             Result;
         _ ->
-            unknown_rpc
+            ""
     end.
 
 -spec add_rpc_id(map() | undefined) -> ok.
