@@ -15,7 +15,7 @@
 
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
-        card,
+        card_data,
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
