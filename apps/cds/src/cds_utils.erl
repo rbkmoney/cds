@@ -2,8 +2,6 @@
 
 -export([current_time/0]).
 -export([logtag_process/2]).
--export([add_rpc_id/1]).
--export([get_rpc_id/0]).
 
 -export([decode_token/1]).
 -export([encode_token/1]).
@@ -17,20 +15,6 @@ current_time() ->
 -spec logtag_process(atom(), any()) -> ok.
 logtag_process(Key, Value) when is_atom(Key) ->
     lager:md(orddict:store(Key, Value, lager:md())).
-
--spec get_rpc_id() -> list().
-get_rpc_id() ->
-    case orddict:find(rpc_id, lager:md()) of
-        {ok, Result} ->
-            Result;
-        _ ->
-            ""
-    end.
-
--spec add_rpc_id(map() | undefined) -> ok.
-add_rpc_id(RpcId) ->
-    {FormattedID, Args} = woody_event_handler:format_rpc_id(RpcId),
-    lager:md(orddict:store(rpc_id, io_lib:format(FormattedID, Args), lager:md())).
 
 -spec decode_token(binary()) -> cds:token().
 decode_token(Token) ->
