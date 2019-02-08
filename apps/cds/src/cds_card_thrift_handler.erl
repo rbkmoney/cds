@@ -14,8 +14,10 @@
     {ok, woody:result()} | no_return().
 
 handle_function(OperationID, Args, Context, Opts) ->
-    ok = cds_utils:add_rpc_id(woody_context:get_rpc_id(Context)),
-    handle_function_(OperationID, Args, Context, Opts).
+    scoper:scope(
+        card,
+        fun() -> handle_function_(OperationID, Args, Context, Opts) end
+    ).
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
