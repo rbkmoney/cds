@@ -21,8 +21,8 @@ call(Key, Method, Args) ->
             throw(Error)
     catch Class:Reason ->
         _ = lager:error(
-            "~p (~p) ~p failed with ~p ~p: ~p",
-            [Key, Module, Method, Class, Reason, erlang:get_stacktrace()
-        ]),
+            "~p (~p) ~p failed~nStacktrace:~s",
+            [Key, Module, Method,
+                lager:pr_stacktrace(erlang:get_stacktrace(), {Class, Reason})]),
         exit(backend_error)
     end.
