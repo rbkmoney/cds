@@ -39,8 +39,12 @@ start_clear(Config) ->
             {suppress_application_start_stop, true},
             {crash_log, false},
             {handlers, [
+                % {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
                 {lager_common_test_backend, warning}
             ]}
+        ]) ++
+        genlib_app:start_application_with(scoper, [
+            {storage, scoper_storage_lager}
         ]) ++
         genlib_app:start_application_with(cds, [
             {ip, IP},

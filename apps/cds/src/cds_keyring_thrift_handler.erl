@@ -12,7 +12,14 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
+
+handle_function(OperationID, Args, Context, Opts) ->
+    scoper:scope(
+        keyring,
+        fun() -> handle_function_(OperationID, Args, Context, Opts) end
+    ).
+
+handle_function_('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
     try cds_keyring_manager:initialize(Threshold, Count) of
         Shares ->
             {ok, Shares}
@@ -20,21 +27,21 @@ handle_function('Init', [Threshold, Count], _Context, _Opts) when Threshold =< C
         already_initialized ->
             cds_thrift_handler_utils:raise(#'KeyringExists'{})
     end;
-handle_function('Lock', [], _Context, _Opts) ->
+handle_function_('Lock', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:lock()} catch
         not_initialized ->
             cds_thrift_handler_utils:raise(#'NoKeyring'{});
         locked ->
             {ok, ok}
     end;
-handle_function('Unlock', [Share], _Context, _Opts) ->
+handle_function_('Unlock', [Share], _Context, _Opts) ->
     case cds_keyring_manager:unlock(Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {unlocked, #'Unlocked'{}}}
     end;
-handle_function('Rotate', [], _Context, _Opts) ->
+handle_function_('Rotate', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:rotate()} catch
         not_initialized ->
             cds_thrift_handler_utils:raise(#'NoKeyring'{});

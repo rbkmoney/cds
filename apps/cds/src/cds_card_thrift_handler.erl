@@ -12,7 +12,14 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-handle_function('GetCardData', [Token], _Context, _Opts) ->
+
+handle_function(OperationID, Args, Context, Opts) ->
+    scoper:scope(
+        card_data,
+        fun() -> handle_function_(OperationID, Args, Context, Opts) end
+    ).
+
+handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
         {ok, encode_cardholder_data(
             get_cardholder_data(
@@ -25,7 +32,7 @@ handle_function('GetCardData', [Token], _Context, _Opts) ->
         Reason when Reason == locked; Reason == not_initialized ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
-handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
+handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
         {ok, encode_card_data(
             get_card_data(
@@ -39,7 +46,7 @@ handle_function('GetSessionCardData', [Token, Session], _Context, _Opts) ->
         Reason when Reason == locked; Reason == not_initialized ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
-handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
+handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
     OwnSessionData = decode_session_data(
         define_session_data(SessionData, CardData)
@@ -67,7 +74,7 @@ handle_function('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         Reason when Reason == locked; Reason == not_initialized ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
-handle_function('GetSessionData', [Session], _Context, _Opts) ->
+handle_function_('GetSessionData', [Session], _Context, _Opts) ->
     try
         {ok, encode_session_data(
             get_session_data(
