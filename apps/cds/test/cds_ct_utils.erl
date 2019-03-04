@@ -70,7 +70,11 @@ set_riak_storage(C) ->
         {cds_storage_riak, #{
             conn_params => #{
                 host => "riakdb",
-                port => 8087
+                port => 8087,
+                options => #{
+                    connect_timeout => 1000,
+                    keepalive => true
+                }
             },
             timeout => 5000
         }}

@@ -23,7 +23,11 @@
 
 -type conn_params() :: #{
     host := string(),
-    port := pos_integer()
+    port := pos_integer(),
+    options => #{
+        connect_timeout => pos_integer(),
+        keepalive       => boolean()
+    }
 }.
 
 -type pool_params() :: #{
@@ -40,6 +44,10 @@
     max_count     => 10,
     init_count    => 10,
     cull_interval => {0, min}
+}).
+
+-define(DEFAULT_CLIENT_OPTS, #{
+    connect_timeout => 5000
 }).
 
 %%
@@ -159,12 +167,17 @@ get_default_timeout() ->
 
 -spec start_pool(storage_params()) -> ok | no_return().
 
-start_pool(#{conn_params := #{host := Host, port := Port}} = StorageParams) ->
+start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = StorageParams) ->
     PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 
+    Opts = maps:with(
+        % As of https://github.com/rbkmoney/riak-erlang-client/blob/edba3d0/include/riakc.hrl#L30
+        [connect_timeout, keepalive],
+        maps:get(options, ConnParams, ?DEFAULT_CLIENT_OPTS)
+    ),
     PoolConfig = [
         {name, riak},
-        {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
+        {start_mfa, {riakc_pb_socket, start_link, [Host, Port, maps:to_list(Opts)]}}
     ] ++ maps:to_list(PoolParams),
 
     {ok, _Pid} = pooler:new_pool(PoolConfig),
