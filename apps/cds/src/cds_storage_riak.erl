@@ -12,7 +12,7 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
--define(POOLER_TIMEOUT, {5, sec}).
+-define(POOLER_TIMEOUT, {1, sec}).
 -define(DEFAULT_TIMEOUT, 5000). % milliseconds
 
 -type storage_params() :: #{
