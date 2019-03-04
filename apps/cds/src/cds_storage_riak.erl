@@ -211,32 +211,35 @@ get_index_eq(Bucket, Index, Key, Opts) ->
 
 batch_request(Method, Args, Acc) ->
     Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
-    batch_request(Method, Client, Args, Acc).
-
-batch_request(_Method, Client, [], Acc) ->
-    ok = pooler:return_member(riak, Client, ok),
-    case Acc of
-        ok ->
-            ok;
-        Acc ->
-            {ok, lists:reverse(Acc)}
-    end;
-batch_request(Method, Client, [Args | Rest], Acc) ->
     try
-        case apply(riakc_pb_socket, Method, [Client | Args]) of
-            ok when Acc =:= ok ->
-                batch_request(Method, Client, Rest, Acc);
-            {ok, Response} when is_list(Acc) ->
-                batch_request(Method, Client, Rest, [Response | Acc]);
-            Error ->
-                ok = pooler:return_member(riak, Client, fail),
-                Error
-        end
-    catch
-        Class:Exception ->
-            pooler:return_group_member(riak, Client, fail),
-            erlang:raise(Class, Exception, erlang:get_stacktrace())
+        Result = batch_request(Method, Client, Args, Acc),
+        _ = pooler:return_member(riak, Client, get_client_status(Result)),
+        Result
+    catch Class:Exception ->
+        _ = pooler:return_member(riak, Client, fail),
+        erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
+
+get_client_status(ok) ->
+    ok;
+get_client_status({ok, _}) ->
+    ok;
+get_client_status(_Error) ->
+    fail.
+
+batch_request(Method, Client, [Args | Rest], Acc) ->
+    case apply(riakc_pb_socket, Method, [Client | Args]) of
+        ok when Acc =:= ok ->
+            batch_request(Method, Client, Rest, Acc);
+        {ok, Response} when is_list(Acc) ->
+            batch_request(Method, Client, Rest, [Response | Acc]);
+        Error ->
+            Error
+    end;
+batch_request(_Method, _Client, [], ok) ->
+    ok;
+batch_request(_Method, _Client, [], Acc) ->
+    {ok, lists:reverse(Acc)}.
 
 -spec prepare_index_result({ok, index_results()} | {error, Reason :: term()}) ->
     {ok, {[key()], continuation()}} | no_return().
