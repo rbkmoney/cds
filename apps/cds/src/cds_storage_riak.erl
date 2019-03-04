@@ -12,7 +12,7 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
--define(POOLER_TIMEOUT, {5, sec}).
+-define(POOLER_TIMEOUT, {1, sec}).
 -define(DEFAULT_TIMEOUT, 5000). % milliseconds
 
 -type storage_params() :: #{
@@ -23,7 +23,11 @@
 
 -type conn_params() :: #{
     host := string(),
-    port := pos_integer()
+    port := pos_integer(),
+    options => #{
+        connect_timeout => pos_integer(),
+        keepalive       => boolean()
+    }
 }.
 
 -type pool_params() :: #{
@@ -40,6 +44,10 @@
     max_count     => 10,
     init_count    => 10,
     cull_interval => {0, min}
+}).
+
+-define(DEFAULT_CLIENT_OPTS, #{
+    connect_timeout => 5000
 }).
 
 %%
@@ -159,12 +167,17 @@ get_default_timeout() ->
 
 -spec start_pool(storage_params()) -> ok | no_return().
 
-start_pool(#{conn_params := #{host := Host, port := Port}} = StorageParams) ->
+start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = StorageParams) ->
     PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 
+    Opts = maps:with(
+        % As of https://github.com/rbkmoney/riak-erlang-client/blob/edba3d0/include/riakc.hrl#L30
+        [connect_timeout, keepalive],
+        maps:get(options, ConnParams, ?DEFAULT_CLIENT_OPTS)
+    ),
     PoolConfig = [
         {name, riak},
-        {start_mfa, {riakc_pb_socket, start_link, [Host, Port]}}
+        {start_mfa, {riakc_pb_socket, start_link, [Host, Port, maps:to_list(Opts)]}}
     ] ++ maps:to_list(PoolParams),
 
     {ok, _Pid} = pooler:new_pool(PoolConfig),
@@ -211,32 +224,35 @@ get_index_eq(Bucket, Index, Key, Opts) ->
 
 batch_request(Method, Args, Acc) ->
     Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
-    batch_request(Method, Client, Args, Acc).
-
-batch_request(_Method, Client, [], Acc) ->
-    ok = pooler:return_member(riak, Client, ok),
-    case Acc of
-        ok ->
-            ok;
-        Acc ->
-            {ok, lists:reverse(Acc)}
-    end;
-batch_request(Method, Client, [Args | Rest], Acc) ->
     try
-        case apply(riakc_pb_socket, Method, [Client | Args]) of
-            ok when Acc =:= ok ->
-                batch_request(Method, Client, Rest, Acc);
-            {ok, Response} when is_list(Acc) ->
-                batch_request(Method, Client, Rest, [Response | Acc]);
-            Error ->
-                ok = pooler:return_member(riak, Client, fail),
-                Error
-        end
-    catch
-        Class:Exception ->
-            pooler:return_group_member(riak, Client, fail),
-            erlang:raise(Class, Exception, erlang:get_stacktrace())
+        Result = batch_request(Method, Client, Args, Acc),
+        _ = pooler:return_member(riak, Client, get_client_status(Result)),
+        Result
+    catch Class:Exception ->
+        _ = pooler:return_member(riak, Client, fail),
+        erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
+
+get_client_status(ok) ->
+    ok;
+get_client_status({ok, _}) ->
+    ok;
+get_client_status(_Error) ->
+    fail.
+
+batch_request(Method, Client, [Args | Rest], Acc) ->
+    case apply(riakc_pb_socket, Method, [Client | Args]) of
+        ok when Acc =:= ok ->
+            batch_request(Method, Client, Rest, Acc);
+        {ok, Response} when is_list(Acc) ->
+            batch_request(Method, Client, Rest, [Response | Acc]);
+        Error ->
+            Error
+    end;
+batch_request(_Method, _Client, [], ok) ->
+    ok;
+batch_request(_Method, _Client, [], Acc) ->
+    {ok, lists:reverse(Acc)}.
 
 -spec prepare_index_result({ok, index_results()} | {error, Reason :: term()}) ->
     {ok, {[key()], continuation()}} | no_return().
