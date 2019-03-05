@@ -27,6 +27,8 @@ call(Key, Method, Args) ->
         handle_error(Class, Reason)
     end.
 
+-spec handle_error(atom(), _) ->
+    no_return().
 handle_error(throw, {noproc, Reason}) ->
     BinaryDescription = erlang:list_to_binary(io_lib:format("~9999p", [Reason])),
     woody_error:raise(system, {internal, resource_unavailable, BinaryDescription});
