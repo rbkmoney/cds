@@ -12,7 +12,7 @@
 
 -include_lib("riakc/include/riakc.hrl").
 
--define(POOLER_TIMEOUT, {1, sec}).
+-define(DEFAULT_POOLER_TIMEOUT, {1, sec}).
 -define(DEFAULT_TIMEOUT, 5000). % milliseconds
 
 -type storage_params() :: #{
@@ -35,7 +35,8 @@
     init_count           => non_neg_integer     (),
     cull_interval        => pooler_time_interval(),
     max_age              => pooler_time_interval(),
-    member_start_timeout => pooler_time_interval()
+    member_start_timeout => pooler_time_interval(),
+    pool_timeout         => pooler_time_interval()
 }.
 
 -type pooler_time_interval() :: {non_neg_integer(), min | sec | ms | mu}.
@@ -43,7 +44,8 @@
 -define(DEFAULT_POOL_PARAMS, #{
     max_count     => 10,
     init_count    => 10,
-    cull_interval => {0, min}
+    cull_interval => {0, min},
+    pool_timeout  => ?DEFAULT_POOLER_TIMEOUT
 }).
 
 -define(DEFAULT_CLIENT_OPTS, #{
@@ -165,6 +167,11 @@ get_default_timeout() ->
     Params = get_storage_params(),
     {timeout, genlib_map:get(timeout, Params, ?DEFAULT_TIMEOUT)}.
 
+get_pool_timeout() ->
+    Params = get_storage_params(),
+    PoolParams = genlib_map:get(pool_params, Params, ?DEFAULT_POOL_PARAMS),
+    genlib_map:get(pool_timeout, PoolParams, ?DEFAULT_POOLER_TIMEOUT).
+
 -spec start_pool(storage_params()) -> ok | no_return().
 
 start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = StorageParams) ->
@@ -223,7 +230,7 @@ get_index_eq(Bucket, Index, Key, Opts) ->
     batch_request(get_index_eq, [[Bucket, Index, Key, Opts]], []).
 
 batch_request(Method, Args, Acc) ->
-    Client = pooler:take_member(riak, ?POOLER_TIMEOUT),
+    Client = pooler_take_member(),
     try
         Result = batch_request(Method, Client, Args, Acc),
         _ = pooler:return_member(riak, Client, get_client_status(Result)),
@@ -239,6 +246,14 @@ get_client_status({ok, _}) ->
     ok;
 get_client_status(_Error) ->
     fail.
+
+pooler_take_member() ->
+    case pooler:take_member(riak, get_pool_timeout()) of
+        error_no_members ->
+            throw({pool_error, no_members});
+        Client ->
+            Client
+    end.
 
 batch_request(Method, Client, [Args | Rest], Acc) ->
     case apply(riakc_pb_socket, Method, [Client | Args]) of

@@ -32,6 +32,7 @@
 -export([put_card_data_3ds_unavailable/1]).
 -export([get_card_data_unavailable/1]).
 -export([get_session_card_data_unavailable/1]).
+-export([put_card_data_no_member/1]).
 
 %%
 
@@ -78,7 +79,10 @@ all() ->
 
 groups() ->
  [
-        {riak_storage_backend, [], [{group, general_flow}]},
+        {riak_storage_backend, [], [
+            {group, general_flow},
+            {group, error_map}
+        ]},
         {ets_storage_backend, [], [{group, general_flow}]},
         {general_flow, [], [
             {group, basic_lifecycle},
@@ -142,6 +146,14 @@ groups() ->
             put_card_data,
             put_card_data,
             rotate
+        ]},
+        {error_map, [sequence], [
+            init,
+            {group, error_map_ddos}
+        ]},
+        {error_map_ddos, [parallel], [
+            put_card_data_no_member,
+            put_card_data_no_member
         ]}
     ].
 %%
@@ -186,6 +198,23 @@ init_per_group(session_management, C) ->
     C2 = cds_ct_utils:start_clear(C1),
     C1 ++ C2;
 
+init_per_group(error_map, C) ->
+    StorageConfig = config(storage_config, C),
+    RiakConfig = config(cds_storage_riak, StorageConfig),
+    RiakConfigNew = RiakConfig#{
+        pool_params => #{
+            max_count     => 1,
+            init_count    => 1,
+            cull_interval => {0, min},
+            pool_timeout  => {0, sec}
+        }
+    },
+
+    StorageConfigNew = update_config(cds_storage_riak, StorageConfig, RiakConfigNew),
+    cds_ct_utils:start_clear([{storage_config, StorageConfigNew} | C]);
+init_per_group(error_map_ddos, C) ->
+    C;
+
 init_per_group(_, C) ->
     C1 = cds_ct_utils:start_clear(C),
     C1 ++ C.
@@ -195,7 +224,8 @@ init_per_group(_, C) ->
 end_per_group(Group, C) when
     Group =:= ets_storage_backend;
     Group =:= general_flow;
-    Group =:= riak_storage_backend
+    Group =:= riak_storage_backend;
+    Group =:= error_map_ddos
  ->
     C;
 
@@ -374,6 +404,14 @@ put_card_data_3ds_unavailable(C) ->
             ok
     end.
 
+-spec put_card_data_no_member(config()) -> _.
+
+put_card_data_no_member(C) ->
+    try cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)) catch
+        error:{woody_error, {external, resource_unavailable, <<"no_members">>}} ->
+            ok
+    end.
+
 -spec session_cleaning(config()) -> _.
 
 session_cleaning(C) ->
@@ -500,6 +538,14 @@ config(Key, Config, Default) ->
             Val;
         _ ->
             Default
+    end.
+
+update_config(Key, Config, NewVal) ->
+    case lists:keysearch(Key, 1, Config) of
+        {value, {Key, _Val}} ->
+            lists:keyreplace(Key, 1, Config, {Key, NewVal});
+        _ ->
+            [{Key, NewVal} | Config]
     end.
 
 root_url(C) ->
