@@ -408,7 +408,7 @@ put_card_data_3ds_unavailable(C) ->
 
 put_card_data_no_member(C) ->
     try cds_card_client:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)) catch
-        error:{woody_error, {external, resource_unavailable, <<"no_members">>}} ->
+        error:{woody_error, {external, resource_unavailable, <<"{pool_error,no_members}">>}} ->
             ok
     end.
 

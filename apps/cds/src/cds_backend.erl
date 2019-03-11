@@ -29,7 +29,7 @@ call(Key, Method, Args) ->
 
 -spec handle_error(atom(), _) ->
     no_return().
-handle_error(throw, {pool_error, Reason}) ->
+handle_error(throw, {pool_error, no_members} = Reason) ->
     BinaryDescription = erlang:list_to_binary(io_lib:format("~9999p", [Reason])),
     woody_error:raise(system, {internal, resource_unavailable, BinaryDescription});
 handle_error(error, timeout = Reason) ->
