@@ -24,5 +24,16 @@ call(Key, Method, Args) ->
             "~p (~p) ~p failed~nStacktrace:~s",
             [Key, Module, Method,
                 lager:pr_stacktrace(erlang:get_stacktrace(), {Class, Reason})]),
-        exit(backend_error)
+        handle_error(Class, Reason)
     end.
+
+-spec handle_error(atom(), _) ->
+    no_return().
+handle_error(throw, {pool_error, no_members} = Reason) ->
+    BinaryDescription = erlang:list_to_binary(io_lib:format("~9999p", [Reason])),
+    woody_error:raise(system, {internal, resource_unavailable, BinaryDescription});
+handle_error(error, timeout = Reason) ->
+    BinaryDescription = erlang:list_to_binary(io_lib:format("~9999p", [Reason])),
+    woody_error:raise(system, {internal, result_unknown, BinaryDescription});
+handle_error(Class, Reason) ->
+    exit({backend_error, {Class, Reason}}).
