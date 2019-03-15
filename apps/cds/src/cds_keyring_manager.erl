@@ -10,7 +10,7 @@
 -export([unlock/1]).
 -export([lock/0]).
 -export([update/0]).
--export([rotate/0]).
+-export([rotate/1]).
 -export([initialize/2]).
 -export([get_state/0]).
 
@@ -74,9 +74,9 @@ lock() ->
 update() ->
     sync_send_event(update).
 
--spec rotate() -> ok.
-rotate() ->
-    sync_send_event(rotate).
+-spec rotate(cds_keysharing:masterkey_share()) -> {more, byte()} | ok.
+rotate(Share) ->
+    sync_send_event({rotate, Share}).
 
 -spec initialize(integer(), integer()) -> [cds_keysharing:masterkey_share()].
 initialize(Threshold, Count) ->
@@ -210,15 +210,15 @@ unlocked({get_key, KeyId}, _From, #state{keyring = Keyring} = StateData) ->
     {reply, cds_keyring:get_key(KeyId, Keyring), unlocked, StateData};
 unlocked(get_current_key, _From, #state{keyring = Keyring} = StateData) ->
     {reply, {ok, cds_keyring:get_current_key(Keyring)}, unlocked, StateData};
-unlocked(rotate, _From, #state{keyring = OldKeyring, masterkey = MasterKey} = StateData) ->
-    NewKeyring = cds_keyring:rotate(OldKeyring),
-    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    try cds_keyring_storage:update(EncryptedNewKeyring) of
-        ok ->
-            {reply, ok, unlocked, StateData#state{keyring = NewKeyring}}
-    catch
-        conditional_check_failed ->
-            {reply, {error, out_of_date}, unlocked, StateData}
+unlocked({rotate, Share}, _From, #state{keyring = OldKeyring} = StateData) ->
+    {ok, _Pid} = cds_keyring_rotator:start(),
+    case cds_keyring_rotator:rotate(Share, OldKeyring) of
+        {ok, {more, _More}} = Result ->
+            {reply, Result, unlocked, StateData};
+        {ok, NewKeyring} ->
+            {reply, ok, unlocked, StateData#state{keyring = NewKeyring}};
+        Result ->
+            {reply, Result, unlocked, StateData}
     end;
 unlocked({initialize, _, _}, _From, StateData) ->
     {reply, {error, already_initialized}, unlocked, StateData};
