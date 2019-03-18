@@ -50,19 +50,9 @@ init([]) ->
 handle_call({rotate, <<Threshold, X, _Y/binary>> = Share, OldKeyring}, _From, #state{shares = Shares} = StateData) ->
   case Shares#{X => Share} of
     AllShares when map_size(AllShares) =:= Threshold ->
-      case recover_masterkey(AllShares) of
-        {ok, MasterKey} ->
-          case validate_masterkey(MasterKey, OldKeyring) of
-            {ok, OldKeyring} ->
-              case rotate_keyring(MasterKey, OldKeyring) of
-                {ok, NewKeyring} ->
-                  {stop, normal, {ok, NewKeyring}, StateData};
-                {error, Error} ->
-                  {stop, normal, {error, Error}, StateData}
-              end;
-            {error, Error} ->
-              {stop, normal, {error, Error}, StateData}
-          end;
+      case create_new_keyring(OldKeyring, AllShares) of
+        {ok, NewKeyring} ->
+          {stop, normal, {ok, NewKeyring}, StateData};
         {error, Error} ->
           {stop, normal, {error, Error}, StateData}
       end;
@@ -98,6 +88,21 @@ code_change(_OldVsn, StateData, _Extra) ->
 
 timeout() ->
   application:get_env(cds, keyring_rotator_timeout, 60000).
+
+-spec create_new_keyring(term(), list()) -> {ok, binary()} | {error, atom()}.
+
+create_new_keyring(OldKeyring, AllShares) ->
+  case recover_masterkey(AllShares) of
+    {ok, MasterKey} ->
+      case validate_masterkey(MasterKey, OldKeyring) of
+        {ok, OldKeyring} ->
+          rotate_keyring(MasterKey, OldKeyring);
+        {error, Error} ->
+          {error, Error}
+      end;
+    {error, Error} ->
+      {error, Error}
+  end.
 
 -spec recover_masterkey(term()) -> {ok, binary()} | {error, atom()}.
 
