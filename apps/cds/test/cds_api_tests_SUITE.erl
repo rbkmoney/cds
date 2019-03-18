@@ -30,6 +30,7 @@
 -export([lock_no_keyring/1]).
 -export([rotate_keyring_locked/1]).
 -export([rotate_failed_to_recover/1]).
+-export([rotate_wrong_masterkey/1]).
 -export([put_card_data_unavailable/1]).
 -export([put_card_data_3ds_unavailable/1]).
 -export([get_card_data_unavailable/1]).
@@ -128,7 +129,8 @@ groups() ->
             get_card_data_unavailable,
             get_session_card_data_unavailable,
             unlock,
-            rotate_failed_to_recover
+            rotate_failed_to_recover,
+            rotate_wrong_masterkey
         ]},
         {session_management, [sequence], [
             init,
@@ -405,6 +407,14 @@ rotate_failed_to_recover(C) ->
     MasterKey2 = <<2, 4, 23224>>,
     {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
     #'FailedMasterKeyRecovery'{} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
+
+-spec rotate_wrong_masterkey(config()) -> _.
+
+rotate_wrong_masterkey(C) ->
+    MasterKey = cds_crypto:key(),
+    [MasterKey1, MasterKey2, _MasterKey3] = cds_keysharing:share(MasterKey, 2, 3),
+    {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
+    #'WrongMasterKey'{} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
 
 -spec get_card_data_unavailable(config()) -> _.
 
