@@ -89,7 +89,7 @@ code_change(_OldVsn, StateData, _Extra) ->
 timeout() ->
   application:get_env(cds, keyring_rotator_timeout, 60000).
 
--spec create_new_keyring(term(), list()) -> {ok, binary()} | {error, atom()}.
+-spec create_new_keyring(term(), map()) -> {ok, term()} | {error, atom()}.
 
 create_new_keyring(OldKeyring, AllShares) ->
   case recover_masterkey(AllShares) of
