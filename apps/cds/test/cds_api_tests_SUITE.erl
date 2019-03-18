@@ -22,12 +22,14 @@
 -export([get_session_data_backward_compatibilty/1]).
 -export([get_session_card_data_backward_compatibilty/1]).
 -export([rotate/1]).
+-export([rotate_with_timeout/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
 -export([refresh_sessions/1]).
 -export([init_keyring_exists/1]).
 -export([lock_no_keyring/1]).
 -export([rotate_keyring_locked/1]).
+-export([rotate_failed_to_recover/1]).
 -export([put_card_data_unavailable/1]).
 -export([put_card_data_3ds_unavailable/1]).
 -export([get_card_data_unavailable/1]).
@@ -94,13 +96,16 @@ groups() ->
             unlock,
             put_card_data,
             get_card_data,
+            rotate_with_timeout,
             get_session_data,
             rotate,
             put_card_data_3ds,
+            rotate_with_timeout,
             get_card_data_3ds,
             get_session_data_3ds,
             rotate,
             put_card_data_backward_compatibilty,
+            rotate_with_timeout,
             get_card_data_backward_compatibilty,
             get_session_data_backward_compatibilty,
             get_session_card_data_backward_compatibilty,
@@ -121,7 +126,9 @@ groups() ->
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
             get_card_data_unavailable,
-            get_session_card_data_unavailable
+            get_session_card_data_unavailable,
+            unlock,
+            rotate_failed_to_recover
         ]},
         {session_management, [sequence], [
             init,
@@ -170,6 +177,10 @@ init_per_group(ets_storage_backend, C) ->
 
 init_per_group(general_flow, C) ->
     C;
+init_per_group(hash_collision_check, C) ->
+    Stash = config(stash, C),
+    C1 = cds_ct_utils:start_clear(C, Stash),
+    C1 ++ C;
 
 init_per_group(keyring_errors, C) ->
     StorageConfig = [
@@ -253,7 +264,7 @@ lock(C) ->
 unlock(C) ->
     [MasterKey1, MasterKey2, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     {more_keys_needed, 1} = cds_keyring_client:unlock(MasterKey1, root_url(C)),
-    {unlocked, #'Unlocked'{}} = cds_keyring_client:unlock(MasterKey2, root_url(C)).
+    {success, #'Success'{}} = cds_keyring_client:unlock(MasterKey2, root_url(C)).
 
 -spec put_card_data(config()) -> _.
 
@@ -357,7 +368,19 @@ get_session_card_data_backward_compatibilty(C) ->
 -spec rotate(config()) -> _.
 
 rotate(C) ->
-    ok = cds_keyring_client:rotate(root_url(C)).
+    [MasterKey1, MasterKey2, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
+    {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:rotate(MasterKey2, root_url(C)).
+
+-spec rotate_with_timeout(config()) -> _.
+
+rotate_with_timeout(C) ->
+    [MasterKey1, MasterKey2, MasterKey3] = cds_ct_utils:lookup(master_keys, C),
+    {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
+    Timeout = genlib_app:env(cds, keyring_rotator_timeout, 1000),
+    timer:sleep(Timeout + 500),
+    {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey2, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:rotate(MasterKey3, root_url(C)).
 
 -spec init_keyring_exists(config()) -> _.
 
@@ -372,7 +395,16 @@ lock_no_keyring(C) ->
 -spec rotate_keyring_locked(config()) -> _.
 
 rotate_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_keyring_client:rotate(root_url(C))).
+    [MasterKey | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
+    #'KeyringLocked'{} = (catch cds_keyring_client:rotate(MasterKey, root_url(C))).
+
+-spec rotate_failed_to_recover(config()) -> _.
+
+rotate_failed_to_recover(C) ->
+    [MasterKey1 | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
+    MasterKey2 = <<2, 4, 23224>>,
+    {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
+    #'FailedMasterKeyRecovery'{} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
 
 -spec get_card_data_unavailable(config()) -> _.
 
@@ -507,7 +539,8 @@ recrypt(C) ->
     <<KeyID0, _/binary>> = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
 
-    _ = cds_keyring_manager:rotate(),
+
+    rotate(C),
     [{recrypting, #{
         interval := Interval
     }}] = config(recrypting_config, C),

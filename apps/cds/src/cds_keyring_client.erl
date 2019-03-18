@@ -3,7 +3,7 @@
 -export([init/3]).
 -export([unlock/2]).
 -export([lock/1]).
--export([rotate/1]).
+-export([rotate/2]).
 
 %%
 %% Internal types
@@ -27,6 +27,6 @@ unlock(Share, RootUrl) ->
 lock(RootUrl) ->
     cds_woody_client:call(keyring, 'Lock', [], RootUrl).
 
--spec rotate(woody:url()) -> result().
-rotate(RootUrl) ->
-    cds_woody_client:call(keyring, 'Rotate', [], RootUrl).
+-spec rotate(cds_keysharing:masterkey_share(), woody:url()) -> result().
+rotate(Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'Rotate', [Share], RootUrl).
