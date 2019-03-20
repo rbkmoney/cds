@@ -211,7 +211,6 @@ unlocked({get_key, KeyId}, _From, #state{keyring = Keyring} = StateData) ->
 unlocked(get_current_key, _From, #state{keyring = Keyring} = StateData) ->
     {reply, {ok, cds_keyring:get_current_key(Keyring)}, unlocked, StateData};
 unlocked({rotate, Share}, _From, #state{keyring = OldKeyring} = StateData) ->
-    {ok, _Pid} = cds_keyring_rotator:start(),
     case cds_keyring_rotator:rotate(Share, OldKeyring) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};

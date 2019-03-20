@@ -7,7 +7,7 @@
 -export([init/1, handle_call/3, handle_cast/2,
   handle_info/2, code_change/3, terminate/2]).
 
--export([start/0]).
+-export([start_link/0]).
 -export([rotate/2]).
 
 -record(state, {
@@ -16,15 +16,10 @@
 
 -type state() :: #state{}.
 
--spec start() -> {ok, pid()}.
+-spec start_link() -> {ok, pid()}.
 
-start() ->
-  case gen_server:start({local, ?SERVER}, ?MODULE, [], []) of
-    {ok, Pid} ->
-      {ok, Pid};
-    {error, {already_started, Pid}} ->
-      {ok, Pid}
-  end.
+start_link() ->
+  gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 -spec rotate(term(), term()) -> ok | term().
 
@@ -52,9 +47,9 @@ handle_call({rotate, <<Threshold, X, _Y/binary>> = Share, OldKeyring}, _From, #s
     AllShares when map_size(AllShares) =:= Threshold ->
       case create_new_keyring(OldKeyring, AllShares) of
         {ok, NewKeyring} ->
-          {stop, normal, {ok, NewKeyring}, StateData};
+          {reply, {ok, NewKeyring}, #state{}};
         {error, Error} ->
-          {stop, normal, {error, Error}, StateData}
+          {reply, {error, Error}, #state{}}
       end;
     More ->
       {reply, {ok, {more, Threshold - map_size(More)}}, StateData#state{shares = More}, timeout()}
@@ -69,8 +64,8 @@ handle_cast(_Request, State) ->
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
 
-handle_info(timeout, StateData) ->
-  {stop, normal, StateData};
+handle_info(timeout, _StateData) ->
+  {noreply, #state{}};
 handle_info(_Info, StateData) ->
   {noreply, StateData}.
 

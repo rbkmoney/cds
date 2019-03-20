@@ -78,6 +78,10 @@ init([]) ->
         id => cds_keyring_manager,
         start => {cds_keyring_manager, start_link, []}
     },
+    KeyringRotator = #{
+        id => cds_keyring_rotator,
+        start => {cds_keyring_rotator, start_link, []}
+    },
     Maintenance = #{
         id => cds_maintenance_sup,
         start => {cds_maintenance_sup, start_link, []},
@@ -91,6 +95,7 @@ init([]) ->
     Procs = [
         Service,
         KeyringManager,
+        KeyringRotator,
         Maintenance,
         HashSup
     ],
