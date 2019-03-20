@@ -16,12 +16,24 @@
 
 -type state() :: #state{}.
 
+-type masterkey() :: binary().
+-type masterkey_share() :: cds_keysharing:masterkey_share().
+-type masterkey_shares() :: #{integer() => masterkey_share()}.
+-type keyring() :: cds_keyring:keyring().
+-type rotate_errors() ::
+  no_keyring | wrong_masterkey | failed_to_recover.
+-type rotate_resp() ::
+  ok |
+  {ok, keyring()} |
+  {ok, {more, non_neg_integer()}}|
+  {error, rotate_errors()}.
+
 -spec start_link() -> {ok, pid()}.
 
 start_link() ->
   gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
--spec rotate(term(), term()) -> ok | term().
+-spec rotate(masterkey_share(), keyring()) -> rotate_resp().
 
 rotate(Share, Keyring) ->
   call({rotate, Share, Keyring}).
@@ -40,12 +52,14 @@ init([]) ->
   {ok, #state{}}.
 
 -spec handle_call(term(), term(), state()) ->
-  {stop, normal, term(), state()} | {reply, {ok, {more, integer()}}, state(), non_neg_integer()}.
+  {reply, {ok, keyring()}, state()} |
+  {reply, {error, rotate_errors()}, state()} |
+  {reply, {ok, {more, non_neg_integer()}}, state(), non_neg_integer()}.
 
 handle_call({rotate, <<Threshold, X, _Y/binary>> = Share, OldKeyring}, _From, #state{shares = Shares} = StateData) ->
   case Shares#{X => Share} of
     AllShares when map_size(AllShares) =:= Threshold ->
-      case create_new_keyring(OldKeyring, AllShares) of
+      case update_keyring(OldKeyring, AllShares) of
         {ok, NewKeyring} ->
           {reply, {ok, NewKeyring}, #state{}};
         {error, Error} ->
@@ -84,9 +98,9 @@ code_change(_OldVsn, StateData, _Extra) ->
 timeout() ->
   application:get_env(cds, keyring_rotator_timeout, 60000).
 
--spec create_new_keyring(term(), map()) -> {ok, term()} | {error, atom()}.
+-spec update_keyring(keyring(), masterkey_shares()) -> {ok, keyring()} | {error, rotate_errors()}.
 
-create_new_keyring(OldKeyring, AllShares) ->
+update_keyring(OldKeyring, AllShares) ->
   case recover_masterkey(AllShares) of
     {ok, MasterKey} ->
       case validate_masterkey(MasterKey, OldKeyring) of
@@ -99,7 +113,7 @@ create_new_keyring(OldKeyring, AllShares) ->
       {error, Error}
   end.
 
--spec recover_masterkey(term()) -> {ok, binary()} | {error, atom()}.
+-spec recover_masterkey(masterkey_shares()) -> {ok, masterkey()} | {error, failed_to_recover}.
 
 recover_masterkey(Shares) ->
   try
@@ -110,7 +124,7 @@ recover_masterkey(Shares) ->
       {error, failed_to_recover}
   end.
 
--spec validate_masterkey(binary(), term()) -> {ok, term()} | {error, atom()}.
+-spec validate_masterkey(masterkey(), keyring()) -> {ok, keyring()} | {error, wrong_masterkey | no_keyring}.
 
 validate_masterkey(MasterKey, Keyring) ->
   try cds_keyring_storage:read() of
@@ -129,15 +143,10 @@ validate_masterkey(MasterKey, Keyring) ->
       {error, no_keyring}
   end.
 
--spec rotate_keyring(binary(), term()) -> {ok, term()} | {error, atom()}.
+-spec rotate_keyring(masterkey(), keyring()) -> {ok, keyring()}.
 
 rotate_keyring(MasterKey, Keyring) ->
-  try
-    NewKeyring = cds_keyring:rotate(Keyring),
-    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    ok = cds_keyring_storage:update(EncryptedNewKeyring),
-    {ok, NewKeyring}
-  catch
-    Error ->
-      {error, Error}
-  end.
+  NewKeyring = cds_keyring:rotate(Keyring),
+  EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
+  ok = cds_keyring_storage:update(EncryptedNewKeyring),
+  {ok, NewKeyring}.
