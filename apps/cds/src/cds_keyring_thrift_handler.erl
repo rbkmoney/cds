@@ -39,12 +39,23 @@ handle_function_('Unlock', [Share], _Context, _Opts) ->
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
-            {ok, {unlocked, #'Unlocked'{}}}
+            {ok, {success, #'Success'{}}}
     end;
-handle_function_('Rotate', [], _Context, _Opts) ->
-    try {ok, cds_keyring_manager:rotate()} catch
+handle_function_('Rotate', [Share], _Context, _Opts) ->
+    try cds_keyring_manager:rotate(Share) of
+        {more, More} ->
+            {ok, {more_keys_needed, More}};
+        ok ->
+            {ok, {success, #'Success'{}}}
+    catch
         not_initialized ->
             cds_thrift_handler_utils:raise(#'NoKeyring'{});
+        no_keyring ->
+            cds_thrift_handler_utils:raise(#'NoKeyring'{});
         locked ->
-            cds_thrift_handler_utils:raise(#'KeyringLocked'{})
+            cds_thrift_handler_utils:raise(#'KeyringLocked'{});
+        wrong_masterkey ->
+            cds_thrift_handler_utils:raise(#'WrongMasterKey'{});
+        failed_to_recover ->
+            cds_thrift_handler_utils:raise(#'FailedMasterKeyRecovery'{})
     end.

@@ -1,6 +1,7 @@
 -module(cds_ct_utils).
 
 -export([start_clear/1]).
+-export([start_clear/2]).
 -export([stop_clear/1]).
 
 -export([set_riak_storage/1]).
@@ -24,6 +25,10 @@
 
 -spec start_clear(config()) -> config().
 start_clear(Config) ->
+    start_clear(Config, start_stash()).
+
+-spec start_clear(config(), pid()) -> config().
+start_clear(Config, Stash) ->
     IP = "127.0.0.1",
     Port = 8022,
     RootUrl = "http://" ++ IP ++ ":" ++ integer_to_list(Port),
@@ -53,13 +58,15 @@ start_clear(Config) ->
             {net_opts, [
                 % Bump keepalive timeout up to a minute
                 {timeout, 60000}
-            ]}
+            ]},
+            {keyring_rotator_timeout, 1000}
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
     ,
-    start_stash([
+    [
+        {stash, Stash},
         {apps, lists:reverse(Apps)},
         {root_url, genlib:to_binary(RootUrl)}
-    ]).
+    ].
 
 -spec stop_clear(config()) -> ok.
 stop_clear(C) ->
@@ -149,8 +156,8 @@ clean_riak_storage(CdsEnv) ->
     ),
     ok.
 
-start_stash(C) ->
-    [{stash, cds_ct_stash:start()} | C].
+start_stash() ->
+    cds_ct_stash:start().
 
 stop_stash(C) ->
     cds_ct_stash:stop(config(stash, C)).
