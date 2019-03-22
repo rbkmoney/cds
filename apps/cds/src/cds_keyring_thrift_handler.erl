@@ -19,27 +19,48 @@ handle_function(OperationID, Args, Context, Opts) ->
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
-handle_function_('Init', [Threshold, Count], _Context, _Opts) when Threshold =< Count ->
-    try cds_keyring_manager:initialize(Threshold, Count) of
-        Shares ->
-            {ok, Shares}
-    catch
-        already_initialized ->
-            cds_thrift_handler_utils:raise(#'KeyringExists'{})
+handle_function_('Init', [Threshold], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:initialize(Threshold)} catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {invalid_activity, Activity} ->
+            cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity});
+        invalid_args ->
+            cds_thrift_handler_utils:raise(#'InvalidArguments'{})
     end;
-handle_function_('Lock', [], _Context, _Opts) ->
-    try {ok, cds_keyring_manager:lock()} catch
-        not_initialized ->
-            cds_thrift_handler_utils:raise(#'NoKeyring'{});
-        locked ->
-            {ok, ok}
-    end;
-handle_function_('Unlock', [Share], _Context, _Opts) ->
-    case cds_keyring_manager:unlock(Share) of
+handle_function_('ValidateInit', [Share], _Context, _Opts) ->
+    try cds_keyring_manager:validate_init(Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {success, #'Success'{}}}
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {operation_aborted, Reason} ->
+            cds_thrift_handler_utils:raise(#'OperationAborted'{reason = Reason})
+    end;
+handle_function_('CancelInit', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:cancel_init()} catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
+    end;
+handle_function_('Lock', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:lock()} catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        locked ->
+            {ok, ok}
+    end;
+handle_function_('Unlock', [Share], _Context, _Opts) ->
+    try cds_keyring_manager:unlock(Share) of
+        {more, More} ->
+            {ok, {more_keys_needed, More}};
+        ok ->
+            {ok, {success, #'Success'{}}}
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;
 handle_function_('Rotate', [Share], _Context, _Opts) ->
     try cds_keyring_manager:rotate(Share) of
@@ -48,14 +69,8 @@ handle_function_('Rotate', [Share], _Context, _Opts) ->
         ok ->
             {ok, {success, #'Success'{}}}
     catch
-        not_initialized ->
-            cds_thrift_handler_utils:raise(#'NoKeyring'{});
-        no_keyring ->
-            cds_thrift_handler_utils:raise(#'NoKeyring'{});
-        locked ->
-            cds_thrift_handler_utils:raise(#'KeyringLocked'{});
-        wrong_masterkey ->
-            cds_thrift_handler_utils:raise(#'WrongMasterKey'{});
-        failed_to_recover ->
-            cds_thrift_handler_utils:raise(#'FailedMasterKeyRecovery'{})
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {operation_aborted, Reason} ->
+            cds_thrift_handler_utils:raise(#'OperationAborted'{reason = Reason})
     end.

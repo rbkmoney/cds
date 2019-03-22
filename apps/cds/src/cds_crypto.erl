@@ -2,9 +2,12 @@
 
 -export([key/0]).
 -export([encrypt/2]).
+-export([public_encrypt/2]).
 -export([decrypt/2]).
+-export([private_decrypt/2]).
 
-
+-export_type([public_key/0]).
+-export_type([private_key/0]).
 
 %%internal
 
@@ -12,6 +15,8 @@
 -type iv()  :: binary().
 -type tag() :: binary().
 -type aad() :: binary().
+-type public_key() :: public_key:rsa_public_key().
+-type private_key() :: public_key:rsa_private_key().
 
 %% cedf is for CDS Encrypted Data Format
 -record(cedf, {
@@ -45,6 +50,13 @@ encrypt(Key, Plain) ->
         throw(encryption_failed)
     end.
 
+-spec public_encrypt(public_key(), binary()) -> binary().
+
+public_encrypt(PublicKey, Plain) ->
+    [PEMEntry] = public_key:pem_decode(PublicKey),
+    DecodedPublicKey = public_key:pem_entry_decode(PEMEntry),
+    public_key:encrypt_public(Plain, DecodedPublicKey).
+
 -spec decrypt(key(), binary()) -> binary().
 decrypt(Key, MarshalledCEDF) ->
     try
@@ -60,6 +72,13 @@ decrypt(Key, MarshalledCEDF) ->
         throw(decryption_failed)
     end.
 
+-spec private_decrypt(private_key(), binary()) -> binary().
+
+private_decrypt(PrivateKey, CipherPlain) ->
+    [PEMEntry] = public_key:pem_decode(PrivateKey),
+    DecodedPrivateKey = public_key:pem_entry_decode(PEMEntry),
+    public_key:decrypt_private(CipherPlain, DecodedPrivateKey).
+
 %% internal
 
 -spec iv() -> iv().
@@ -69,7 +88,6 @@ iv() ->
 -spec aad() -> aad().
 aad() ->
     crypto:strong_rand_bytes(4).
-
 
 -spec marshall_cedf(cedf()) -> binary().
 marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher})

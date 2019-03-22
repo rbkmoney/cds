@@ -21,7 +21,7 @@
 -type masterkey_shares() :: #{integer() => masterkey_share()}.
 -type keyring() :: cds_keyring:keyring().
 -type rotate_errors() ::
-  no_keyring | wrong_masterkey | failed_to_recover.
+  wrong_masterkey | failed_to_recover.
 -type rotate_resp() ::
   ok |
   {ok, keyring()} |
@@ -53,7 +53,7 @@ init([]) ->
 
 -spec handle_call(term(), term(), state()) ->
   {reply, {ok, keyring()}, state()} |
-  {reply, {error, rotate_errors()}, state()} |
+  {reply, {error, {operation_aborted, rotate_errors()}}, state()} |
   {reply, {ok, {more, non_neg_integer()}}, state(), non_neg_integer()}.
 
 handle_call({rotate, <<Threshold, X, _Y/binary>> = Share, OldKeyring}, _From, #state{shares = Shares} = StateData) ->
@@ -63,7 +63,7 @@ handle_call({rotate, <<Threshold, X, _Y/binary>> = Share, OldKeyring}, _From, #s
         {ok, NewKeyring} ->
           {reply, {ok, NewKeyring}, #state{}};
         {error, Error} ->
-          {reply, {error, Error}, #state{}}
+          {reply, {error, {operation_aborted, Error}}, #state{}}
       end;
     More ->
       {reply, {ok, {more, Threshold - map_size(More)}}, StateData#state{shares = More}, timeout()}
@@ -101,7 +101,7 @@ timeout() ->
 -spec update_keyring(keyring(), masterkey_shares()) -> {ok, keyring()} | {error, rotate_errors()}.
 
 update_keyring(OldKeyring, AllShares) ->
-  case recover_masterkey(AllShares) of
+  case cds_keyring_utils:recover_masterkey(AllShares) of
     {ok, MasterKey} ->
       case validate_masterkey(MasterKey, OldKeyring) of
         {ok, OldKeyring} ->
@@ -113,34 +113,18 @@ update_keyring(OldKeyring, AllShares) ->
       {error, Error}
   end.
 
--spec recover_masterkey(masterkey_shares()) -> {ok, masterkey()} | {error, failed_to_recover}.
-
-recover_masterkey(Shares) ->
-  try
-    MasterKey = cds_keysharing:recover(maps:values(Shares)),
-    {ok, MasterKey}
-  catch
-    shamir_failed ->
-      {error, failed_to_recover}
-  end.
-
 -spec validate_masterkey(masterkey(), keyring()) -> {ok, keyring()} | {error, wrong_masterkey | no_keyring}.
 
 validate_masterkey(MasterKey, Keyring) ->
-  try cds_keyring_storage:read() of
-    EncryptedOldKeyring ->
-      try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of
-        Keyring ->
-          {ok, Keyring};
-        _NotMatchingKeyring ->
-          {error, wrong_masterkey}
-      catch
-        decryption_failed ->
-          {error, wrong_masterkey}
-      end
+  EncryptedOldKeyring = cds_keyring_storage:read(),
+  try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of
+    Keyring ->
+      {ok, Keyring};
+    _NotMatchingKeyring ->
+      {error, wrong_masterkey}
   catch
-    not_found ->
-      {error, no_keyring}
+    decryption_failed ->
+      {error, wrong_masterkey}
   end.
 
 -spec rotate_keyring(masterkey(), keyring()) -> {ok, keyring()}.

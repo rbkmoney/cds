@@ -26,8 +26,8 @@
 -export([recrypt/1]).
 -export([session_cleaning/1]).
 -export([refresh_sessions/1]).
--export([init_keyring_exists/1]).
--export([lock_no_keyring/1]).
+-export([init_invalid_status/1]).
+-export([lock_invalid_status/1]).
 -export([rotate_keyring_locked/1]).
 -export([rotate_failed_to_recover/1]).
 -export([rotate_wrong_masterkey/1]).
@@ -117,12 +117,12 @@ groups() ->
             get_card_data_unavailable,
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
-            lock_no_keyring,
+            lock_invalid_status,
             init,
-            init_keyring_exists,
+            init_invalid_status,
             lock,
             lock,
-            init_keyring_exists,
+            init_invalid_status,
             rotate_keyring_locked,
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
@@ -252,9 +252,32 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    MasterKeys = cds_keyring_client:init(2, 3, root_url(C)),
-    3 = length(MasterKeys),
-    cds_ct_utils:store(master_keys, MasterKeys, C).
+    EncryptedMasterKeyShares = cds_keyring_client:init(2, root_url(C)),
+    3 = length(EncryptedMasterKeyShares),
+    Shareholders = application:get_env(cds, shareholders),
+    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders),
+    ok = validate_init(DecryptedMasterKeyShares, C),
+    cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
+
+decrypt_masterkeys([], []) -> [];
+decrypt_masterkeys([EncryptedMasterKeyShare | EncryptedMasterKeyShares], [Shareholder | Shareholders]) ->
+    {ok, Id} = maps:find(id, EncryptedMasterKeyShare),
+    {ok, Id} = maps:find(id, Shareholder),
+    {ok, Owner} = maps:find(owner, EncryptedMasterKeyShare),
+    {ok, Owner} = maps:find(owner, Shareholder),
+    {ok, PrivateKey} = maps:find(private_key, Shareholder),
+    {ok, EncryptedShare} = maps:find(encrypted_share, EncryptedMasterKeyShare),
+    DecryptedMasterKeyShare = cds_crypto:private_decrypt(PrivateKey, EncryptedShare),
+    [DecryptedMasterKeyShare | decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders)].
+
+validate_init([DecryptedMasterKeyShare | []], C) ->
+    {success, #'Success'{}} = cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C)),
+    ok;
+validate_init([DecryptedMasterKeyShare | DecryptedMasterKeyShares], C) ->
+    DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
+    {more_keys_needed, DecryptedMasterKeySharesCount} =
+        cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C)),
+    validate_init(DecryptedMasterKeyShares, C).
 
 -spec lock(config()) -> _.
 
@@ -384,21 +407,21 @@ rotate_with_timeout(C) ->
     {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey2, root_url(C)),
     {success, #'Success'{}} = cds_keyring_client:rotate(MasterKey3, root_url(C)).
 
--spec init_keyring_exists(config()) -> _.
+-spec init_invalid_status(config()) -> _.
 
-init_keyring_exists(C) ->
-    #'KeyringExists'{} = (catch cds_keyring_client:init(2, 3, root_url(C))).
+init_invalid_status(C) ->
+    #'InvalidStatus'{status = _SomeStatus} = (catch cds_keyring_client:init(2, root_url(C))).
 
--spec lock_no_keyring(config()) -> _.
+-spec lock_invalid_status(config()) -> _.
 
-lock_no_keyring(C) ->
-    #'NoKeyring'{} = (catch cds_keyring_client:lock(root_url(C))).
+lock_invalid_status(C) ->
+    #'InvalidStatus'{status = _SomeStatus} = (catch cds_keyring_client:lock(root_url(C))).
 
 -spec rotate_keyring_locked(config()) -> _.
 
 rotate_keyring_locked(C) ->
     [MasterKey | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
-    #'KeyringLocked'{} = (catch cds_keyring_client:rotate(MasterKey, root_url(C))).
+    #'InvalidStatus'{status = _SomeStatus} = (catch cds_keyring_client:rotate(MasterKey, root_url(C))).
 
 -spec rotate_failed_to_recover(config()) -> _.
 
@@ -406,7 +429,7 @@ rotate_failed_to_recover(C) ->
     [MasterKey1 | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
     MasterKey2 = <<2, 4, 23224>>,
     {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
-    #'FailedMasterKeyRecovery'{} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
+    #'OperationAborted'{reason = failed_to_recover} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
 
 -spec rotate_wrong_masterkey(config()) -> _.
 
@@ -414,7 +437,7 @@ rotate_wrong_masterkey(C) ->
     MasterKey = cds_crypto:key(),
     [MasterKey1, MasterKey2, _MasterKey3] = cds_keysharing:share(MasterKey, 2, 3),
     {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
-    #'WrongMasterKey'{} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
+    #'OperationAborted'{reason = wrong_masterkey} = (catch cds_keyring_client:rotate(MasterKey2, root_url(C))).
 
 -spec get_card_data_unavailable(config()) -> _.
 
