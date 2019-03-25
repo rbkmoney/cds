@@ -29,12 +29,7 @@
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: [masterkey_share()].
 
--type encrypted_master_key_share() :: #{
-  id => string(),
-  owner => string(),
-  encrypted_share =>binary()
-}.
--type encrypted_master_key_shares() :: list(encrypted_master_key_share()).
+-type encrypted_master_key_shares() :: cds_keyring_utils:encrypted_master_key_shares().
 
 -type data() :: #data{}.
 
@@ -101,27 +96,28 @@ handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
 handle_event({call, From}, {initialize, Threshold}, uninitialized, Data) ->
   Shareholders = shareholders(),
   ShareholdersLength = length(Shareholders),
-  if
-    (Threshold >= 1) and (ShareholdersLength >= 1) and (Threshold =< ShareholdersLength) ->
+  case (Threshold >= 1) and (ShareholdersLength >= 1) and (Threshold =< ShareholdersLength) of
+    true ->
       MasterKey = cds_crypto:key(),
       Keyring = cds_keyring:new(),
       EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
       Shares = cds_keysharing:share(MasterKey, Threshold, length(Shareholders)),
       EncryptedShares = encrypt_shares(Shares, Shareholders),
       NewData = Data#data{num = length(EncryptedShares), threshold = Threshold, keyring = EncryptedKeyring},
-      {new_state,
+      {next_state,
         validation,
         NewData,
         [
           {reply, From, {ok, EncryptedShares}},
           {state_timeout, timeout(), []}
         ]};
-    true ->
-      {new_state,
-        unitialized,
+    false ->
+      {next_state,
+        uninitialized,
         #data{},
         [
-          {reply, From, {error, invalid_args}}
+          {reply, From, {error, invalid_args}},
+          {state_timeout, infinity, []}
         ]}
   end;
 
@@ -134,15 +130,16 @@ handle_event({call, From}, {validate, <<_Threshold, X, _Y/binary>> = Share}, val
     AllShares when map_size(AllShares) =:= Num ->
       ListShares = maps:values(AllShares),
       Result = validation(Threshold, ListShares, Keyring),
-      {new_state,
+      {next_state,
         unitiliazied,
         #data{},
         [
-          {reply, From, Result}
+          {reply, From, Result},
+          {state_timeout, infinity, []}
         ]};
     ExtraShares ->
       NewData = Data#data{shares = ExtraShares},
-      {new_state,
+      {next_state,
         validation,
         NewData,
         [
@@ -158,27 +155,28 @@ handle_event({call, From}, {initialize, _Threshold}, validation, _Data) ->
 
 %% Common events
 
-handle_event({call, From}, {initialize, Params}, _State, _Data) ->
-  handle_event({call, From}, {initialize, Params}, uninitialized, #data{});
 handle_event({call, From}, get_state, State, _Data) ->
   {keep_state_and_data, [
     {reply, From, State},
     {state_timeout, timeout(), []}
   ]};
 handle_event({call, From}, cancel, _State, _Data) ->
-  {new_state, uninitialized, #data{}, {reply, From, ok}};
+  {next_state, uninitialized, #data{}, [
+    {reply, From, ok},
+    {state_timeout, infinity, []}
+  ]};
 handle_event(state_timeout, _EventContent, _State, _Data) ->
-  {new_state, uninitialized, #data{}}.
+  {next_state, uninitialized, #data{}, [{state_timeout, infinity, []}]}.
 
 -spec timeout() -> non_neg_integer().
 
 timeout() ->
-  application:get_env(cds, keyring_initializer_timeout, 60000).
+  genlib_app:env(cds, keyring_initializer_timeout, 60000).
 
 -spec shareholders() -> shareholders().
 
 shareholders() ->
-  application:get_env(cds, shareholders, []).
+  genlib_app:env(cds, shareholders, []).
 
 -spec validation(threshold(), masterkey_shares(), encrypted_keyring()) ->
   {ok, decrypted_keyring()} | {error, validate_errors()}.

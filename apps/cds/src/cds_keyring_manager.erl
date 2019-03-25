@@ -175,7 +175,7 @@ not_initialized(cancel_init, _From, StateData) ->
     ok = cds_keyring_initializator:cancel(),
     {reply, ok, not_initialized, StateData};
 not_initialized(_Event, _From, StateData) ->
-    {reply, {error, {invalid_status, uninitialized}}, not_initialized, StateData}.
+    {reply, {error, {invalid_status, not_initialized}}, not_initialized, StateData}.
 
 -spec locked(term(), term(), term()) -> term().
 

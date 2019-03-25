@@ -82,6 +82,10 @@ init([]) ->
         id => cds_keyring_rotator,
         start => {cds_keyring_rotator, start_link, []}
     },
+    KeyringInitializator = #{
+        id => cds_keyring_initializator,
+        start => {cds_keyring_initializator, start_link, []}
+    },
     Maintenance = #{
         id => cds_maintenance_sup,
         start => {cds_maintenance_sup, start_link, []},
@@ -96,6 +100,7 @@ init([]) ->
         Service,
         KeyringManager,
         KeyringRotator,
+        KeyringInitializator,
         Maintenance,
         HashSup
     ],

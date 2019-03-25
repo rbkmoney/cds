@@ -86,8 +86,13 @@ end_per_group(_, C) ->
 
 -spec init(config()) -> any() | no_return().
 init(C) ->
-    MasterKeys = cds_keyring_client:init(2, 3, root_url(C)),
-    3 = length(MasterKeys).
+    UMEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
+    EncryptedMasterKeyShares =
+        cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
+    3 = length(EncryptedMasterKeyShares),
+    Shareholders = genlib_app:env(cds, shareholders),
+    DecryptedMasterKeyShares = cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders),
+    ok = cds_api_tests_SUITE:validate_init(DecryptedMasterKeyShares, C).
 
 -spec put_passport(config()) -> any() | no_return().
 put_passport(C) ->

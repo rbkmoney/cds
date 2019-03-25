@@ -1,6 +1,6 @@
 -module(cds_keyring_client).
 
--export([init/2]).
+-export([start_init/2]).
 -export([validate_init/2]).
 -export([cancel_init/1]).
 -export([unlock/2]).
@@ -17,9 +17,9 @@
 %% API
 %%
 
--spec init(integer(), woody:url()) -> result().
-init(Threshold, RootUrl) ->
-    cds_woody_client:call(keyring, 'Init', [Threshold], RootUrl).
+-spec start_init(integer(), woody:url()) -> result().
+start_init(Threshold, RootUrl) ->
+    cds_woody_client:call(keyring, 'StartInit', [Threshold], RootUrl).
 
 -spec validate_init(cds_keysharing:masterkey_share(), woody:url()) -> result().
 validate_init(Share, RootUrl) ->

@@ -4,17 +4,26 @@
 -export([recover_masterkey/1]).
 -export_type([shareholder/0]).
 -export_type([shareholders/0]).
+-export_type([encrypted_master_key_share/0]).
+-export_type([encrypted_master_key_shares/0]).
 
 -type shareholder() :: #{
-  id => string(),
-  owner => string(),
-  public_key => string()
+  id => binary(),
+  owner => binary(),
+  public_key => binary()
 }.
 -type shareholders() :: list(shareholder()).
 
 -type masterkey() :: binary().
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: #{integer() => masterkey_share()} | list(masterkey_share()).
+
+-type encrypted_master_key_share() :: #{
+  id => binary(),
+  owner => binary(),
+  encrypted_share =>binary()
+}.
+-type encrypted_master_key_shares() :: list(encrypted_master_key_share()).
 
 -spec recover_masterkey(masterkey_shares()) -> {ok, masterkey()} | {error, failed_to_recover}.
 
