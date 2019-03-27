@@ -85,12 +85,10 @@ initialize(Threshold) ->
     sync_send_event({initialize, Threshold}).
 
 -spec validate_init(cds_keyring_utils:masterkey_share()) -> {more, non_neg_integer()} | ok.
-
 validate_init(Share) ->
     sync_send_event({validate_init, Share}).
 
 -spec cancel_init() -> ok.
-
 cancel_init() ->
     sync_send_event(cancel_init).
 
