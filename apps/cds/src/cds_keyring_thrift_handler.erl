@@ -86,10 +86,8 @@ handle_function_('Rotate', [Share], _Context, _Opts) ->
 -spec encode_encrypted_shares([cds_keyring_utils:encrypted_master_key_share()]) ->
     [encrypted_masterkey_share()].
 
-encode_encrypted_shares([]) -> [];
-encode_encrypted_shares([EncryptedMasterKeyShare | EncryptedMasterKeyShares]) ->
-    [encode_encrypted_share(EncryptedMasterKeyShare)
-        | encode_encrypted_shares(EncryptedMasterKeyShares)].
+encode_encrypted_shares(EncryptedMasterKeyShares) ->
+    lists:map(fun encode_encrypted_share/1, EncryptedMasterKeyShares).
 
 -spec encode_encrypted_share(cds_keyring_utils:encrypted_master_key_share()) ->
     encrypted_masterkey_share().
@@ -108,10 +106,8 @@ encode_encrypted_share(#{
 -spec decode_encrypted_shares([encrypted_masterkey_share()]) ->
     [cds_keyring_utils:encrypted_master_key_share()].
 
-decode_encrypted_shares([]) -> [];
-decode_encrypted_shares([EncryptedMasterKeyShare | EncryptedMasterKeyShares]) ->
-    [decode_encrypted_share(EncryptedMasterKeyShare)
-        | decode_encrypted_shares(EncryptedMasterKeyShares)].
+decode_encrypted_shares(EncryptedMasterKeyShares) ->
+    lists:map(fun decode_encrypted_share/1, EncryptedMasterKeyShares).
 
 -spec decode_encrypted_share(encrypted_masterkey_share()) ->
     cds_keyring_utils:encrypted_master_key_share().

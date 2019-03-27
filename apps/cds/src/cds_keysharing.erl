@@ -4,9 +4,11 @@
 
 -export([share/3]).
 -export([recover/1]).
+-export([convert/1]).
 
 -export_type([masterkey_share/0]).
 
+-type masterkey() :: cds_keyring_utils:masterkey().
 -type masterkey_share() :: binary().
 -type share() :: #share{
     threshold :: byte(),
@@ -24,13 +26,17 @@ share(Secret, Threshold, Count) ->
     end.
 
 
--spec recover([masterkey_share()]) -> binary().
+-spec recover([masterkey_share()] | #{integer() => masterkey_share()}) ->
+    {ok, masterkey()} | {error, failed_to_recover}.
+
+recover(Shares) when is_map(Shares) ->
+    recover(maps:values(Shares));
 recover(Shares) ->
     try
-        shamir:recover([convert(Share) || Share <- Shares])
+        {ok, shamir:recover([convert(Share) || Share <- Shares])}
     catch Class:Reason ->
         _ = lager:error("keysharing recover failed ~p ~p", [Class, Reason]),
-        throw(shamir_failed)
+        {error, failed_to_recover}
     end.
 
 -spec convert

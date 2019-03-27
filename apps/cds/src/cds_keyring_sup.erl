@@ -1,0 +1,31 @@
+-module(cds_keyring_sup).
+
+-behaviour(supervisor).
+
+-export([start_link/0]).
+-export([init/1]).
+
+-spec start_link() -> {ok, pid()} | {error, Reason :: any()}.
+
+start_link() ->
+    supervisor:start_link(?MODULE, []).
+
+-spec init(_) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+
+init(_) ->
+    ChildSpecs = [
+        #{
+            id => cds_keyring_manager,
+            start => {cds_keyring_manager, start_link, []}
+        },
+        #{
+            id => cds_keyring_initializer,
+            start => {cds_keyring_initializer, start_link, []}
+        },
+        #{
+            id => cds_keyring_rotator,
+            start => {cds_keyring_rotator, start_link, []}
+        }
+    ],
+    {ok, {{rest_for_one, 1, 5}, ChildSpecs}}.
+

@@ -80,7 +80,7 @@ update() ->
 rotate(Share) ->
     sync_send_event({rotate, Share}).
 
--spec initialize(integer()) -> cds_keyring_initializator:encrypted_master_key_shares().
+-spec initialize(integer()) -> cds_keyring_initializer:encrypted_master_key_shares().
 initialize(Threshold) ->
     sync_send_event({initialize, Threshold}).
 
@@ -159,20 +159,21 @@ handle_event(_Event, StateName, StateData) ->
 -spec not_initialized(term(), term(), state()) -> term().
 
 not_initialized({initialize, Threshold}, _From, StateData) ->
-    Result = cds_keyring_initializator:initialize(Threshold),
+    Result = cds_keyring_initializer:initialize(Threshold),
     {reply, Result, not_initialized, StateData};
 not_initialized({validate_init, Share}, _From, StateData) ->
-    case cds_keyring_initializator:validate(Share) of
+    case cds_keyring_initializer:validate(Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, not_initialized, StateData};
-        {ok, Keyring} ->
-            NewStateData = StateData#state{keyring = Keyring},
+        {ok, {EncryptedKeyring, DecryptedKeyring}} ->
+            ok = cds_keyring_storage:create(EncryptedKeyring),
+            NewStateData = StateData#state{keyring = DecryptedKeyring},
             {reply, ok, unlocked, NewStateData};
         {error, _Error} = Result ->
             {reply, Result, not_initialized, StateData}
     end;
 not_initialized(cancel_init, _From, StateData) ->
-    ok = cds_keyring_initializator:cancel(),
+    ok = cds_keyring_initializer:cancel(),
     {reply, ok, not_initialized, StateData};
 not_initialized(_Event, _From, StateData) ->
     {reply, {error, {invalid_status, not_initialized}}, not_initialized, StateData}.
@@ -191,7 +192,7 @@ locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Sha
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             try
-                MasterKey = cds_keysharing:recover(maps:values(AllShares)),
+                {ok, MasterKey} = cds_keysharing:recover(AllShares),
                 DecryptedKeyring = cds_keyring:decrypt(MasterKey, Keyring),
                 NewStateData = StateData#state{shares = #{}, keyring = DecryptedKeyring, masterkey = MasterKey},
                 {reply, ok, unlocked, NewStateData}
@@ -228,7 +229,8 @@ unlocked({rotate, Share}, _From, #state{keyring = OldKeyring} = StateData) ->
     case cds_keyring_rotator:rotate(Share, OldKeyring) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
-        {ok, NewKeyring} ->
+        {ok, {EncryptedNewKeyring, NewKeyring}} ->
+            ok = cds_keyring_storage:update(EncryptedNewKeyring),
             {reply, ok, unlocked, StateData#state{keyring = NewKeyring}};
         Result ->
             {reply, Result, unlocked, StateData}

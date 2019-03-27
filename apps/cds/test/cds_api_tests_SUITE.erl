@@ -40,7 +40,7 @@
 -export([get_session_card_data_unavailable/1]).
 -export([put_card_data_no_member/1]).
 
--export([decrypt_masterkeys/2]).
+-export([decrypt_masterkeys/3]).
 -export([validate_init/2]).
 
 %%
@@ -263,12 +263,13 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    UMEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
+    EncodedEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
     EncryptedMasterKeyShares =
-        cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
+        cds_keyring_thrift_handler:decode_encrypted_shares(EncodedEncryptedMasterKeyShares),
     3 = length(EncryptedMasterKeyShares),
-    Shareholders = genlib_app:env(cds, shareholders),
-    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders),
+    Shareholders = cds_keyring_shareholders:get_shareholders(),
+    PrivateKeys = private_keys(C),
+    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys),
     ok = validate_init(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
@@ -291,30 +292,39 @@ init_with_cancel(C) ->
         = (catch cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C))).
 
 partial_init(C) ->
-    UMEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
+    EncodedEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
     EncryptedMasterKeyShares =
-        cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
+        cds_keyring_thrift_handler:decode_encrypted_shares(EncodedEncryptedMasterKeyShares),
     3 = length(EncryptedMasterKeyShares),
-    Shareholders = genlib_app:env(cds, shareholders),
-    [DecryptedMasterKeyShare | DecryptedMasterKeyShares] = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders),
+    Shareholders = cds_keyring_shareholders:get_shareholders(),
+    PrivateKeys = private_keys(C),
+    [DecryptedMasterKeyShare | DecryptedMasterKeyShares] = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys),
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
     {more_keys_needed, DecryptedMasterKeySharesCount} =
         cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C)),
     DecryptedMasterKeyShare.
 
--spec decrypt_masterkeys(cds_keyring_utils:encrypted_master_key_shares(), cds_keyring_utils:shareholders()) ->
+-spec decrypt_masterkeys(cds_keyring_utils:encrypted_master_key_shares(),
+    cds_keyring_shareholders:shareholders(),
+    [binary()]) ->
     [cds_keysharing:masterkey_share()].
 
-decrypt_masterkeys([], []) -> [];
-decrypt_masterkeys([EncryptedMasterKeyShare | EncryptedMasterKeyShares], [Shareholder | Shareholders]) ->
-    {ok, Id} = maps:find(id, EncryptedMasterKeyShare),
-    {ok, Id} = maps:find(id, Shareholder),
-    {ok, Owner} = maps:find(owner, EncryptedMasterKeyShare),
-    {ok, Owner} = maps:find(owner, Shareholder),
-    {ok, PrivateKey} = maps:find(private_key, Shareholder),
-    {ok, EncryptedShare} = maps:find(encrypted_share, EncryptedMasterKeyShare),
+decrypt_masterkeys([], [], []) -> [];
+decrypt_masterkeys([EncryptedMasterKeyShare | EncryptedMasterKeyShares],
+    [Shareholder | Shareholders],
+    [PrivateKey | PrivateKeys]) ->
+    #{
+        id := Id,
+        owner := Owner,
+        encrypted_share := EncryptedShare
+    } = EncryptedMasterKeyShare,
+    #{
+        id := Id,
+        owner := Owner,
+        public_key := _PublicKey
+    } = Shareholder,
     DecryptedMasterKeyShare = cds_crypto:private_decrypt(PrivateKey, EncryptedShare),
-    [DecryptedMasterKeyShare | decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders)].
+    [DecryptedMasterKeyShare | decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys)].
 
 -spec validate_init([cds_keysharing:masterkey_share()], config()) -> ok.
 
@@ -673,3 +683,5 @@ update_config(Key, Config, NewVal) ->
 root_url(C) ->
     config(root_url, C).
 
+private_keys(C) ->
+    config(private_keys, C).

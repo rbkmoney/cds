@@ -36,50 +36,8 @@ start_clear(Config, Stash) ->
     CleanConfig = config(session_cleaning_config, Config, []),
     Recrypting = config(recrypting_config, Config, []),
     ok = clean_storage(StorageConfig),
-    Apps =
-        genlib_app:start_application_with(lager, [
-            {async_threshold, 1},
-            {async_threshold_window, 0},
-            {error_logger_hwm, 600},
-            {suppress_application_start_stop, true},
-            {crash_log, false},
-            {handlers, [
-                % {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
-                {lager_common_test_backend, warning}
-            ]}
-        ]) ++
-        genlib_app:start_application_with(scoper, [
-            {storage, scoper_storage_lager}
-        ]) ++
-        genlib_app:start_application_with(cds, [
-            {ip, IP},
-            {port, Port},
-            {keyring_storage, cds_keyring_storage_env},
-            {net_opts, [
-                % Bump keepalive timeout up to a minute
-                {timeout, 60000}
-            ]},
-            {keyring_rotator_timeout, 1000},
-            {keyring_initializer_timeout, 1000},
-            {shareholders, [
-                #{
-                    id => <<"1">>,
-                    owner => <<"ndiezel">>,
-                    public_key => <<"-----BEGIN PUBLIC KEY-----
-MIICITANBgkqhkiG9w0BAQEFAAOCAg4AMIICCQKCAgBLFPTHtz+ldYk1HJDI5Xng
-F7F9tm6LBVTm5wiw7ezDSCnPGNKDNOsFF5/AiDGiBSRDB2XyGOOoMATl6ZEKLZlO
-lS90gUtigTuLL9OkgujptZN5gMu1qfHuVr2cKIU2y1j1JnnbCm7aW7HO7Go11aB+
-p8on03Nq/Iw5cw+SsN+dGG/XEjuhvuAVksPBEEhjdHIxYSpzOWUx++DAonXrzz8r
-IVhTL0YDYx7CA4Zo+bDYNO0sLhSyS/mo+ryYpnFsroW1Kl9IZ+hjMTv5sTKztYan
-VQLOsKNqCewuVJC/FgkGIeQQy8y4DOS9nQ7hCQ5x89gdxmDKP17LSYlgPc04lnPE
-XdQmBBVJV8+Rj/L60gEsLb5sVgrsY87rNJfvXUbGLzf8RhkAHybHxAgKphX82rw5
-F6iHWbugN+q2QfXbjg7iPGD6ew3mdZVkao4q75DTqZ1xTU+7uicF3spUs9meguQz
-RdFFHHesYyXCE98s+0aBeb88ytxocUpcv+nS6KZZoAMq4KuEvR8n89p9znAZjYVC
-LJQPkORMzfoCL2HvEQ4GTg6CL/cXwwMjjiThUcdso7eqRT0eG+GFMpILIAb1OQut
-7T2F9bAjD4SzCVuY7orIX1BLXiGf4eTkFUp9MxM5k/ZGAdt1B4XhvWv35TlzNdt7
-iM80ES1KtAGoR+uwc1xAoQIDAQAB
------END PUBLIC KEY-----">>,
-                    private_key => <<"-----BEGIN RSA PRIVATE KEY-----
+    PrivateKeys = [
+        <<"-----BEGIN RSA PRIVATE KEY-----
 MIIJJwIBAAKCAgBLFPTHtz+ldYk1HJDI5XngF7F9tm6LBVTm5wiw7ezDSCnPGNKD
 NOsFF5/AiDGiBSRDB2XyGOOoMATl6ZEKLZlOlS90gUtigTuLL9OkgujptZN5gMu1
 qfHuVr2cKIU2y1j1JnnbCm7aW7HO7Go11aB+p8on03Nq/Iw5cw+SsN+dGG/XEjuh
@@ -129,26 +87,8 @@ C+aQsNs3GTucAOSor1oHEZNZjd+/3s47fn7cyY52XGtTOfJQ2Xl/S0FK8TdoV4UE
 WYks0oJMA2JDPAz4pRECEQQHV6z5FdCuNbg2Q7RGqun1IhuljUEIzl0/fK8WzIUU
 caV0gZ3OXZ31b01Ki4n0urHCXvE7PTDf87F0iF102o5yHM8+KM+IGg/ecyZm5wh6
 1Kwaqp5ix2kOyKOvvlBMnnfFEbaOUE5gUUYHOcGe/Q5k2CVEqUTDzWY80Q==
------END RSA PRIVATE KEY-----">>
-                },
-                #{
-                    id => <<"2">>,
-                    owner => <<"ndiezel2">>,
-                    public_key => <<"-----BEGIN PUBLIC KEY-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA41Z5vCUkXNemyPHkxOPc
-FrcY4mminZKHVs+9vns64RJwDRCV/1WmBMP1F1Dpe9/eRBIV8q45C/rxJ4JzZk8M
-0B0N1bZ+2PVzCO/rJ+GDN7mYtDCH4h7O/7rFtbzSLpbSUR6XGhBcD4WvmfuVqCW6
-vxwpAKWUWA5+WlWqMEAOZ+CQfOMpRddKYCrf6klvADoBuO/ayaiTY8plsDsKdcEy
-G5CXv22SY326I+tovjZl7MHCXO+iZTvLkrgGYSvmJfDXK4kNxnVwHlqGVGJgMNek
-hX4GRby1L6gO0RBhwPcnwBbTvLNXAPCbhAbO/p6EMz0kx1+egNQ5xeFkxn0I8LXX
-bt64lKLlydW/+SAhgYQeSlZF5p3dSokF9SXj61UXpSGBqJT5yRpsBa0H580abmvF
-Lc8Gre3l6dPdRpoB/4dQ9eAueQi5BbsWyd2yrjVKbi6FbZftxkum4qdSQowLadbh
-24aY4b40wVQfGA8u8wxIYgvYD7zaxWsypiiXF9qUjR9hQoqWRSNE+k5lDOoFPOdf
-f1gQHqiDxWI5Q0esGbftE/vTI1JGkjKIy1+W4EU7ve91e3AG5sLQDwYSwGuI6VwC
-6ImnAzEmKjorncPn4C537lOlhX2rYi2iSwZykNHZRX3/nMpsuJqRV+iw206NqND2
-XmXuWeWtxX1OToV+xBFxNMcCAwEAAQ==
------END PUBLIC KEY-----">>,
-                    private_key => <<"-----BEGIN RSA PRIVATE KEY-----
+-----END RSA PRIVATE KEY-----">>,
+        <<"-----BEGIN RSA PRIVATE KEY-----
 MIIJKAIBAAKCAgEA41Z5vCUkXNemyPHkxOPcFrcY4mminZKHVs+9vns64RJwDRCV
 /1WmBMP1F1Dpe9/eRBIV8q45C/rxJ4JzZk8M0B0N1bZ+2PVzCO/rJ+GDN7mYtDCH
 4h7O/7rFtbzSLpbSUR6XGhBcD4WvmfuVqCW6vxwpAKWUWA5+WlWqMEAOZ+CQfOMp
@@ -198,26 +138,8 @@ fOAy0TSXWf3UMytcpBmUeK383ZdV88EoBYuxP/3Ivgudds+tBS3k7M3sS/JY393s
 gxw0Llvs99kSLsm3wX0eyACyTk55kULhTEdtld8qy4co+Vk32jWbqWi48z9szlf1
 UilUHAoyHPlLqvYLUpO9PFhVOhTmTCbrknx20P0M7tQaW8DURRz9JLaoNJHuTLcj
 yilazNADgKokUvYbSGzEPry+bwZkE3e0nPutxVfAkuCnVwByC6EwJnwHMsk=
------END RSA PRIVATE KEY-----">>
-                },
-                #{
-                    id => <<"3">>,
-                    owner => <<"ndiezel3">>,
-                    public_key => <<"-----BEGIN PUBLIC KEY-----
-MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEArVb6bKFTNEkJ3Ok5IVxj
-Bs+Emfo3Ya3DTV8duDlN7A/L7wzD/qH+K0+K9b7n0igvs5vZtXKm7+pRakQoJDhs
-3QWLiRxZnrU6Vm32vy6Y0C5fTRiRo4VfdMYKY0Ah1K5lS8buLTGrjHy/sBA+n4Bc
-lALY+WuaBYpoVaqNjBqmmJq+xyojtZVkXBMG0HoBwj+705nW9spYLr4o2opW+xxa
-rOxfiWtTDH0Wfa4jsvwphGL0pR8/lZL8sHr45IsA1/h9EuvqLZzYSCrbqaHFCEEx
-WC1lRIWF/Gadu92UkPSwrft1Yn/ckf90Bc4mU/eiuay7k0FYgmG1fj4isl+KZ2UH
-lmCSXziY+smlEXQ/qLrokXD9B8ypygSB5Vk6rKZzDOObsFMFJFGAibvW1BgimuCe
-9ROK/xgy1+tFEtZSJf1b+5YPHxKnTuvTJ3VsJR3P5vTVq5Pt5CNKVG6WEyrAUTkd
-mOVdjcTrLVsd/PG9GOTHXW+PJdXNbsdIUlQet2Kc4fWc9Je+InWTpaZxNO5T4VPk
-wANrZ2JD0xElXOUfV/dHggSSU6k6/St+UhGSCgqEMIXeIBVGQr9KOMCDbvN5SK2b
-Ky1ZDi7DbzxUFgx+X8FybVQiH/GCMREnZKM+3pi+ir3Ay8T5uwzkp3Q9uGl+lUiO
-3VU+SO5HukksCrWOQ/ZhQzcCAwEAAQ==
------END PUBLIC KEY-----">>,
-                    private_key => <<"-----BEGIN RSA PRIVATE KEY-----
+-----END RSA PRIVATE KEY-----">>,
+        <<"-----BEGIN RSA PRIVATE KEY-----
 MIIJKQIBAAKCAgEArVb6bKFTNEkJ3Ok5IVxjBs+Emfo3Ya3DTV8duDlN7A/L7wzD
 /qH+K0+K9b7n0igvs5vZtXKm7+pRakQoJDhs3QWLiRxZnrU6Vm32vy6Y0C5fTRiR
 o4VfdMYKY0Ah1K5lS8buLTGrjHy/sBA+n4BclALY+WuaBYpoVaqNjBqmmJq+xyoj
@@ -268,6 +190,86 @@ TkB2oKVDIxVHenmLAEmu6dGjEcqV001nXV5zk9rNU2LBJ9zyJL4GHp3pYMhPExfT
 +wez48POdQL9I5yaTESyNgUEVnGMLQGYGbQN0lh6a78SRzFu6rSbJuu+4XC2aqpp
 h99o+05pw3ZYRljyqzXWcNPjffvkhaUREJG/3MgIZWW1JGXw9AAf6vjHh441
 -----END RSA PRIVATE KEY-----">>
+    ],
+    Apps =
+        genlib_app:start_application_with(lager, [
+            {async_threshold, 1},
+            {async_threshold_window, 0},
+            {error_logger_hwm, 600},
+            {suppress_application_start_stop, true},
+            {crash_log, false},
+            {handlers, [
+                % {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
+                {lager_common_test_backend, warning}
+            ]}
+        ]) ++
+        genlib_app:start_application_with(scoper, [
+            {storage, scoper_storage_lager}
+        ]) ++
+        genlib_app:start_application_with(cds, [
+            {ip, IP},
+            {port, Port},
+            {keyring_storage, cds_keyring_storage_env},
+            {net_opts, [
+                % Bump keepalive timeout up to a minute
+                {timeout, 60000}
+            ]},
+            {keyring_rotator_timeout, 1000},
+            {keyring_initialize_lifetime, 1000},
+            {shareholders, [
+                #{
+                    id => <<"1">>,
+                    owner => <<"ndiezel">>,
+                    public_key => <<"-----BEGIN PUBLIC KEY-----
+MIICITANBgkqhkiG9w0BAQEFAAOCAg4AMIICCQKCAgBLFPTHtz+ldYk1HJDI5Xng
+F7F9tm6LBVTm5wiw7ezDSCnPGNKDNOsFF5/AiDGiBSRDB2XyGOOoMATl6ZEKLZlO
+lS90gUtigTuLL9OkgujptZN5gMu1qfHuVr2cKIU2y1j1JnnbCm7aW7HO7Go11aB+
+p8on03Nq/Iw5cw+SsN+dGG/XEjuhvuAVksPBEEhjdHIxYSpzOWUx++DAonXrzz8r
+IVhTL0YDYx7CA4Zo+bDYNO0sLhSyS/mo+ryYpnFsroW1Kl9IZ+hjMTv5sTKztYan
+VQLOsKNqCewuVJC/FgkGIeQQy8y4DOS9nQ7hCQ5x89gdxmDKP17LSYlgPc04lnPE
+XdQmBBVJV8+Rj/L60gEsLb5sVgrsY87rNJfvXUbGLzf8RhkAHybHxAgKphX82rw5
+F6iHWbugN+q2QfXbjg7iPGD6ew3mdZVkao4q75DTqZ1xTU+7uicF3spUs9meguQz
+RdFFHHesYyXCE98s+0aBeb88ytxocUpcv+nS6KZZoAMq4KuEvR8n89p9znAZjYVC
+LJQPkORMzfoCL2HvEQ4GTg6CL/cXwwMjjiThUcdso7eqRT0eG+GFMpILIAb1OQut
+7T2F9bAjD4SzCVuY7orIX1BLXiGf4eTkFUp9MxM5k/ZGAdt1B4XhvWv35TlzNdt7
+iM80ES1KtAGoR+uwc1xAoQIDAQAB
+-----END PUBLIC KEY-----">>
+                },
+                #{
+                    id => <<"2">>,
+                    owner => <<"ndiezel2">>,
+                    public_key => <<"-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA41Z5vCUkXNemyPHkxOPc
+FrcY4mminZKHVs+9vns64RJwDRCV/1WmBMP1F1Dpe9/eRBIV8q45C/rxJ4JzZk8M
+0B0N1bZ+2PVzCO/rJ+GDN7mYtDCH4h7O/7rFtbzSLpbSUR6XGhBcD4WvmfuVqCW6
+vxwpAKWUWA5+WlWqMEAOZ+CQfOMpRddKYCrf6klvADoBuO/ayaiTY8plsDsKdcEy
+G5CXv22SY326I+tovjZl7MHCXO+iZTvLkrgGYSvmJfDXK4kNxnVwHlqGVGJgMNek
+hX4GRby1L6gO0RBhwPcnwBbTvLNXAPCbhAbO/p6EMz0kx1+egNQ5xeFkxn0I8LXX
+bt64lKLlydW/+SAhgYQeSlZF5p3dSokF9SXj61UXpSGBqJT5yRpsBa0H580abmvF
+Lc8Gre3l6dPdRpoB/4dQ9eAueQi5BbsWyd2yrjVKbi6FbZftxkum4qdSQowLadbh
+24aY4b40wVQfGA8u8wxIYgvYD7zaxWsypiiXF9qUjR9hQoqWRSNE+k5lDOoFPOdf
+f1gQHqiDxWI5Q0esGbftE/vTI1JGkjKIy1+W4EU7ve91e3AG5sLQDwYSwGuI6VwC
+6ImnAzEmKjorncPn4C537lOlhX2rYi2iSwZykNHZRX3/nMpsuJqRV+iw206NqND2
+XmXuWeWtxX1OToV+xBFxNMcCAwEAAQ==
+-----END PUBLIC KEY-----">>
+                },
+                #{
+                    id => <<"3">>,
+                    owner => <<"ndiezel3">>,
+                    public_key => <<"-----BEGIN PUBLIC KEY-----
+MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEArVb6bKFTNEkJ3Ok5IVxj
+Bs+Emfo3Ya3DTV8duDlN7A/L7wzD/qH+K0+K9b7n0igvs5vZtXKm7+pRakQoJDhs
+3QWLiRxZnrU6Vm32vy6Y0C5fTRiRo4VfdMYKY0Ah1K5lS8buLTGrjHy/sBA+n4Bc
+lALY+WuaBYpoVaqNjBqmmJq+xyojtZVkXBMG0HoBwj+705nW9spYLr4o2opW+xxa
+rOxfiWtTDH0Wfa4jsvwphGL0pR8/lZL8sHr45IsA1/h9EuvqLZzYSCrbqaHFCEEx
+WC1lRIWF/Gadu92UkPSwrft1Yn/ckf90Bc4mU/eiuay7k0FYgmG1fj4isl+KZ2UH
+lmCSXziY+smlEXQ/qLrokXD9B8ypygSB5Vk6rKZzDOObsFMFJFGAibvW1BgimuCe
+9ROK/xgy1+tFEtZSJf1b+5YPHxKnTuvTJ3VsJR3P5vTVq5Pt5CNKVG6WEyrAUTkd
+mOVdjcTrLVsd/PG9GOTHXW+PJdXNbsdIUlQet2Kc4fWc9Je+InWTpaZxNO5T4VPk
+wANrZ2JD0xElXOUfV/dHggSSU6k6/St+UhGSCgqEMIXeIBVGQr9KOMCDbvN5SK2b
+Ky1ZDi7DbzxUFgx+X8FybVQiH/GCMREnZKM+3pi+ir3Ay8T5uwzkp3Q9uGl+lUiO
+3VU+SO5HukksCrWOQ/ZhQzcCAwEAAQ==
+-----END PUBLIC KEY-----">>
                 }
             ]}
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
@@ -275,7 +277,8 @@ h99o+05pw3ZYRljyqzXWcNPjffvkhaUREJG/3MgIZWW1JGXw9AAf6vjHh441
     [
         {stash, Stash},
         {apps, lists:reverse(Apps)},
-        {root_url, genlib:to_binary(RootUrl)}
+        {root_url, genlib:to_binary(RootUrl)},
+        {private_keys, PrivateKeys}
     ].
 
 -spec stop_clear(config()) -> ok.

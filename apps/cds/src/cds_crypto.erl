@@ -51,7 +51,6 @@ encrypt(Key, Plain) ->
     end.
 
 -spec public_encrypt(public_key(), binary()) -> binary().
-
 public_encrypt(PublicKey, Plain) ->
     [PEMEntry] = public_key:pem_decode(PublicKey),
     DecodedPublicKey = public_key:pem_entry_decode(PEMEntry),
@@ -61,7 +60,7 @@ public_encrypt(PublicKey, Plain) ->
 decrypt(Key, MarshalledCEDF) ->
     try
         #cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag} = unmarshall_cedf(MarshalledCEDF),
-         crypto:block_decrypt(aes_gcm, Key, IV, {AAD, Cipher, Tag})
+        crypto:block_decrypt(aes_gcm, Key, IV, {AAD, Cipher, Tag})
     of
         error ->
             throw(decryption_failed);
@@ -73,7 +72,6 @@ decrypt(Key, MarshalledCEDF) ->
     end.
 
 -spec private_decrypt(private_key(), binary()) -> binary().
-
 private_decrypt(PrivateKey, CipherPlain) ->
     [PEMEntry] = public_key:pem_decode(PrivateKey),
     DecodedPrivateKey = public_key:pem_entry_decode(PEMEntry),

@@ -91,7 +91,8 @@ init(C) ->
         cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
     3 = length(EncryptedMasterKeyShares),
     Shareholders = genlib_app:env(cds, shareholders),
-    DecryptedMasterKeyShares = cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders),
+    PrivateKeys = private_keys(C),
+    DecryptedMasterKeyShares = cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys),
     ok = cds_api_tests_SUITE:validate_init(DecryptedMasterKeyShares, C).
 
 -spec put_passport(config()) -> any() | no_return().
@@ -120,6 +121,9 @@ assert_doc_stored(C) ->
 
 root_url(C) ->
     config(root_url, C).
+
+private_keys(C) ->
+    config(private_keys, C).
 
 config(Key, Config) ->
     config(Key, Config, undefined).

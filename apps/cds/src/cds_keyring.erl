@@ -16,10 +16,12 @@
 -export_type([key/0]).
 -export_type([key_id/0]).
 -export_type([keyring/0]).
+-export_type([encrypted_keyring/0]).
 -export_type([key_id_config/0]).
 
 -type key() :: binary().
 -type key_id() :: byte().
+-type encrypted_keyring() :: binary().
 
 -type keyring() :: #{
     current_key => key_id(),
@@ -70,11 +72,11 @@ get_current_key(#{current_key := CurrentKeyId, keys := Keys}) ->
 
 %%
 
--spec encrypt(key(), keyring()) -> binary().
+-spec encrypt(key(), keyring()) -> encrypted_keyring().
 encrypt(MasterKey, Keyring) ->
     cds_crypto:encrypt(MasterKey, marshall(Keyring)).
 
--spec decrypt(key(), binary()) -> keyring().
+-spec decrypt(key(), encrypted_keyring()) -> keyring().
 decrypt(MasterKey, EncryptedKeyring) ->
     unmarshall(cds_crypto:decrypt(MasterKey, EncryptedKeyring)).
 
