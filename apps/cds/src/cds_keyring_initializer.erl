@@ -192,20 +192,17 @@ validation(Threshold, Shares, EncryptedKeyring) ->
 
 restore_and_compare_masterkey(CombosOfShares) ->
     lists:foldl(fun(ComboOfShares, Result) ->
-        case Result of
-            {error, _Error} ->
+        case cds_keysharing:recover(ComboOfShares) of
+            _ when is_tuple(Result) and (error == element(1, Result)) ->
                 Result;
-            _ ->
-                case cds_keysharing:recover(ComboOfShares) of
-                    Result ->
-                        Result;
-                    {ok, MasterKey} when Result =:= first ->
-                        {ok, MasterKey};
-                    {ok, _NonMatchingMasterkey} ->
-                        {error, {operation_aborted, non_matching_masterkey}};
-                    {error, failed_to_recover} ->
-                        {error, {operation_aborted, failed_to_recover}}
-                end
+            Result ->
+                Result;
+            {ok, MasterKey} when Result =:= first ->
+                {ok, MasterKey};
+            {ok, _NonMatchingMasterkey} ->
+                {error, {operation_aborted, non_matching_masterkey}};
+            {error, failed_to_recover} ->
+                {error, {operation_aborted, failed_to_recover}}
         end
                 end,
         first,

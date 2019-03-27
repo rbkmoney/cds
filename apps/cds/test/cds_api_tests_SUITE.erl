@@ -30,6 +30,7 @@
 -export([refresh_sessions/1]).
 -export([init_invalid_status/1]).
 -export([init_invalid_args/1]).
+-export([init_operation_aborted/1]).
 -export([lock_invalid_status/1]).
 -export([rotate_keyring_locked/1]).
 -export([rotate_failed_to_recover/1]).
@@ -129,6 +130,7 @@ groups() ->
             init_invalid_args,
             init_with_cancel,
             init_with_timeout,
+            init_operation_aborted,
             init,
             init_invalid_status,
             lock,
@@ -475,6 +477,35 @@ init_invalid_status(C) ->
 init_invalid_args(C) ->
     #'InvalidArguments'{} = (catch cds_keyring_client:start_init(4, root_url(C))),
     #'InvalidArguments'{} = (catch cds_keyring_client:start_init(0, root_url(C))).
+
+-spec init_operation_aborted(config) -> _.
+
+init_operation_aborted(C) ->
+    MK = cds_crypto:key(),
+    [MasterKey1, MasterKey2, MasterKey3] = cds_keysharing:share(MK, 2, 3),
+    MasterKey4 = <<2, 4, 23224>>,
+    MK2 = cds_crypto:key(),
+    [MasterKey5, MasterKey6 | _] = cds_keysharing:share(MK2, 1, 3),
+    MK3 = cds_crypto:key(),
+    [_MasterKey7, _MasterKey8, MasterKey9] = cds_keysharing:share(MK3, 1, 3),
+
+    _ = cds_keyring_client:start_init(2, root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(MasterKey1, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(MasterKey2, root_url(C)),
+    Reason1 = atom_to_binary(failed_to_recover, utf8),
+    #'OperationAborted'{reason = Reason1} = (catch cds_keyring_client:validate_init(MasterKey4, root_url(C))),
+
+    _ = cds_keyring_client:start_init(2, root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(MasterKey1, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(MasterKey2, root_url(C)),
+    Reason2 = atom_to_binary(failed_to_decrypt_keyring, utf8),
+    #'OperationAborted'{reason = Reason2} = (catch cds_keyring_client:validate_init(MasterKey3, root_url(C))),
+
+    _ = cds_keyring_client:start_init(1, root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(MasterKey5, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(MasterKey6, root_url(C)),
+    Reason3 = atom_to_binary(non_matching_masterkey, utf8),
+    #'OperationAborted'{reason = Reason3} = (catch cds_keyring_client:validate_init(MasterKey9, root_url(C))).
 
 -spec lock_invalid_status(config()) -> _.
 

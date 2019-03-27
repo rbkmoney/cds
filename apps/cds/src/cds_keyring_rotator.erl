@@ -103,7 +103,8 @@ code_change(_OldVsn, StateData, _Extra) ->
 timeout() ->
     application:get_env(cds, keyring_rotator_timeout, 60000).
 
--spec update_keyring(keyring(), masterkey_shares()) -> {ok, {encrypted_keyring(), keyring()}} | {error, rotate_errors()}.
+-spec update_keyring(keyring(), masterkey_shares()) ->
+    {ok, {encrypted_keyring(), keyring()}} | {error, rotate_errors()}.
 
 update_keyring(OldKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
