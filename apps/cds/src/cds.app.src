@@ -19,7 +19,8 @@
         identdocstore_proto,
         erl_health,
         msgpack,
-        lib_combin
+        lib_combin,
+        jose
     ]},
     {env, []},
     {modules, []},

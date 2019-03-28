@@ -5,6 +5,7 @@
 -export([public_encrypt/2]).
 -export([decrypt/2]).
 -export([private_decrypt/2]).
+-export([private_decrypt/3]).
 
 -export_type([public_key/0]).
 -export_type([private_key/0]).
@@ -15,8 +16,8 @@
 -type iv()  :: binary().
 -type tag() :: binary().
 -type aad() :: binary().
--type public_key() :: public_key:rsa_public_key().
--type private_key() :: public_key:rsa_private_key().
+-type public_key() :: binary().
+-type private_key() :: binary().
 
 %% cedf is for CDS Encrypted Data Format
 -record(cedf, {
@@ -52,9 +53,10 @@ encrypt(Key, Plain) ->
 
 -spec public_encrypt(public_key(), binary()) -> binary().
 public_encrypt(PublicKey, Plain) ->
-    [PEMEntry] = public_key:pem_decode(PublicKey),
-    DecodedPublicKey = public_key:pem_entry_decode(PEMEntry),
-    public_key:encrypt_public(Plain, DecodedPublicKey).
+    JWKPublicKey = jose_jwk:from_binary(PublicKey),
+    {_EncryptionAlgo, JWEPlain} = jose_jwk:block_encrypt(Plain, JWKPublicKey),
+    {#{}, JWECompacted} = jose_jwe:compact(JWEPlain),
+    JWECompacted.
 
 -spec decrypt(key(), binary()) -> binary().
 decrypt(Key, MarshalledCEDF) ->
@@ -72,10 +74,15 @@ decrypt(Key, MarshalledCEDF) ->
     end.
 
 -spec private_decrypt(private_key(), binary()) -> binary().
-private_decrypt(PrivateKey, CipherPlain) ->
-    [PEMEntry] = public_key:pem_decode(PrivateKey),
-    DecodedPrivateKey = public_key:pem_entry_decode(PEMEntry),
-    public_key:decrypt_private(CipherPlain, DecodedPrivateKey).
+private_decrypt(PrivateKey, JWECompacted) ->
+    private_decrypt(PrivateKey, <<"">>, JWECompacted).
+
+-spec private_decrypt(private_key(), binary(), binary()) -> binary().
+private_decrypt(PrivateKey, Password, JWECompacted) ->
+    {_, JWKPrivateKey} = jose_jwk:from(Password, PrivateKey),
+    {#{}, JWEPlain} = jose_jwe:expand(JWECompacted),
+    {Result, _} = jose_jwk:block_decrypt(JWEPlain, JWKPrivateKey),
+    Result.
 
 %% internal
 
