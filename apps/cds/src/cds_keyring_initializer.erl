@@ -23,14 +23,16 @@
     shares = #{}
 }).
 
--type shareholders() :: cds_keyring_shareholders:shareholders().
+-type shareholder() :: cds_shareholder:shareholder().
+-type shareholders() :: cds_shareholder:shareholders().
 
--type masterkey() :: cds_keyring_utils:masterkey().
+-type masterkey() :: cds_keysharing:masterkey().
 
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: [masterkey_share()].
 
--type encrypted_master_key_shares() :: cds_keyring_utils:encrypted_master_key_shares().
+-type encrypted_master_key_share() :: cds_keysharing:encrypted_master_key_share().
+-type encrypted_master_key_shares() :: cds_keysharing:encrypted_master_key_shares().
 
 -type data() :: #data{}.
 
@@ -90,10 +92,9 @@ init([]) ->
 %% Successful workflow events
 
 handle_event({call, From}, {initialize, Threshold}, uninitialized, Data) ->
-    Shareholders = cds_keyring_shareholders:get_shareholders(),
+    Shareholders = cds_shareholder:get_all(),
     ShareholdersLength = length(Shareholders),
-    case (Threshold >= 1) and (ShareholdersLength >= 1) and
-        (Threshold =< ShareholdersLength) and validate_shareholders(Shareholders) of
+    case (Threshold >= 1) and (ShareholdersLength >= 1) and (Threshold =< ShareholdersLength) of
         true ->
             MasterKey = cds_crypto:key(),
             Keyring = cds_keyring:new(),
@@ -122,7 +123,7 @@ handle_event({call, From}, {validate, Share}, validation,
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Num ->
             ListShares = maps:values(AllShares),
-            Result = validation(Threshold, ListShares, Keyring),
+            Result = validate(Threshold, ListShares, Keyring),
             {next_state,
                 uninitialized,
                 #data{},
@@ -130,13 +131,13 @@ handle_event({call, From}, {validate, Share}, validation,
                     {reply, From, Result},
                     {{timeout, lifetime}, infinity, []}
                 ]};
-        ExtraShares ->
-            NewData = Data#data{shares = ExtraShares},
+        Shares1 ->
+            NewData = Data#data{shares = Shares1},
             {next_state,
                 validation,
                 NewData,
                 [
-                    {reply, From, {ok, {more, Num - maps:size(ExtraShares)}}}
+                    {reply, From, {ok, {more, Num - maps:size(Shares1)}}}
                 ]}
     end;
 
@@ -170,10 +171,10 @@ handle_event({timeout, lifetime}, expired, _State, _Data) ->
 get_timeout() ->
     genlib_app:env(cds, keyring_initialize_lifetime, 3 * 60 * 1000).
 
--spec validation(threshold(), masterkey_shares(), encrypted_keyring()) ->
+-spec validate(threshold(), masterkey_shares(), encrypted_keyring()) ->
     {ok, {encrypted_keyring(), decrypted_keyring()}} | {error, validate_errors()}.
 
-validation(Threshold, Shares, EncryptedKeyring) ->
+validate(Threshold, Shares, EncryptedKeyring) ->
     AllSharesCombos = lib_combin:cnr(Threshold, Shares),
     case restore_and_compare_masterkey(AllSharesCombos) of
         {ok, MasterKey} ->
@@ -190,22 +191,22 @@ validation(Threshold, Shares, EncryptedKeyring) ->
 -spec restore_and_compare_masterkey([masterkey_shares()]) ->
     {ok, masterkey()} | first | {error, {operation_aborted, non_matching_masterkey | failed_to_recover}}.
 
-restore_and_compare_masterkey(CombosOfShares) ->
-    lists:foldl(fun(ComboOfShares, Result) ->
-        case cds_keysharing:recover(ComboOfShares) of
-            _ when is_tuple(Result) and (error == element(1, Result)) ->
-                Result;
-            Result ->
-                Result;
-            {ok, MasterKey} when Result =:= first ->
-                {ok, MasterKey};
-            {ok, _NonMatchingMasterkey} ->
-                {error, {operation_aborted, non_matching_masterkey}};
-            {error, failed_to_recover} ->
-                {error, {operation_aborted, failed_to_recover}}
-        end
-                end,
-        first,
+restore_and_compare_masterkey([FirstCombo | CombosOfShares]) ->
+    lists:foldl(
+        fun
+            (ComboOfShares, {ok, MasterKey}) ->
+                case cds_keysharing:recover(ComboOfShares) of
+                    {ok, MasterKey} ->
+                        {ok, MasterKey};
+                    {ok, _NonMatchingMasterkey} ->
+                        {error, {operation_aborted, non_matching_masterkey}};
+                    {error, failed_to_recover} ->
+                        {error, {operation_aborted, failed_to_recover}}
+                end;
+            (_ComboOfShares, Error) ->
+                Error
+        end,
+        cds_keysharing:recover(FirstCombo),
         CombosOfShares
     ).
 
@@ -223,25 +224,14 @@ decrypt_keyring(MasterKey, EncryptedKeyring) ->
 
 -spec encrypt_shares(masterkey_shares(), shareholders()) -> encrypted_master_key_shares().
 
-encrypt_shares([], []) ->
-    [];
-encrypt_shares([Share | Shares], [#{id := Id, owner := Owner, public_key := PublicKey} | Shareholders]) ->
-    EncryptedShare = cds_crypto:public_encrypt(PublicKey, Share),
-    [#{id => Id, owner => Owner, encrypted_share => EncryptedShare} |
-        encrypt_shares(Shares, Shareholders)].
+encrypt_shares(Shares, Shareholders) ->
+    lists:map(fun encrypt_share/1, lists:zip(Shares, Shareholders)).
 
--spec validate_shareholders(shareholders()) -> boolean().
+-spec encrypt_share({masterkey_share(), shareholder()}) -> encrypted_master_key_share().
 
-validate_shareholders(Shareholders) ->
-    lists:all(fun(Shareholder) ->
-        case Shareholder of
-            #{
-                id := _Id,
-                owner := _Owner,
-                public_key := _PublicKey
-            } ->
-                true;
-            _InvalidShareholder ->
-                false
-        end
-              end, Shareholders).
+encrypt_share({Share, #{id := Id, owner := Owner, public_key := PublicKey}}) ->
+    #{
+        id => Id,
+        owner => Owner,
+        encrypted_share => cds_crypto:public_encrypt(PublicKey, Share)
+    }.

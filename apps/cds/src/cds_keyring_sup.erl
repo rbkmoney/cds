@@ -27,5 +27,10 @@ init(_) ->
             start => {cds_keyring_rotator, start_link, []}
         }
     ],
-    {ok, {{rest_for_one, 1, 5}, ChildSpecs}}.
+    SupFlags = #{
+        strategy => rest_for_one,
+        intensity => 1,
+        period => 5
+    },
+    {ok, {SupFlags, ChildSpecs}}.
 

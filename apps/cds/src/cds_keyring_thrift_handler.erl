@@ -83,13 +83,13 @@ handle_function_('Rotate', [Share], _Context, _Opts) ->
             cds_thrift_handler_utils:raise(#'OperationAborted'{reason = atom_to_binary(Reason, utf8)})
     end.
 
--spec encode_encrypted_shares([cds_keyring_utils:encrypted_master_key_share()]) ->
+-spec encode_encrypted_shares([cds_keysharing:encrypted_master_key_share()]) ->
     [encrypted_masterkey_share()].
 
 encode_encrypted_shares(EncryptedMasterKeyShares) ->
     lists:map(fun encode_encrypted_share/1, EncryptedMasterKeyShares).
 
--spec encode_encrypted_share(cds_keyring_utils:encrypted_master_key_share()) ->
+-spec encode_encrypted_share(cds_keysharing:encrypted_master_key_share()) ->
     encrypted_masterkey_share().
 
 encode_encrypted_share(#{
@@ -104,13 +104,13 @@ encode_encrypted_share(#{
   }.
 
 -spec decode_encrypted_shares([encrypted_masterkey_share()]) ->
-    [cds_keyring_utils:encrypted_master_key_share()].
+    [cds_keysharing:encrypted_master_key_share()].
 
 decode_encrypted_shares(EncryptedMasterKeyShares) ->
     lists:map(fun decode_encrypted_share/1, EncryptedMasterKeyShares).
 
 -spec decode_encrypted_share(encrypted_masterkey_share()) ->
-    cds_keyring_utils:encrypted_master_key_share().
+    cds_keysharing:encrypted_master_key_share().
 
 decode_encrypted_share(#'EncryptedMasterKeyShare' {
     id = Id,

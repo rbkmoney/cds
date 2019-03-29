@@ -7,6 +7,7 @@
 -export([encode_token/1]).
 -export([decode_session/1]).
 -export([encode_session/1]).
+-export([search_list/2]).
 
 -spec current_time() -> pos_integer().
 current_time() ->
@@ -37,6 +38,20 @@ base62_encode(Data) ->
 
 base62_decode(Data) ->
     genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
+
+
+-spec search_list(Pred, List) -> {value, Value} | false when
+    Pred :: fun((T) -> boolean()),
+    List :: [T],
+    Value :: T.
+
+search_list(Pred, [Hd|Tail]) ->
+    case Pred(Hd) of
+        true -> {value, Hd};
+        false -> search_list(Pred, Tail)
+    end;
+search_list(Pred, []) when is_function(Pred, 1) ->
+    false.
 
 % test
 

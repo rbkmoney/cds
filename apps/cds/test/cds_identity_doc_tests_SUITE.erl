@@ -2,6 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 %% common_test callbacks
 -export([all/0]).
@@ -15,6 +16,8 @@
 -export([put_passport/1]).
 -export([put_insurance_cert/1]).
 -export([assert_doc_stored/1]).
+
+-spec test() -> _.
 
 %%
 %% Internal types
@@ -89,10 +92,9 @@ init(C) ->
     UMEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
     EncryptedMasterKeyShares =
         cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
-    3 = length(EncryptedMasterKeyShares),
-    Shareholders = genlib_app:env(cds, shareholders),
+    _ = ?assertEqual(length(EncryptedMasterKeyShares), length(cds_shareholder:get_all())),
     PrivateKeys = private_keys(C),
-    DecryptedMasterKeyShares = cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys),
+    DecryptedMasterKeyShares = cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, PrivateKeys),
     ok = cds_api_tests_SUITE:validate_init(DecryptedMasterKeyShares, C).
 
 -spec put_passport(config()) -> any() | no_return().

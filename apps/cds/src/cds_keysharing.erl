@@ -7,14 +7,26 @@
 -export([convert/1]).
 
 -export_type([masterkey_share/0]).
+-export_type([encrypted_master_key_share/0]).
+-export_type([encrypted_master_key_shares/0]).
+-export_type([masterkey/0]).
 
--type masterkey() :: cds_keyring_utils:masterkey().
+-type masterkey() :: binary().
 -type masterkey_share() :: binary().
 -type share() :: #share{
     threshold :: byte(),
     x :: byte(),
     y :: binary()
 }.
+
+-type encrypted_master_key_share() :: #{
+    id := binary(),
+    owner := binary(),
+    encrypted_share := binary()
+}.
+-type encrypted_master_key_shares() :: list(encrypted_master_key_share()).
+
+
 
 -spec share(binary(), byte(), byte()) -> [masterkey_share()].
 share(Secret, Threshold, Count) ->

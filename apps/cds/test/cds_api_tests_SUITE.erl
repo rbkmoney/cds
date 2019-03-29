@@ -2,6 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -41,7 +42,7 @@
 -export([get_session_card_data_unavailable/1]).
 -export([put_card_data_no_member/1]).
 
--export([decrypt_masterkeys/3]).
+-export([decrypt_masterkeys/2]).
 -export([validate_init/2]).
 
 %%
@@ -75,6 +76,8 @@
 %%
 
 -type config() :: term().
+
+-spec test() -> _.
 
 -spec all() -> [{group, atom()}].
 
@@ -209,9 +212,9 @@ init_per_group(session_management, C) ->
         {
             session_cleaning,
             #{
-                session_lifetime => 6,
+                session_lifetime => 7,
                 batch_size => 1000,
-                interval => 5000
+                interval => 6000
             }
         }
     ],
@@ -268,10 +271,10 @@ init(C) ->
     EncodedEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
     EncryptedMasterKeyShares =
         cds_keyring_thrift_handler:decode_encrypted_shares(EncodedEncryptedMasterKeyShares),
-    3 = length(EncryptedMasterKeyShares),
-    Shareholders = cds_keyring_shareholders:get_shareholders(),
+    Shareholders = cds_shareholder:get_all(),
+    _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     PrivateKeys = private_keys(C),
-    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys),
+    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, PrivateKeys),
     ok = validate_init(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
@@ -279,8 +282,7 @@ init(C) ->
 
 init_with_timeout(C) ->
     DecryptedMasterKeyShare = partial_init(C),
-
-    Timeout = genlib_app:env(cds, keyring_rotator_timeout, 1000),
+    Timeout = genlib_app:env(cds, keyring_rotation_lifetime, 1000),
     timer:sleep(Timeout + 500),
     #'InvalidActivity'{activity = {initialization, uninitialized}}
         = (catch cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C))).
@@ -297,36 +299,27 @@ partial_init(C) ->
     EncodedEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
     EncryptedMasterKeyShares =
         cds_keyring_thrift_handler:decode_encrypted_shares(EncodedEncryptedMasterKeyShares),
-    3 = length(EncryptedMasterKeyShares),
-    Shareholders = cds_keyring_shareholders:get_shareholders(),
+    Shareholders = cds_shareholder:get_all(),
+    _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     PrivateKeys = private_keys(C),
-    [DecryptedMasterKeyShare | DecryptedMasterKeyShares] = decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys),
-    DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
-    {more_keys_needed, DecryptedMasterKeySharesCount} =
-        cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C)),
+    [DecryptedMasterKeyShare | DecryptedMasterKeyShares] =
+        decrypt_masterkeys(EncryptedMasterKeyShares, PrivateKeys),
+    _ = ?assertEqual({more_keys_needed, length(DecryptedMasterKeyShares)},
+        cds_keyring_client:validate_init(DecryptedMasterKeyShare, root_url(C))),
     DecryptedMasterKeyShare.
 
--spec decrypt_masterkeys(cds_keyring_utils:encrypted_master_key_shares(),
-    cds_keyring_shareholders:shareholders(),
-    [binary()]) ->
+-spec decrypt_masterkeys(cds_keysharing:encrypted_master_key_shares(), [binary()]) ->
     [cds_keysharing:masterkey_share()].
 
-decrypt_masterkeys([], [], []) -> [];
-decrypt_masterkeys([EncryptedMasterKeyShare | EncryptedMasterKeyShares],
-    [Shareholder | Shareholders],
-    [PrivateKey | PrivateKeys]) ->
-    #{
-        id := Id,
-        owner := Owner,
-        encrypted_share := EncryptedShare
-    } = EncryptedMasterKeyShare,
-    #{
-        id := Id,
-        owner := Owner,
-        public_key := _PublicKey
-    } = Shareholder,
-    DecryptedMasterKeyShare = cds_crypto:private_decrypt(PrivateKey, EncryptedShare),
-    [DecryptedMasterKeyShare | decrypt_masterkeys(EncryptedMasterKeyShares, Shareholders, PrivateKeys)].
+decrypt_masterkeys(EncryptedMasterKeyShares, PrivateKeys) ->
+    lists:map(
+        fun
+            (#{id := Id, owner := Owner, encrypted_share := EncryptedShare}) ->
+                #{id := Id, owner := Owner} = cds_shareholder:get_by_id(Id),
+                {value, {Id, PrivateKey}} = cds_utils:search_list(fun (PK) -> element(1, PK) == Id end, PrivateKeys),
+                cds_crypto:private_decrypt(PrivateKey, EncryptedShare)
+        end,
+        EncryptedMasterKeyShares).
 
 -spec validate_init([cds_keysharing:masterkey_share()], config()) -> ok.
 
@@ -462,7 +455,7 @@ rotate(C) ->
 rotate_with_timeout(C) ->
     [MasterKey1, MasterKey2, MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey1, root_url(C)),
-    Timeout = genlib_app:env(cds, keyring_rotator_timeout, 1000),
+    Timeout = genlib_app:env(cds, keyring_rotation_lifetime, 1000),
     timer:sleep(Timeout + 500),
     {more_keys_needed, 1} = cds_keyring_client:rotate(MasterKey2, root_url(C)),
     {success, #'Success'{}} = cds_keyring_client:rotate(MasterKey3, root_url(C)).

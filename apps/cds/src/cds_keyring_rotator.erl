@@ -101,7 +101,7 @@ code_change(_OldVsn, StateData, _Extra) ->
 -spec timeout() -> non_neg_integer().
 
 timeout() ->
-    application:get_env(cds, keyring_rotator_timeout, 60000).
+    application:get_env(cds, keyring_rotation_lifetime, 60000).
 
 -spec update_keyring(keyring(), masterkey_shares()) ->
     {ok, {encrypted_keyring(), keyring()}} | {error, rotate_errors()}.
