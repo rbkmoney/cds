@@ -316,7 +316,7 @@ decrypt_masterkeys(EncryptedMasterKeyShares, PrivateKeys) ->
         fun
             (#{id := Id, owner := Owner, encrypted_share := EncryptedShare}) ->
                 #{id := Id, owner := Owner} = cds_shareholder:get_by_id(Id),
-                {ok, PrivateKey} = maps:find(Id, PrivateKeys),
+                PrivateKey = maps:get(Id, PrivateKeys),
                 cds_crypto:private_decrypt(PrivateKey, EncryptedShare)
         end,
         EncryptedMasterKeyShares).

@@ -188,8 +188,8 @@ validate(Threshold, Shares, EncryptedKeyring) ->
             {error, Error}
     end.
 
--spec restore_and_compare_masterkey([masterkey_shares()]) ->
-    {ok, masterkey()} | first | {error, {operation_aborted, non_matching_masterkey | failed_to_recover}}.
+-spec restore_and_compare_masterkey([masterkey_shares(), ...]) ->
+    {ok, masterkey()} | {error, {operation_aborted, non_matching_masterkey | failed_to_recover}}.
 
 restore_and_compare_masterkey([FirstCombo | CombosOfShares]) ->
     lists:foldl(

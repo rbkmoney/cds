@@ -30,7 +30,7 @@ get_all() ->
 -spec get_by_id(binary()) -> shareholder().
 get_by_id(Id) ->
     Shareholders = genlib_app:env(cds, shareholders, #{}),
-    {ok, Shareholder} = maps:find(Id, Shareholders),
+    Shareholder = maps:get(Id, Shareholders),
     ConvertedShareholder = convert_to_map({Id, Shareholder}),
     case validate_shareholders([ConvertedShareholder]) of
         true ->
