@@ -1,10 +1,10 @@
-# Setup
+# Установка
 
-###Устанавливаем Step Cli
+## Устанавливаем Step Cli
 
 https://github.com/smallstep/cli#installation-guide
 
-###Создаем JWK ключ
+## Создаем JWK ключ
 
 RSA 4096 ключ для шифрования:
 
@@ -14,14 +14,14 @@ Ed25519 ключ для криптоподписи:
     
     step crypto jwk create ed.pub.json ed.json --kty OKP --crv Ed25519 --use sig
     
-###Добавляем JWK в конфигурацию
+## Добавляем JWK в конфигурацию
 
 Добавляем публичный ключ из `rsa-enc.pub.json` в `map` конфигурации `shareholders`:
 
 ```
 {shareholders, #{
-            <<"1">> => #{
-                owner => <<"ndiezel">>,
+            <<"ndiezel">> => #{
+                owner => <<"ndiezel0@gmail.com">>,
                 public_key => <<"{
   \"use\": \"enc\",
   \"kty\": \"RSA\",
@@ -34,7 +34,9 @@ Ed25519 ключ для криптоподписи:
         }}
 ```
 
-# Init
+# Инициализация
+
+
 
 ## Начало
 
@@ -53,8 +55,8 @@ $ woorl -s ~/Development/damsel/proto/cds.thrift \
 ```json
 [
   {
-    "id": "1",
-    "owner": "ndiezel",
+    "id": "ndiezel",
+    "owner": "ndiezel0@gmail.com",
     "encrypted_share": "<EncodedMasterKeyShare>"
   }
 ]
@@ -71,11 +73,11 @@ $ echo "<insert EncodedMasterKeyShare here>" | \
  step crypto jwe decrypt --key rsa-enc.json | \
  base64 | \
  (read DecryptedShare; \
-  woorl -s ~/Development/damsel/proto/cds.thrift \
-   'http://127.0.0.1:32778/v1/keyring' \
+  woorl -s damsel/proto/cds.thrift \
+   'http://cds:8022/v1/keyring' \
    Keyring ValidateInit '{"content_type":"base64","content": "'"$(echo $DecryptedShare)"'"}')
 ```
 
 `EncodedMasterKeyShare` - полученная зашифрованная часть мастер ключа
 
-`http://127.0.0.1:32778/v1/keyring` - пример пути до `cds`
+`http://cds:8022/v1/keyring` - пример пути до `cds`
