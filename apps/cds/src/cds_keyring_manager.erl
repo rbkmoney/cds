@@ -186,7 +186,8 @@ locked(update, _From, StateData) ->
         not_found ->
             {reply, ok, not_initialized, StateData}
     end;
-locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
+locked({unlock, SignedShare}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
+    {ok, {_, <<Threshold, X, _Y/binary>> = Share}} = cds_crypto:verify(SignedShare),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             try

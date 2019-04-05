@@ -64,7 +64,7 @@ init_per_group(ets_storage_backend, C) ->
     cds_ct_utils:set_ets_storage(C);
 init_per_group(Group, C) when
     Group =:= all;
-    Group =:= general_flow 
+    Group =:= general_flow
 ->
     C;
 init_per_group(_, C) ->
@@ -93,8 +93,10 @@ init(C) ->
     EncryptedMasterKeyShares =
         cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(cds_shareholder:get_all())),
-    PrivateKeys = private_keys(C),
-    DecryptedMasterKeyShares = cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, PrivateKeys),
+    EncPrivateKeys = enc_private_keys(C),
+    SigPrivateKeys = sig_private_keys(C),
+    DecryptedMasterKeyShares =
+        cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
     ok = cds_api_tests_SUITE:validate_init(DecryptedMasterKeyShares, C).
 
 -spec put_passport(config()) -> any() | no_return().
@@ -124,8 +126,11 @@ assert_doc_stored(C) ->
 root_url(C) ->
     config(root_url, C).
 
-private_keys(C) ->
-    config(private_keys, C).
+enc_private_keys(C) ->
+    config(enc_private_keys, C).
+
+sig_private_keys(C) ->
+    config(sig_private_keys, C).
 
 config(Key, Config) ->
     config(Key, Config, undefined).

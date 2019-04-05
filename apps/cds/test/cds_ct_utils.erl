@@ -36,7 +36,7 @@ start_clear(Config, Stash) ->
     CleanConfig = config(session_cleaning_config, Config, []),
     Recrypting = config(recrypting_config, Config, []),
     ok = clean_storage(StorageConfig),
-    PrivateKeys = #{
+    EncPrivateKeys = #{
         <<"1">> => <<"{
   \"protected\": \"eyJhbGciOiJQQkVTMi1IUzI1NitBMTI4S1ciLCJjdHkiOiJqd2sranNvbiIsImVuYyI6IkEyNTZHQ00iLCJwMmMiOjEwMDAwMCwicDJzIjoiWlhxWUtkN0VvNWwxR29TYU9uRERJdyJ9\",
   \"encrypted_key\": \"uUC1-fWxYidjoM1vNsvkexPtrSj_QM-175HsORLjaRu4g5yrW8ZIsg\",
@@ -57,6 +57,30 @@ start_clear(Config, Stash) ->
   \"iv\": \"24FO5WBcW9Dy2vVf\",
   \"ciphertext\": \"juxWPYE2Nvq4IAqfZWcxYR-YRVUKPXKs6dz4O050poPPLeR35EmLJ6jgddCsVSqgMlOehikg_W8iun2Z6fWYuNw-sbp49IQARhayj6S3cT0Vp4eECXVBQdT9wVqpoY10uyWNnymXc3lIKY4kVKtveyWq3r48zmh_4Nl_eXQl2Dp4R3qoNlBlmyn0KuSFvA7cpcNx7GmLe73JfXuugsJJ7rud56laFeddA5tTxqqCEMttw1RxPZ2ctNw7Lmcy55NgHAeXctF6-41rbX35w-6WLgb_B6V2XcAhYfkTsnbt4DDqWe1NQxJ2P1x7SHEAI52X-iAvB9mc3Nj7zlhjIg7Hi_WeVJf8DTpFNrhEHAjeQWGFL-xF4O5yQB-jOCSxaYrvpQvntZVJqtzbRkaiZFzqnIHIKelSqX-IomV3Sp9f2NohhqqBXqGSPiCyhONQNoqw9qV2tZheQfHz-O7ujH324joj2cN82EfOWevSooGLINbH0IsiwmBr2kZ6e80MMjCys3cafzy3nrWBd8HqHv-IHY4q26G1lqskg8iCcuRJAO5W93lFphlaEXWDarZGNofyKzpBg4_iEvkNw3vwUiZbjim3NitMa8OEGL1JyNqdbeLZvrx-KM_ZkxqI1NtOeseBAANr8dpVmnNHD8Mf_t6v4O1gS38rIqnCsY6j3DV-7ST75KZjcw3vtpEiyu29Y-jkwLi8mCrXl3PRAFrFh1sXlPgWsmnL5a34sFbjk7TKQS-gk7Nhz2YrM_Z8BmrsxBoWN6h9xlcVUf_y3hwjyEOyx-nOrLPt-n75sD05j0X5mRV2fYc18Rvfr0n188t8zGYmEVKBXnMciXZBpoDc7We86GGMaZFPMOFWf5FNsob75RgtxLpBK9R6rKTVQRpZX1R2zO0MpECNn9bRbubzE6RMSGcnrsvs8Gl1LDgqMhWbtisF16bLuFB9_r5jtU8x3VG9ZX0TU1FP5RW_02ca-WlXDYM5auHkvOWGDyaMkGTD4MC3YuCAuGMrMl-4WhtddndZPFg9M3ts-dj-Oh4Ii9fBcWdT-uq8FNF56idG14gW70K4zxTxbReQ4mx-lVqYwd-55Dw2Y5BPafbk0JIn5sfm-iDCSg9J4dDjCP9JK2Y0bON42rskgHshbTJ6EkZAcSAXKrEg2xx15_l84p_9gSzfeMDuZQGVzJPssHc35hX8-bbh7j4LAd0ttQhAQpWdoV4EEU8v8CwdwE9OxErcQTANcjZH09FbYnML1ROCbCFIe7lAeKKeEoEHOZWuAwdbSGsGlxLnhDc1Z1-z3Msv6DEPOj3Lb_iZ-dKDJxqa9bjThU6U8LtAbfesu3SVA4uiCUHuyM1lIF8qdTa5frBeZlsWrkStOf4itpDupwyOB0sz84dk8Twyo7hdEs4stdne-PD5LE9H60aNnLnKNYFFODeLNwRZudfQZLsmA5_K-59TSfcGQigvRn9EQNQR0-S5KzaDIA0K6yLCadNOg_dRYDCUy9iL4JFocoF_evCKVU72nSbOZ6f0a2m6-V-MZtaNQcLZ15wXhLo11cCgXGon2B6ZXi_EEt3LgidOV0LR5uQHtYWqvLTozrxjvo83FJmcP-UyvXBqdkmK_cT4tcSJkMAUhZVBxVilVkFs1ObIuZECq6CnQM1ZxKtweO_I3xSAq0oWKoHBUwGvzR2BHMAYqkFa5SYbImILSmYqxt9clOOp6ivF9U5b8dghGRF-83KM6k219ut6misIeJChsxqkeAH8KJ7IatJB5t8-EHqvTWHsoJSUvZFZlW95yVKUlhFXk_H8b3f-7n28pY8YPkHFrjBV-jrL_4wpIq-qAMbS4gnr2-Ivl9oXPcgov3-efpHXWwKVL4bofC8W_ZsO5a9fjZeLg3IWuz5pJmR2CLZuJllhtcHQQIyFAs4OuQVP6k5EZhe9JPmfpiCm4E-LRQR12B1ZJxaKi0VO1WDSordrD2SjAXwRcJ4yKG-_hMeuw36N8Xx37iNqYAgPPO3vHXJpkfgGm-PtXNlCMMioJ-QN0iNhaanjY207t9sPVAZqrfoaq4IByTRbKCB7cNnP-N4kW7NhqAAaeJ_eR30cJ-rVIpds3PL2C_oIaVE7jiPOka__zV3nZOEdNXmDSPq3DZwTOEzmgSZTq41cmDC95I1oDcI2E_PvCMjw4goSjdoKZUCJbGza0v6n0eWJ-f16UsN2-wcwNnAkUL8JtI65INlHZlp0icl8ZjKwemebNv8Bu9Fe9ssQykHIrhfunBHveYAw_cWHBdRiG0frzfCKFAq6L_PNpJI4wyD3qrDNGwyuEh_tGlMo3enN2vjEP1KgiRRvXX6xr7d4Y1gURv_DRVUHOWcBChYjg7xGejePpiDlq20Z59KvMU401uN_cvuXH2S2DKT_4cdPmXKfhu6ee5L9HF4jJT-JuYaYjiHNrBfBQ3WuwheyqfyjX9DLQfPVG_8JQ6Ew-j0BBN1mlLnfIdxVP59ovqvHrWKvhlg0rwMf--XUaSXcxTzByvFjKfZ83Uozr2RXc0hm3OM4l6GQQuKV6-v2ZvIlWDbK9Heyom2L5B2vsbaIRiv7kLB3Rf42mKxkGAU0RBkQL9oEUcgXMRrQHsDavPmlSNDMi9wU9HLFHR_KTqGSIOpi7wAPzQ4vl5ij7WKZsmD5w57tmmly8j9LXWOS_mFn7vpn-yaEDWI9lmOqW6f222oKAnj58m3Hd-4QlvUNIKQGa3KqH1HEVv6Masz920aFnISxWf1efc7nBddKq_iBqdw9Clo4vWvU0OKyDghbAwIIHfS4k1ujoTaKtFcc94MdpJFwpBmeE-h8I9ytrseK2UWvYYFogW6am3L1UKFZ574FCwn6dbD8RP1WpPqlvJJYeCPp1fEyMiLx57EZw0wlkhoiZqj9GWSidSXWp-nqFNGbQ8JiUaZLUZPngF9OzorhNobPNwY0k0eggsKQrVQAtLaN2VbLXhlD9O9Xl9dXz8qMSHHsspj6V_DrC612t0zYhB3s8caWZYqZ7-wcDB33Wz0nMmP-Bh-5yx_NePq0Czr2s_FX40WCLUG_a6H4s72mWstE3071U7vLgpVJdSdNp49lilCnMXLmLCVmDm9fFaLuDsAXTr8bSzkVCUmOjP7WrLjBXde8JlaXzFwVKhfphqnLeiOmj-4IcEbIjypJH_9fD4y5H0Tnx_7ISEto3wumefE_-CvAaa4lrcNMRDKxX5ZjmMvuu-vUFcHuhK4Joe3SEacQv6K35So8bc7EihTMDQYW-gRkiTd9M8VIHREkicEofxTn6BJ62Tx6vdsZP0WYIVqiE7OEiskJbk81zxZU8443cPYCz-g8LL-UMCuT33c5USRpBbLgHXndNqTha0l28Zd9u6jDh73aesv28GJXbmNKF-Vw5xGcIzifRtqMCHrBjDeA63fQTfLWr5Qm_ZAbEucVnuchjKFECzH0-OYk4bJKECf5j99XYTZDB7pckr34B2HdABUKyg343f5olWbsVLvpi9unUAzUOQiMYgCkOhDoKQw524-3SFCqXliTAxALrejbjIssLdOPEAh-kNTDHWy8TR7lF7_TiyERL3Xp7P79Xh4XnXXHZXQdbl3podzh4q2ibEswbGJ2uSHisT7EWDnhJQO6nWLdXIjnkj9yS2B4OPd6Vnca1UgnvStFhyC5nVQ0jLRRKUijPkopHqVALoRLdSUd9TTN7AEAn7J7pOkreXDKnYily1HD-j2sgXFoZAXkrwBu7e1SfqgcVfr_NYzAs5CWWn_kauSdv78lUaSVJnCWMJgVwj_-cAb595gPZMKLkMYdTwxCCd_RByOI06qsp6-MIg1S_tUr7XOZrJanJrMRs48wrmdKRJaXO66RRrV-0ncta58UvI1bQGWnOm7MANPdvqGsBAAyga9quBUeLnyOKZFhDEfeBB4YdTRSfnkhR9rs5CBTy88R9NizF0qbhiRkepsJxb8Bz2jJdYA9mUo8D6t9T1T5xPy-HDDuM_eH3fks8kFESbYjpK_YuQ4fAjABLtMZG1b38kGwB9y-P35hLBiPn5LCdXzJrBLArc7kEfRsUKVsi18bbNeT_qioloDgK8WcXqVCILwhFyKzy4UyJ7jMwIxTh04SAmsG7-c7UhvgfxCG140hCrB4iEbyX2nAMVnKQ5RRrmNc6bOzUjdn_igvqO_K-ZkIGNLO4c1dzWSmFPmcCbnM4YrtGefF2AhGYmo23heJUDO-nWk_nQWIdSOZe4ZST0El_FrtYdIHgd1y3pgucffGD75fbBzocVQt4UfoxKcc7Hryto3a6A_VafM2vR527Y2cMEk3QhwWzqRHbWXJyA1il27WsxJZ\",
   \"tag\": \"lDK3h3bt6cC0dEm70lJdtg\"
+}">>
+    },
+    _ = jose:curve25519_module(jose_jwa_curve25519),
+    SigPrivateKeys = #{
+        <<"1">> => <<"{
+    \"crv\":\"Ed25519\",
+    \"d\":\"YwuzCqcMjGrIf23jJNJgtjFl13sZ2OpYGSpRR_HPzN0\",
+    \"kid\":\"K3ZpHNJw3IZYu4fefhImUtB47eSBD4nRmpjWIoGukyg\",
+    \"kty\":\"OKP\",
+    \"x\":\"hqoiLZvfBzgtFQop3mBzUACee1ycgaT3tJIcKQ2Ndjc\"
+}">>,
+        <<"2">> => <<"{
+    \"crv\":\"Ed25519\",
+    \"d\":\"E4TNaNQgvxs3hj699dIlxGSxlKDXdIFGbSlIWsXZhoI\",
+    \"kid\":\"Q_85NCYwrmJr1vcbPOzO8g31_ohqFLpVoaGysWPwCbc\",
+    \"kty\":\"OKP\",
+    \"x\":\"JhVaGPlRm67u0oGbgxAgqnfLfXeW0aGjhCrBf_C1Fiw\"
+}">>,
+        <<"3">> => <<"{
+    \"crv\":\"Ed25519\",
+    \"d\":\"DFUYl9S7iS9XoU7dGW6Voy9U4hz-mV_7uKQQjKo8VH8\",
+    \"kid\":\"nwy3plcwQj_b70JJ3maZkN-VFQpjGCVRyIFYNeC0vvs\",
+    \"kty\":\"OKP\",
+    \"x\":\"af4UVYqUB4g711yGxzKjWvd27c9WY1EQ1a1-fwk0A6w\"
 }">>
     },
     Apps =
@@ -83,39 +107,57 @@ start_clear(Config, Stash) ->
                 {timeout, 60000}
             ]},
             {keyring_rotation_lifetime, 1000},
-            {keyring_initialize_lifetime, 2000},
+            {keyring_initialize_lifetime, 3000},
             {shareholders, #{
                 <<"1">> => #{
                     owner => <<"ndiezel">>,
-                    public_key => <<"{
-  \"use\": \"enc\",
-  \"kty\": \"RSA\",
-  \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
-  \"alg\": \"RSA-OAEP-256\",
-  \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
-  \"e\": \"AQAB\"
+                    enc_public_key => <<"{
+    \"use\": \"enc\",
+    \"kty\": \"RSA\",
+    \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
+    \"alg\": \"RSA-OAEP-256\",
+    \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
+    \"e\": \"AQAB\"
+}">>,
+                    sig_public_key => <<"{
+    \"crv\":\"Ed25519\",
+    \"kid\":\"K3ZpHNJw3IZYu4fefhImUtB47eSBD4nRmpjWIoGukyg\",
+    \"kty\":\"OKP\",
+    \"x\":\"hqoiLZvfBzgtFQop3mBzUACee1ycgaT3tJIcKQ2Ndjc\"
 }">>
                 },
                 <<"2">> => #{
                     owner => <<"ndiezel2">>,
-                    public_key => <<"{
+                    enc_public_key => <<"{
   \"use\": \"enc\",
   \"kty\": \"RSA\",
   \"kid\": \"JHKqPDhPO8ZnZsloKTHt44UbzYFnKnf_zowfL_zNFRE\",
   \"alg\": \"RSA-OAEP-256\",
   \"n\": \"5vIJr6yv-ipphJf8Saam2-bmB5lab7tzlGOoI6uU60x_yBfc58ttzoT__nz8UM0ZmW6k22YvMvnOvmNoPNM0rD_u7M8HGEjZyOlel64PVuv7eqU0-217JbjJ99iMbGagQkgGyyVRfS1sF9fqig79Pn7_4-bcY8-f1bZahgaDqimikfSWu00kvHwnQPNICC_xY7gtT1K40IlQcPG-XBGMrK3JXgEmTKYaNB6TS9MX20vEkcnhYzl6AeU_dj83IXuR_fw_qLqmY6rZjHWVrSvarsUIlVN3ti1Zs53eUwjv4r-wN4oK9NPNcTvAijeq85OH5DbN9ZyPTTJKcqq1Q-M2AaMTSIQCCs260CmL9Nn0M3b6eDglZumqMkCc5p_xPmNgtiFAu0_mLf3lk9MKwd2635Tz6tZO7Di77UrClTnneu1Du5VBt7v8-xIZWL11xXHaglpIwi7SLFOl_YRk6vKzjvt0pYe7N-y9T0MSTdDkB_it7Tt7rtltMYnTA8HZTlRC6EoFMj4e7bpM8iizxl6Hbg3lj0fb24kNbI4P7cV-Y6-81NLBu0Yi0H4J-b7Km_NU1tmK1SCLxzFqhCtQXg7JhJUY-gXdMgbdLyY5zrawkwsJhq_Lpsk6dHQsxV35imi7kNkOTnoiI-SpswrACIlThnT56xC5ROuFRxAlrpZef-c\",
   \"e\": \"AQAB\"
+}">>,
+                    sig_public_key => <<"{
+    \"crv\":\"Ed25519\",
+    \"kid\":\"Q_85NCYwrmJr1vcbPOzO8g31_ohqFLpVoaGysWPwCbc\",
+    \"kty\":\"OKP\",
+    \"x\":\"JhVaGPlRm67u0oGbgxAgqnfLfXeW0aGjhCrBf_C1Fiw\"
 }">>
                 },
                 <<"3">> => #{
                     owner => <<"ndiezel3">>,
-                    public_key => <<"{
+                    enc_public_key => <<"{
   \"use\": \"enc\",
   \"kty\": \"RSA\",
   \"kid\": \"xBET5c4u0yT6pDb_Cok0exHe_wQVetVpkGKn_1mmn7A\",
   \"alg\": \"RSA-OAEP-256\",
   \"n\": \"qR8UeoACkdiKllzYR6KSqldMqeA_RkVePp1DKWXCRKDKrw3OieX81tmQmbBkcisnpSipTvezmr2-6t0sPELZeah3r1-qUwQeD2ugSicoqgQoqgLT7g9DHVF8NBvHbAgESJoq-1dJqepG8-jrwT5UGioE9SGowRVywrndUjdWrKyfDPiwzSALtV5mcpZi97M_ga5J1gNJFT0h1E2QbYkdEBeDsyatcJu_-LtEuCJN0DKUhvNeXVdIcnbwxFXtmx4dmxPUDG7a03bo2_Ni3-ZdvHmtkleHvWBn2LI_zArCIZdAMsA9HJiT8DrEuLXJ-pHhx2z6wJ9l8y7QSDTtKZE0GyNpCUHtzDfwfRS0GPdj2ntIHyBO8RZqDhWc3_FH9IxQYED5UnwP5Z-VodJ0ZIStNPNGtSs1hdnW3nyAFaP9T3X5UWhHsSGjq9pDm-Lroe4jJK4uKRa__ewIB8Szfp-NgG2SGeWhpETZSDwDYEYzMZncsp35GByj7YqmrpKqAHkTsTfkbCWHgN9wUqX1vjsPUtgHB4l_Ze1G_m__-URyu8qrDR11vzqMA-iY8aSQ7DpHoRp7fThVD7gJIQNyVyAzIvDyOVdSmUPPeGxnI1YWKX-5t5SnlnpWO1Rqqh6RBtxu_1JGfq77d2khskTaPXxc1E5iyCYLFI0UgreCXpBzSGU\",
   \"e\": \"AQAB\"
+}">>,
+                    sig_public_key => <<"{
+    \"crv\":\"Ed25519\",
+    \"kid\":\"nwy3plcwQj_b70JJ3maZkN-VFQpjGCVRyIFYNeC0vvs\",
+    \"kty\":\"OKP\",
+    \"x\":\"af4UVYqUB4g711yGxzKjWvd27c9WY1EQ1a1-fwk0A6w\"
 }">>
                 }
             }}
@@ -125,7 +167,8 @@ start_clear(Config, Stash) ->
         {stash, Stash},
         {apps, lists:reverse(Apps)},
         {root_url, genlib:to_binary(RootUrl)},
-        {private_keys, PrivateKeys}
+        {enc_private_keys, EncPrivateKeys},
+        {sig_private_keys, SigPrivateKeys}
     ].
 
 -spec stop_clear(config()) -> ok.

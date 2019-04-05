@@ -9,7 +9,8 @@
 -type shareholder() :: #{
     id := binary(),
     owner := binary(),
-    public_key := binary()
+    sig_public_key:= map(),
+    enc_public_key:= map()
 }.
 -type id() :: binary().
 -type shareholders() :: list(shareholder()).
@@ -48,7 +49,8 @@ validate_shareholders(Shareholders) ->
                 #{
                     id := _Id,
                     owner := _Owner,
-                    public_key := _PublicKey
+                    enc_public_key := _EncPublicKey,
+                    sig_public_key := _SigPublicKey
                 } ->
                     true;
                 _InvalidShareholder ->
@@ -56,6 +58,11 @@ validate_shareholders(Shareholders) ->
             end
         end, Shareholders).
 
--spec convert_to_map({id(), #{owner := binary(), public_key:= binary()}}) -> shareholder().
-convert_to_map({Id, Shareholder}) ->
-    Shareholder#{id => Id}.
+-spec convert_to_map({id(),
+    #{owner := binary(), sig_public_key:= binary(), enc_public_key:= binary()}}) -> shareholder().
+convert_to_map({Id, #{enc_public_key := EncPublicKey, sig_public_key := SigPublicKey} = Shareholder}) ->
+    Shareholder#{
+        id => Id,
+        enc_public_key => jsx:decode(EncPublicKey, [return_maps]),
+        sig_public_key => jsx:decode(SigPublicKey, [return_maps])
+    }.

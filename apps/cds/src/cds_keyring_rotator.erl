@@ -25,7 +25,7 @@
 -type keyring() :: cds_keyring:keyring().
 -type encrypted_keyring() :: cds_keyring:encrypted_keyring().
 -type rotate_errors() ::
-    wrong_masterkey | failed_to_recover.
+    wrong_masterkey | failed_to_recover | unsigned_content.
 -type rotate_resp() ::
     ok |
     {ok, {encrypted_keyring(), keyring()}} |
@@ -60,9 +60,9 @@ init([]) ->
     {reply, {error, {operation_aborted, rotate_errors()}}, state()} |
     {reply, {ok, {more, non_neg_integer()}}, state(), non_neg_integer()}.
 
-handle_call({rotate, Share, OldKeyring}, _From, #state{shares = Shares} = StateData) ->
-    #share{x = X, threshold = Threshold} = cds_keysharing:convert(Share),
-    case Shares#{X => Share} of
+handle_call({rotate, {verified_share, {Id, Share}}, OldKeyring}, _From, #state{shares = Shares} = StateData) ->
+    #share{threshold = Threshold} = cds_keysharing:convert(Share),
+    case Shares#{Id => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             case update_keyring(OldKeyring, AllShares) of
                 {ok, NewKeyring} ->
@@ -72,6 +72,13 @@ handle_call({rotate, Share, OldKeyring}, _From, #state{shares = Shares} = StateD
             end;
         More ->
             {reply, {ok, {more, Threshold - map_size(More)}}, StateData#state{shares = More}, timeout()}
+    end;
+handle_call({rotate, SignedShare, OldKeyring}, _From, StateData) ->
+    case cds_crypto:verify(SignedShare) of
+        {error, Error} ->
+            {reply, {error, {operation_aborted, Error}}, #state{}};
+        {ok, {Id, Share}} ->
+            handle_call({rotate, {verified_share, {Id, Share}}, OldKeyring}, _From, StateData)
     end;
 handle_call(_Request, _Form, State) ->
     {reply, ignored, State}.
