@@ -73,12 +73,12 @@ handle_call({rotate, {verified_share, {Id, Share}}, OldKeyring}, _From, #state{s
         More ->
             {reply, {ok, {more, Threshold - map_size(More)}}, StateData#state{shares = More}, timeout()}
     end;
-handle_call({rotate, SignedShare, OldKeyring}, _From, StateData) ->
+handle_call({rotate, SignedShare, OldKeyring}, From, StateData) ->
     case cds_crypto:verify(SignedShare) of
         {error, Error} ->
             {reply, {error, {operation_aborted, Error}}, #state{}};
         {ok, {Id, Share}} ->
-            handle_call({rotate, {verified_share, {Id, Share}}, OldKeyring}, _From, StateData)
+            handle_call({rotate, {verified_share, {Id, Share}}, OldKeyring}, From, StateData)
     end;
 handle_call(_Request, _Form, State) ->
     {reply, ignored, State}.
