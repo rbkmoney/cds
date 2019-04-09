@@ -44,7 +44,7 @@
 -type threshold() :: non_neg_integer().
 
 -type validate_errors() :: {operation_aborted,
-    non_matching_masterkey | failed_to_decrypt_keyring | failed_to_recover | unsigned_content}.
+    non_matching_masterkey | failed_to_decrypt_keyring | failed_to_recover}.
 -type initialize_errors() :: invalid_args.
 
 -spec callback_mode() -> handle_event_function.
@@ -117,9 +117,10 @@ handle_event({call, From}, {initialize, Threshold}, uninitialized, Data) ->
                     {reply, From, {error, invalid_args}}
                 ]}
     end;
-handle_event({call, From}, {validate, {verified_share, {Id, Share}}}, validation,
+handle_event({call, From}, {validate, Share}, validation,
     #data{num = Num, threshold = Threshold, shares = Shares, keyring = Keyring} = Data) ->
-    case Shares#{Id => Share} of
+    #share{x = X} = cds_keysharing:convert(Share),
+    case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Num ->
             ListShares = maps:values(AllShares),
             Result = validate(Threshold, ListShares, Keyring),
@@ -137,20 +138,6 @@ handle_event({call, From}, {validate, {verified_share, {Id, Share}}}, validation
                 NewData,
                 [
                     {reply, From, {ok, {more, Num - maps:size(Shares1)}}}
-                ]}
-    end;
-handle_event({call, From}, {validate, SignedShare}, validation, Data) ->
-    case cds_crypto:verify(SignedShare) of
-        {ok, Result} ->
-            handle_event({call, From}, {validate, {verified_share, Result}}, validation, Data);
-        {error, Error} ->
-            Result = {operation_aborted, Error},
-            {next_state,
-                uninitialized,
-                #data{},
-                [
-                    {reply, From, Result},
-                    {{timeout, lifetime}, infinity, []}
                 ]}
     end;
 
@@ -242,7 +229,8 @@ encrypt_shares(Shares, Shareholders) ->
 
 -spec encrypt_share({masterkey_share(), shareholder()}) -> encrypted_master_key_share().
 
-encrypt_share({Share, #{id := Id, owner := Owner, enc_public_key := PublicKey}}) ->
+encrypt_share({Share, #{id := Id, owner := Owner} = Shareholder}) ->
+    PublicKey = cds_shareholder:get_public_key(Shareholder, enc),
     #{
         id => Id,
         owner => Owner,

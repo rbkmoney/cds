@@ -1,6 +1,8 @@
 -module(cds_keyring_manager).
 -behaviour(gen_fsm).
 
+-include_lib("shamir/include/shamir.hrl").
+
 %% API.
 -export([start_link/0]).
 -export([get_key/1]).
@@ -186,8 +188,8 @@ locked(update, _From, StateData) ->
         not_found ->
             {reply, ok, not_initialized, StateData}
     end;
-locked({unlock, SignedShare}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
-    {ok, {_, <<Threshold, X, _Y/binary>> = Share}} = cds_crypto:verify(SignedShare),
+locked({unlock, Share}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
+    #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             try

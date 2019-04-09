@@ -34,13 +34,15 @@ handle_function_('StartInit', [Threshold], _Context, _Opts) ->
         invalid_args ->
             cds_thrift_handler_utils:raise(#'InvalidArguments'{})
     end;
-handle_function_('ValidateInit', [Share], _Context, _Opts) ->
-    try cds_keyring_manager:validate_init(Share) of
+handle_function_('ValidateInit', [ShareholderId, Share], _Context, _Opts) ->
+    try verify_signed_share(fun cds_keyring_manager:validate_init/1, ShareholderId, Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {success, #'Success'{}}}
     catch
+        verification_failed ->
+            cds_thrift_handler_utils:raise(#'VerificationFailed'{});
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
         {invalid_activity, Activity} ->
@@ -60,23 +62,27 @@ handle_function_('Lock', [], _Context, _Opts) ->
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;
-handle_function_('Unlock', [Share], _Context, _Opts) ->
-    try cds_keyring_manager:unlock(Share) of
+handle_function_('Unlock', [ShareholderId, Share], _Context, _Opts) ->
+    try verify_signed_share(fun cds_keyring_manager:unlock/1, ShareholderId, Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {success, #'Success'{}}}
     catch
+        verification_failed ->
+            cds_thrift_handler_utils:raise(#'VerificationFailed'{});
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;
-handle_function_('Rotate', [Share], _Context, _Opts) ->
-    try cds_keyring_manager:rotate(Share) of
+handle_function_('Rotate', [ShareholderId, Share], _Context, _Opts) ->
+    try verify_signed_share(fun cds_keyring_manager:rotate/1, ShareholderId, Share) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
             {ok, {success, #'Success'{}}}
     catch
+        verification_failed ->
+            cds_thrift_handler_utils:raise(#'VerificationFailed'{});
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
         {operation_aborted, Reason} ->
@@ -122,3 +128,19 @@ decode_encrypted_share(#'EncryptedMasterKeyShare' {
         owner => Owner,
         encrypted_share => EncryptedShare
     }.
+
+-spec verify_signed_share(
+    fun((cds_keysharing:masterkey_share()) -> term()),
+    cds_shareholder:shareholder_id(),
+    cds_keysharing:signed_masterkey_share()) -> term().
+
+verify_signed_share(Fun, ShareholderId, SignedShare) ->
+    try PublicKey = cds_shareholder:get_public_key_by_id(ShareholderId, sig),
+        cds_crypto:verify(PublicKey, SignedShare) of
+        {ok, Share} ->
+            Fun(Share);
+        {error, _Error} ->
+            throw(verification_failed)
+    catch _Reason ->
+        throw(verification_failed)
+    end.

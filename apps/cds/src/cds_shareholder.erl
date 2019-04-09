@@ -3,16 +3,22 @@
 %% API
 -export([get_all/0]).
 -export([get_by_id/1]).
+-export([get_public_key/2]).
+-export([get_public_key_by_id/2]).
+-export_type([shareholder_id/0]).
 -export_type([shareholder/0]).
 -export_type([shareholders/0]).
 
+-type public_key_type() :: enc | sig.
+-type public_key() :: map().
+-type shareholder_id() :: binary().
 -type shareholder() :: #{
-    id := binary(),
+    id := shareholder_id(),
     owner := binary(),
-    sig_public_key:= map(),
-    enc_public_key:= map()
+    public_keys:= #{
+        public_key_type() := public_key()
+    }
 }.
--type id() :: binary().
 -type shareholders() :: list(shareholder()).
 
 -spec get_all() -> shareholders().
@@ -49,8 +55,10 @@ validate_shareholders(Shareholders) ->
                 #{
                     id := _Id,
                     owner := _Owner,
-                    enc_public_key := _EncPublicKey,
-                    sig_public_key := _SigPublicKey
+                    public_keys := #{
+                        enc := _EncPublicKey,
+                        sig := _SigPublicKey
+                    }
                 } ->
                     true;
                 _InvalidShareholder ->
@@ -58,11 +66,23 @@ validate_shareholders(Shareholders) ->
             end
         end, Shareholders).
 
--spec convert_to_map({id(),
-    #{owner := binary(), sig_public_key:= binary(), enc_public_key:= binary()}}) -> shareholder().
-convert_to_map({Id, #{enc_public_key := EncPublicKey, sig_public_key := SigPublicKey} = Shareholder}) ->
+-spec convert_to_map({shareholder_id(),
+    #{owner := binary(), public_keys:= #{enc := binary(), sig := binary()}}}) -> shareholder().
+convert_to_map({Id, #{public_keys := #{enc := EncPublicKey, sig := SigPublicKey}} = Shareholder}) ->
     Shareholder#{
         id => Id,
-        enc_public_key => jsx:decode(EncPublicKey, [return_maps]),
-        sig_public_key => jsx:decode(SigPublicKey, [return_maps])
+        public_keys => #{
+            enc => jsx:decode(EncPublicKey, [return_maps]),
+            sig => jsx:decode(SigPublicKey, [return_maps])
+        }
     }.
+
+-spec get_public_key(shareholder(), public_key_type()) -> public_key().
+get_public_key(Shareholder, PublicKeyType) ->
+    #{public_keys := #{PublicKeyType := PublicKey}} = Shareholder,
+    PublicKey.
+
+-spec get_public_key_by_id(shareholder_id(), public_key_type()) -> public_key().
+get_public_key_by_id(ShareholderId, PublicKeyType) ->
+    Shareholder = get_by_id(ShareholderId),
+    get_public_key(Shareholder, PublicKeyType).

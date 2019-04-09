@@ -59,7 +59,6 @@ start_clear(Config, Stash) ->
   \"tag\": \"lDK3h3bt6cC0dEm70lJdtg\"
 }">>
     },
-    _ = jose:curve25519_module(jose_jwa_curve25519),
     SigPrivateKeys = #{
         <<"1">> => <<"{
     \"crv\":\"Ed25519\",
@@ -111,7 +110,8 @@ start_clear(Config, Stash) ->
             {shareholders, #{
                 <<"1">> => #{
                     owner => <<"ndiezel">>,
-                    enc_public_key => <<"{
+                    public_keys => #{
+                        enc => <<"{
     \"use\": \"enc\",
     \"kty\": \"RSA\",
     \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
@@ -119,16 +119,17 @@ start_clear(Config, Stash) ->
     \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
     \"e\": \"AQAB\"
 }">>,
-                    sig_public_key => <<"{
+                        sig => <<"{
     \"crv\":\"Ed25519\",
     \"kid\":\"K3ZpHNJw3IZYu4fefhImUtB47eSBD4nRmpjWIoGukyg\",
     \"kty\":\"OKP\",
     \"x\":\"hqoiLZvfBzgtFQop3mBzUACee1ycgaT3tJIcKQ2Ndjc\"
 }">>
-                },
+                }},
                 <<"2">> => #{
                     owner => <<"ndiezel2">>,
-                    enc_public_key => <<"{
+                    public_keys => #{
+                        enc => <<"{
   \"use\": \"enc\",
   \"kty\": \"RSA\",
   \"kid\": \"JHKqPDhPO8ZnZsloKTHt44UbzYFnKnf_zowfL_zNFRE\",
@@ -136,16 +137,17 @@ start_clear(Config, Stash) ->
   \"n\": \"5vIJr6yv-ipphJf8Saam2-bmB5lab7tzlGOoI6uU60x_yBfc58ttzoT__nz8UM0ZmW6k22YvMvnOvmNoPNM0rD_u7M8HGEjZyOlel64PVuv7eqU0-217JbjJ99iMbGagQkgGyyVRfS1sF9fqig79Pn7_4-bcY8-f1bZahgaDqimikfSWu00kvHwnQPNICC_xY7gtT1K40IlQcPG-XBGMrK3JXgEmTKYaNB6TS9MX20vEkcnhYzl6AeU_dj83IXuR_fw_qLqmY6rZjHWVrSvarsUIlVN3ti1Zs53eUwjv4r-wN4oK9NPNcTvAijeq85OH5DbN9ZyPTTJKcqq1Q-M2AaMTSIQCCs260CmL9Nn0M3b6eDglZumqMkCc5p_xPmNgtiFAu0_mLf3lk9MKwd2635Tz6tZO7Di77UrClTnneu1Du5VBt7v8-xIZWL11xXHaglpIwi7SLFOl_YRk6vKzjvt0pYe7N-y9T0MSTdDkB_it7Tt7rtltMYnTA8HZTlRC6EoFMj4e7bpM8iizxl6Hbg3lj0fb24kNbI4P7cV-Y6-81NLBu0Yi0H4J-b7Km_NU1tmK1SCLxzFqhCtQXg7JhJUY-gXdMgbdLyY5zrawkwsJhq_Lpsk6dHQsxV35imi7kNkOTnoiI-SpswrACIlThnT56xC5ROuFRxAlrpZef-c\",
   \"e\": \"AQAB\"
 }">>,
-                    sig_public_key => <<"{
+                        sig => <<"{
     \"crv\":\"Ed25519\",
     \"kid\":\"Q_85NCYwrmJr1vcbPOzO8g31_ohqFLpVoaGysWPwCbc\",
     \"kty\":\"OKP\",
     \"x\":\"JhVaGPlRm67u0oGbgxAgqnfLfXeW0aGjhCrBf_C1Fiw\"
 }">>
-                },
+                }},
                 <<"3">> => #{
                     owner => <<"ndiezel3">>,
-                    enc_public_key => <<"{
+                    public_keys => #{
+                        enc => <<"{
   \"use\": \"enc\",
   \"kty\": \"RSA\",
   \"kid\": \"xBET5c4u0yT6pDb_Cok0exHe_wQVetVpkGKn_1mmn7A\",
@@ -153,13 +155,13 @@ start_clear(Config, Stash) ->
   \"n\": \"qR8UeoACkdiKllzYR6KSqldMqeA_RkVePp1DKWXCRKDKrw3OieX81tmQmbBkcisnpSipTvezmr2-6t0sPELZeah3r1-qUwQeD2ugSicoqgQoqgLT7g9DHVF8NBvHbAgESJoq-1dJqepG8-jrwT5UGioE9SGowRVywrndUjdWrKyfDPiwzSALtV5mcpZi97M_ga5J1gNJFT0h1E2QbYkdEBeDsyatcJu_-LtEuCJN0DKUhvNeXVdIcnbwxFXtmx4dmxPUDG7a03bo2_Ni3-ZdvHmtkleHvWBn2LI_zArCIZdAMsA9HJiT8DrEuLXJ-pHhx2z6wJ9l8y7QSDTtKZE0GyNpCUHtzDfwfRS0GPdj2ntIHyBO8RZqDhWc3_FH9IxQYED5UnwP5Z-VodJ0ZIStNPNGtSs1hdnW3nyAFaP9T3X5UWhHsSGjq9pDm-Lroe4jJK4uKRa__ewIB8Szfp-NgG2SGeWhpETZSDwDYEYzMZncsp35GByj7YqmrpKqAHkTsTfkbCWHgN9wUqX1vjsPUtgHB4l_Ze1G_m__-URyu8qrDR11vzqMA-iY8aSQ7DpHoRp7fThVD7gJIQNyVyAzIvDyOVdSmUPPeGxnI1YWKX-5t5SnlnpWO1Rqqh6RBtxu_1JGfq77d2khskTaPXxc1E5iyCYLFI0UgreCXpBzSGU\",
   \"e\": \"AQAB\"
 }">>,
-                    sig_public_key => <<"{
+                        sig => <<"{
     \"crv\":\"Ed25519\",
     \"kid\":\"nwy3plcwQj_b70JJ3maZkN-VFQpjGCVRyIFYNeC0vvs\",
     \"kty\":\"OKP\",
     \"x\":\"af4UVYqUB4g711yGxzKjWvd27c9WY1EQ1a1-fwk0A6w\"
 }">>
-                }
+                }}
             }}
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
     ,

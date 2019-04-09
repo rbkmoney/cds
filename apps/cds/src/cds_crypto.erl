@@ -9,7 +9,7 @@
 -export([decrypt/2]).
 -export([private_decrypt/2]).
 -export([private_decrypt/3]).
--export([verify/1]).
+-export([verify/2]).
 -export([sign/2]).
 -export([generate_jwk_keypair_binary/1]).
 
@@ -25,8 +25,11 @@
 -type jwk_encoded() :: binary().
 -type jwk_map() :: map().
 -type jwe_compacted() :: binary().
--type signed() :: binary().
--type signer_id() :: binary().
+-type jws_compacted() :: binary().
+
+-type jwk_generation_params() :: term().
+-type jwk_pub_binary() :: binary().
+-type jwk_priv_binary() :: binary().
 
 %% cedf is for CDS Encrypted Data Format
 -record(cedf, {
@@ -96,49 +99,38 @@ private_decrypt(PrivateKey, JWECompacted) ->
 
 -spec private_decrypt(jwk_encoded(), binary(), jwe_compacted()) -> binary().
 private_decrypt(PrivateKey, Password, JWECompacted) ->
-    {_, JWKPrivateKey} = jose_jwk:from(Password, PrivateKey),
+    {_Module, JWKPrivateKey} = jose_jwk:from(Password, PrivateKey),
     {#{}, JWEPlain} = jose_jwe:expand(JWECompacted),
-    {Result, _} = jose_jwk:block_decrypt(JWEPlain, JWKPrivateKey),
+    {Result, _JWE} = jose_jwk:block_decrypt(JWEPlain, JWKPrivateKey),
     Result.
 
--spec verify(signed()) -> {signer_id(), binary()} | {error, unsigned_content}.
-verify(SignedPlain) ->
-    Kid = get_kid_from_signed(SignedPlain),
-    case get_jwk_by_kid(Kid) of
-        {ok, {Id, JWK}} ->
-            case jose_jwk:verify(SignedPlain, JWK) of
-                {true, Content, _JWS} ->
-                    {ok, {Id, Content}};
-                {false, _Content, _JWS} ->
-                    {error, unsigned_content}
-            end;
-        {error, Error} ->
-            {error, Error}
+-spec verify(jwk_map() | jwk_pub_binary(), jws_compacted()) -> {ok, binary()} | {error, failed_to_verify}.
+verify(PublicKey, SignedPlain) ->
+    JWKPublicKey = jose_jwk:from(PublicKey),
+    case jose_jwk:verify(SignedPlain, JWKPublicKey) of
+        {true, Content, _JWS} ->
+            {ok, Content};
+        {false, _Content, _JWS} ->
+            {error, failed_to_verify}
     end.
 
 -spec sign(jwk_encoded(), binary()) -> binary().
 sign(PrivateKey, Plain) ->
     JWKPrivateKey = jose_jwk:from(PrivateKey),
-    Signer = case JWKPrivateKey#jose_jwk.fields of
-        #{<<"kid">> := Kid} ->
-            SignerWithoutKid = jose_jwk:signer(JWKPrivateKey),
-            SignerWithoutKid#{<<"kid">> => Kid};
-        _ ->
-            jose_jwk:signer(JWKPrivateKey)
-    end,
-    {_, SignedPlain} = jose_jwk:sign(Plain, Signer, JWKPrivateKey),
-    {_, SignedCompacted} = jose_jws:compact(SignedPlain),
+    SignerWithoutKid = jose_jwk:signer(JWKPrivateKey),
+    Signer = SignerWithoutKid#{<<"kid">> => JWKPrivateKey#jose_jwk.fields},
+    {_JWKModule, SignedPlain} = jose_jwk:sign(Plain, Signer, JWKPrivateKey),
+    {_JWSModule, SignedCompacted} = jose_jws:compact(SignedPlain),
     SignedCompacted.
 
--spec generate_jwk_keypair_binary(term()) -> {binary(), binary()}.
+-spec generate_jwk_keypair_binary(jwk_generation_params()) -> {jwk_pub_binary(), jwk_priv_binary()}.
 generate_jwk_keypair_binary(Params) ->
     JWKPrivateKey = jose_jwk:generate_key(Params),
-    JWKPrivateKeyWithKid = JWKPrivateKey#jose_jwk{
-        fields = #{<<"kid">> => jose_jwk:thumbprint(JWKPrivateKey)}
-    },
+    JWKPrivateKeyWithKid =
+        add_jwk_field(JWKPrivateKey, <<"kid">>, jose_jwk:thumbprint(JWKPrivateKey)),
     JWKPublicKeyWithKid = jose_jwk:to_public(JWKPrivateKeyWithKid),
-    {_, PubBinary} = jose_jwk:to_binary(JWKPublicKeyWithKid),
-    {_, PrivBinary} = jose_jwk:to_binary(JWKPrivateKeyWithKid),
+    {_PubModule, PubBinary} = jose_jwk:to_binary(JWKPublicKeyWithKid),
+    {_PrivModule, PrivBinary} = jose_jwk:to_binary(JWKPrivateKeyWithKid),
     {PubBinary, PrivBinary}.
 
 %% internal
@@ -164,32 +156,7 @@ marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher})
 unmarshall_cedf(<<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>) ->
     #cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher}.
 
--spec get_kid_from_signed(signed()) -> binary().
-get_kid_from_signed(SignedPlain) ->
-    {_, SignedExpanded} = jose_jws:expand(SignedPlain),
-    EncodedProtected = maps:get(<<"protected">>, SignedExpanded),
-    DecodedProtected = base64url:decode(EncodedProtected),
-    ProtectedMap = jsx:decode(DecodedProtected, [return_maps]),
-    Kid = maps:get(<<"kid">>, ProtectedMap),
-    Kid.
-
--spec get_jwk_by_kid(binary()) -> {signer_id(), binary()} | {error, unsigned_content}.
-get_jwk_by_kid(Kid) ->
-    Shareholders = cds_shareholder:get_all(),
-    case lists:filtermap(
-        fun
-            (#{id := Id,
-               enc_public_key := #{<<"kid">> := Kid1} = EncPublicKey}) when Kid1 =:= Kid ->
-                {true, {Id, EncPublicKey}};
-            (#{id := Id,
-               sig_public_key := #{<<"kid">> := Kid1} = SigPublicKey}) when Kid1 =:= Kid ->
-                {true, {Id, SigPublicKey}};
-            (_WrongShareholder) ->
-                false
-        end,
-        Shareholders) of
-        [] ->
-            {error, unsigned_content};
-        [{Id, PublicKey} | _] ->
-            {ok, {Id, jose_jwk:from(PublicKey)}}
-    end.
+-spec add_jwk_field(jose_jwk:jose_jwk(), term(), term()) -> jose_jwk:jose_jwk().
+add_jwk_field(JWK, Field, Content) ->
+    Fields = JWK#jose_jwk.fields,
+    JWK#jose_jwk{fields = Fields#{Field => Content}}.
