@@ -133,7 +133,7 @@ decode_encrypted_share(#'EncryptedMasterKeyShare' {
     }.
 
 -spec verify_signed_share(cds_shareholder:shareholder_id(),
-    cds_keysharing:signed_masterkey_share()) -> term().
+    cds_keysharing:signed_masterkey_share()) -> cds_keysharing:masterkey_share().
 
 verify_signed_share(ShareholderId, SignedShare) ->
     case cds_shareholder:get_public_key_by_id(ShareholderId, sig) of
