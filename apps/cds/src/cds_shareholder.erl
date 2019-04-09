@@ -44,7 +44,7 @@ get_by_id(Id) ->
                 true ->
                     {ok, ConvertedShareholder};
                 false ->
-                    throw({invalid_configuration, shareholders})
+                    erlang:error({invalid_configuration, shareholders})
             end;
         error ->
             {error, not_found}
