@@ -15,7 +15,7 @@
 -type shareholder() :: #{
     id := shareholder_id(),
     owner := binary(),
-    public_keys:= #{
+    public_keys := #{
         public_key_type() := public_key()
     }
 }.
@@ -34,16 +34,20 @@ get_all() ->
             throw({invalid_configuration, shareholders})
     end.
 
--spec get_by_id(binary()) -> shareholder().
+-spec get_by_id(binary()) -> {ok, shareholder()} | {error, not_found}.
 get_by_id(Id) ->
     Shareholders = genlib_app:env(cds, shareholders, #{}),
-    Shareholder = maps:get(Id, Shareholders),
-    ConvertedShareholder = convert_to_map({Id, Shareholder}),
-    case validate_shareholders([ConvertedShareholder]) of
-        true ->
-            ConvertedShareholder;
-        false ->
-            throw({invalid_configuration, shareholders})
+    case maps:find(Id, Shareholders) of
+        {ok, Shareholder} ->
+            ConvertedShareholder = convert_to_map({Id, Shareholder}),
+            case validate_shareholders([ConvertedShareholder]) of
+                true ->
+                    {ok, ConvertedShareholder};
+                false ->
+                    throw({invalid_configuration, shareholders})
+            end;
+        error ->
+            {error, not_found}
     end.
 
 -spec validate_shareholders(shareholders()) -> boolean().
@@ -82,7 +86,11 @@ get_public_key(Shareholder, PublicKeyType) ->
     #{public_keys := #{PublicKeyType := PublicKey}} = Shareholder,
     PublicKey.
 
--spec get_public_key_by_id(shareholder_id(), public_key_type()) -> public_key().
+-spec get_public_key_by_id(shareholder_id(), public_key_type()) -> {ok, public_key()} | {error, not_found}.
 get_public_key_by_id(ShareholderId, PublicKeyType) ->
-    Shareholder = get_by_id(ShareholderId),
-    get_public_key(Shareholder, PublicKeyType).
+    case get_by_id(ShareholderId) of
+        {ok, Shareholder} ->
+            {ok, get_public_key(Shareholder, PublicKeyType)};
+        {error, not_found} ->
+            {error, not_found}
+    end.

@@ -3,6 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("shamir/include/shamir.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -282,7 +283,7 @@ init(C) ->
 init_with_timeout(C) ->
     {Id, DecryptedMasterKeyShare} = partial_init(C),
     Timeout = genlib_app:env(cds, keyring_rotation_lifetime, 4000),
-    ok = timer:sleep(Timeout + 2000),
+    ok = timer:sleep(Timeout + 1500),
     _ = ?assertEqual(
         #'InvalidActivity'{activity = {initialization, uninitialized}},
         (catch cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C)))).
@@ -316,7 +317,7 @@ decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys) ->
     lists:map(
         fun
             (#{id := Id, owner := Owner, encrypted_share := EncryptedShare}) ->
-                #{id := Id, owner := Owner} = cds_shareholder:get_by_id(Id),
+                {ok, #{id := Id, owner := Owner}} = cds_shareholder:get_by_id(Id),
                 EncPrivateKey = maps:get(Id, EncPrivateKeys),
                 SigPrivateKey = maps:get(Id, SigPrivateKeys),
                 DecryptedShare = cds_crypto:private_decrypt(EncPrivateKey, EncryptedShare),
@@ -479,7 +480,7 @@ init_invalid_args(C) ->
 init_operation_aborted(C) ->
     MK = cds_crypto:key(),
     [MasterKey1, MasterKey2, MasterKey3] = cds_keysharing:share(MK, 2, 3),
-    MasterKey4 = <<2, 4, 23224>>,
+    MasterKey4 = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
@@ -521,7 +522,7 @@ rotate_keyring_locked(C) ->
 
 rotate_failed_to_recover(C) ->
     [{Id1, MasterKey1}, {Id2, _MasterKey2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
-    MasterKey2 = <<2, 4, 23224>>,
+    MasterKey2 = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
     SigPrivateKeys = sig_private_keys(C),
     [_SigPrivateKey1, SigPrivateKey2, _SigPrivateKey3] = maps:values(SigPrivateKeys),
     {more_keys_needed, 1} = cds_keyring_client:rotate(Id1, MasterKey1, root_url(C)),

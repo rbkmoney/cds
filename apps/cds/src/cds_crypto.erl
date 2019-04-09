@@ -11,7 +11,7 @@
 -export([private_decrypt/3]).
 -export([verify/2]).
 -export([sign/2]).
--export([generate_jwk_keypair_binary/1]).
+-export([generate_keypair/1]).
 
 -export_type([jwk_encoded/0]).
 -export_type([jwe_compacted/0]).
@@ -30,6 +30,7 @@
 -type jwk_generation_params() :: term().
 -type jwk_pub_binary() :: binary().
 -type jwk_priv_binary() :: binary().
+-type json_object_key() :: binary() | atom() | integer().
 
 %% cedf is for CDS Encrypted Data Format
 -record(cedf, {
@@ -123,8 +124,8 @@ sign(PrivateKey, Plain) ->
     {_JWSModule, SignedCompacted} = jose_jws:compact(SignedPlain),
     SignedCompacted.
 
--spec generate_jwk_keypair_binary(jwk_generation_params()) -> {jwk_pub_binary(), jwk_priv_binary()}.
-generate_jwk_keypair_binary(Params) ->
+-spec generate_keypair(jwk_generation_params()) -> {jwk_pub_binary(), jwk_priv_binary()}.
+generate_keypair(Params) ->
     JWKPrivateKey = jose_jwk:generate_key(Params),
     JWKPrivateKeyWithKid =
         add_jwk_field(JWKPrivateKey, <<"kid">>, jose_jwk:thumbprint(JWKPrivateKey)),
@@ -156,7 +157,7 @@ marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher})
 unmarshall_cedf(<<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>) ->
     #cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher}.
 
--spec add_jwk_field(jose_jwk:jose_jwk(), term(), term()) -> jose_jwk:jose_jwk().
+-spec add_jwk_field(jose_jwk:jose_jwk(), json_object_key(), jsx:json_term()) -> jose_jwk:jose_jwk().
 add_jwk_field(JWK, Field, Content) ->
     Fields = JWK#jose_jwk.fields,
     JWK#jose_jwk{fields = Fields#{Field => Content}}.

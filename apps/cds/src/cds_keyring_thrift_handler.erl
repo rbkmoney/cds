@@ -35,7 +35,8 @@ handle_function_('StartInit', [Threshold], _Context, _Opts) ->
             cds_thrift_handler_utils:raise(#'InvalidArguments'{})
     end;
 handle_function_('ValidateInit', [ShareholderId, Share], _Context, _Opts) ->
-    try verify_signed_share(fun cds_keyring_manager:validate_init/1, ShareholderId, Share) of
+    VerifiedShare = verify_signed_share(ShareholderId, Share),
+    try cds_keyring_manager:validate_init(VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -63,7 +64,8 @@ handle_function_('Lock', [], _Context, _Opts) ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;
 handle_function_('Unlock', [ShareholderId, Share], _Context, _Opts) ->
-    try verify_signed_share(fun cds_keyring_manager:unlock/1, ShareholderId, Share) of
+    VerifiedShare = verify_signed_share(ShareholderId, Share),
+    try cds_keyring_manager:unlock(VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -75,7 +77,8 @@ handle_function_('Unlock', [ShareholderId, Share], _Context, _Opts) ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;
 handle_function_('Rotate', [ShareholderId, Share], _Context, _Opts) ->
-    try verify_signed_share(fun cds_keyring_manager:rotate/1, ShareholderId, Share) of
+    VerifiedShare = verify_signed_share(ShareholderId, Share),
+    try cds_keyring_manager:rotate(VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -129,18 +132,18 @@ decode_encrypted_share(#'EncryptedMasterKeyShare' {
         encrypted_share => EncryptedShare
     }.
 
--spec verify_signed_share(
-    fun((cds_keysharing:masterkey_share()) -> term()),
-    cds_shareholder:shareholder_id(),
+-spec verify_signed_share(cds_shareholder:shareholder_id(),
     cds_keysharing:signed_masterkey_share()) -> term().
 
-verify_signed_share(Fun, ShareholderId, SignedShare) ->
-    try PublicKey = cds_shareholder:get_public_key_by_id(ShareholderId, sig),
-        cds_crypto:verify(PublicKey, SignedShare) of
-        {ok, Share} ->
-            Fun(Share);
-        {error, _Error} ->
-            throw(verification_failed)
-    catch _Reason ->
-        throw(verification_failed)
+verify_signed_share(ShareholderId, SignedShare) ->
+    case cds_shareholder:get_public_key_by_id(ShareholderId, sig) of
+        {ok, PublicKey} ->
+            case cds_crypto:verify(PublicKey, SignedShare) of
+                {ok, Share} ->
+                    Share;
+                {error, failed_to_verify} ->
+                    cds_thrift_handler_utils:raise(#'VerificationFailed'{})
+            end;
+        {error, not_found} ->
+            cds_thrift_handler_utils:raise(#'VerificationFailed'{})
     end.
