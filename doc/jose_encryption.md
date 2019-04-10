@@ -10,26 +10,37 @@ RSA 4096 ключ для шифрования:
 
     step crypto jwk create rsa-enc.pub.json rsa-enc.json --kty RSA --size 4096 --use enc
     
-Ed25519 ключ для криптоподписи:
+EC ключ для криптоподписи:
     
-    step crypto jwk create ed.pub.json ed.json --kty OKP --crv Ed25519 --use sig
+    step crypto jwk create ec.pub.json ec.json --kty EC --crv P-256 --use sig
     
 ## Добавляем JWK в конфигурацию
 
-Добавляем публичный ключ из `rsa-enc.pub.json` в `map` конфигурации `shareholders`:
+Добавляем публичный ключ из `rsa-enc.pub.json` и `ec.pub.json` в `map` конфигурации `shareholders`:
 
 ```
 {shareholders, #{
             <<"ndiezel">> => #{
                 owner => <<"ndiezel0@gmail.com">>,
-                public_key => <<"{
-  \"use\": \"enc\",
-  \"kty\": \"RSA\",
-  \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
-  \"alg\": \"RSA-OAEP-256\",
-  \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
-  \"e\": \"AQAB\"
-}">>
+                public_keys => #{
+                    enc =>  <<"{
+                                  \"use\": \"enc\",
+                                  \"kty\": \"RSA\",
+                                  \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
+                                  \"alg\": \"RSA-OAEP-256\",
+                                  \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
+                                  \"e\": \"AQAB\"
+                                }">>,
+                    sig =>  <<"{
+                                  \"use\": \"sig\",
+                                  \"kty\": \"EC\",
+                                  \"kid\": \"03ohMufKvFyAtbaXJO83S4nPkaiiLPF8dSUPtetU_CA\",
+                                  \"crv\": \"P-256\",
+                                  \"alg\": \"ES256\",
+                                  \"x\": \"N3E6i6WabPQg7MVqsjXd81z6dmSVibxLbgYJ1UIvHR4\",
+                                  \"y\": \"jDzBx7KDMzesKbpwl5H1J0TtwvOJxPaEC5wH6zZs_r8\"
+                                }">>
+                }
             }
         }}
 ```
@@ -44,7 +55,7 @@ Ed25519 ключ для криптоподписи:
  который шифрует `Keyring`, и получаем в ответ зашифрованные публичными ключами из конфигурации
  части `MasterKey`, которые отдаются соответствующим владельцам для прохождения этапа Валидация.
  
-На этапе Валидация каждый владелец ключа отдает свой расшифрованный ключ. Процесс инициализации 
+На этапе Валидация каждый владелец ключа отдает свой расшифрованный ключ в подписанном криптоключом виде. Процесс инициализации 
 можно считать завершенным когда последнему владельцу приходит `struct Success {}`.
 
 Этап Валидация необходим для подтверждения, что все фрагменты `MasterKey` были доставлены своим 
@@ -78,16 +89,22 @@ $ woorl -s ~/Development/damsel/proto/cds.thrift \
 
 ## Валидация
 
-Каждый владелец ключей расшифровывает свою часть и отдает на валидацию:
+Каждый владелец ключей расшифровывает свою часть, подписывает и отдает на валидацию:
 
 ```bash
 $ echo "<insert EncodedMasterKeyShare here>" | \
- step crypto jwe decrypt --key rsa-enc.json | \
- base64 | \
+ step crypto jwe decrypt --key rsa-enc.json
+```
+
+Результат вставляем в скрипт ниже
+
+```bash
+$ echo "<insert decrypted Base64 masterkey share here>" | \
+ step crypto jws sign --key ec.json | \
  (read DecryptedShare; \
   woorl -s damsel/proto/cds.thrift \
    'http://cds:8022/v1/keyring' \
-   Keyring ValidateInit '{"content_type":"base64","content": "'"$(echo $DecryptedShare)"'"}')
+   Keyring ValidateInit '"<insert id, ex. ndiezel>"' '"'"$(echo $DecryptedShare)"'"')
 ```
 
 `EncodedMasterKeyShare` - полученная зашифрованная часть мастер ключа
