@@ -92,15 +92,9 @@ $ woorl -s ~/Development/damsel/proto/cds.thrift \
 Каждый владелец ключей расшифровывает свою часть, подписывает и отдает на валидацию:
 
 ```bash
-$ echo "<insert EncodedMasterKeyShare here>" | \
- step crypto jwe decrypt --key rsa-enc.json
-```
-
-Результат вставляем в скрипт ниже
-
+$ 
 ```bash
-$ echo "<insert decrypted Base64 masterkey share here>" | \
- step crypto jws sign --key ec.json | \
+$ step crypto jws sign <(echo "<insert EncodedMasterKeyShare here>" | step crypto jwe decrypt --key rsa-enc.json) --key ec.json | \
  (read DecryptedShare; \
   woorl -s damsel/proto/cds.thrift \
    'http://cds:8022/v1/keyring' \
