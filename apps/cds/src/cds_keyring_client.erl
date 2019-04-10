@@ -5,7 +5,9 @@
 -export([cancel_init/1]).
 -export([unlock/3]).
 -export([lock/1]).
--export([rotate/3]).
+-export([start_rotate/1]).
+-export([validate_rotate/3]).
+-export([cancel_rotate/1]).
 
 %%
 %% Internal types
@@ -37,6 +39,14 @@ unlock(ShareholderId, Share, RootUrl) ->
 lock(RootUrl) ->
     cds_woody_client:call(keyring, 'Lock', [], RootUrl).
 
--spec rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-rotate(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'Rotate', [ShareholderId, Share], RootUrl).
+-spec start_rotate(woody:url()) -> result().
+start_rotate(RootUrl) ->
+    cds_woody_client:call(keyring, 'StartRotate', [], RootUrl).
+
+-spec validate_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
+validate_rotate(ShareholderId, Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'ValidateRotate', [ShareholderId, Share], RootUrl).
+
+-spec cancel_rotate(woody:url()) -> result().
+cancel_rotate(RootUrl) ->
+    cds_woody_client:call(keyring, 'CancelRotate', [], RootUrl).

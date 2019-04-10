@@ -451,18 +451,20 @@ get_session_card_data_backward_compatibilty(C) ->
 
 rotate(C) ->
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
-    {more_keys_needed, 1} = cds_keyring_client:rotate(Id1, MasterKey1, root_url(C)),
-    {success, #'Success'{}} = cds_keyring_client:rotate(Id2, MasterKey2, root_url(C)).
+    ok = cds_keyring_client:start_rotate(root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rotate(Id1, MasterKey1, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:validate_rotate(Id2, MasterKey2, root_url(C)).
 
 -spec rotate_with_timeout(config()) -> _.
 
 rotate_with_timeout(C) ->
     [{Id1, MasterKey1}, {Id2, MasterKey2}, {Id3, MasterKey3}] = cds_ct_utils:lookup(master_keys, C),
-    {more_keys_needed, 1} = cds_keyring_client:rotate(Id1, MasterKey1, root_url(C)),
+    ok = cds_keyring_client:start_rotate(root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rotate(Id1, MasterKey1, root_url(C)),
     Timeout = genlib_app:env(cds, keyring_rotation_lifetime, 1000),
     timer:sleep(Timeout + 500),
-    {more_keys_needed, 1} = cds_keyring_client:rotate(Id2, MasterKey2, root_url(C)),
-    {success, #'Success'{}} = cds_keyring_client:rotate(Id3, MasterKey3, root_url(C)).
+    {more_keys_needed, 1} = cds_keyring_client:validate_rotate(Id2, MasterKey2, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:validate_rotate(Id3, MasterKey3, root_url(C)).
 
 -spec init_invalid_status(config()) -> _.
 
@@ -515,8 +517,7 @@ lock_invalid_status(C) ->
 -spec rotate_keyring_locked(config()) -> _.
 
 rotate_keyring_locked(C) ->
-    [{Id, MasterKey} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
-    #'InvalidStatus'{status = _SomeStatus} = (catch cds_keyring_client:rotate(Id, MasterKey, root_url(C))).
+    #'InvalidStatus'{status = _SomeStatus} = (catch cds_keyring_client:start_rotate(root_url(C))).
 
 -spec rotate_failed_to_recover(config()) -> _.
 
@@ -525,9 +526,10 @@ rotate_failed_to_recover(C) ->
     MasterKey2 = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
     SigPrivateKeys = sig_private_keys(C),
     [_SigPrivateKey1, SigPrivateKey2, _SigPrivateKey3] = maps:values(SigPrivateKeys),
-    {more_keys_needed, 1} = cds_keyring_client:rotate(Id1, MasterKey1, root_url(C)),
+    ok = cds_keyring_client:start_rotate(root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rotate(Id1, MasterKey1, root_url(C)),
     Reason = atom_to_binary(failed_to_recover, utf8),
-    #'OperationAborted'{reason = Reason} = (catch cds_keyring_client:rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))).
+    #'OperationAborted'{reason = Reason} = (catch cds_keyring_client:validate_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))).
 
 -spec rotate_wrong_masterkey(config()) -> _.
 
@@ -536,9 +538,10 @@ rotate_wrong_masterkey(C) ->
     [MasterKey1, MasterKey2, _MasterKey3] = cds_keysharing:share(MasterKey, 2, 3),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, _SigPrivateKey3] = maps:to_list(SigPrivateKeys),
-    {more_keys_needed, 1} = cds_keyring_client:rotate(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
+    ok = cds_keyring_client:start_rotate(root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rotate(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
     Reason = atom_to_binary(wrong_masterkey, utf8),
-    #'OperationAborted'{reason = Reason} = (catch cds_keyring_client:rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))).
+    #'OperationAborted'{reason = Reason} = (catch cds_keyring_client:validate_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))).
 
 -spec get_card_data_unavailable(config()) -> _.
 

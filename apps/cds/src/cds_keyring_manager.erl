@@ -12,7 +12,9 @@
 -export([unlock/1]).
 -export([lock/0]).
 -export([update/0]).
--export([rotate/1]).
+-export([start_rotate/0]).
+-export([validate_rotate/1]).
+-export([cancel_rotate/0]).
 -export([initialize/1]).
 -export([validate_init/1]).
 -export([cancel_init/0]).
@@ -78,9 +80,17 @@ lock() ->
 update() ->
     sync_send_event(update).
 
--spec rotate(cds_keysharing:masterkey_share()) -> {more, byte()} | ok.
-rotate(Share) ->
-    sync_send_event({rotate, Share}).
+-spec start_rotate() -> ok.
+start_rotate() ->
+    sync_send_event(start_rotate).
+
+-spec validate_rotate(cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
+validate_rotate(Share) ->
+    sync_send_event({validate_rotate, Share}).
+
+-spec cancel_rotate() -> ok.
+cancel_rotate() ->
+    sync_send_event(cancel_rotate).
 
 -spec initialize(integer()) -> cds_keyring_initializer:encrypted_master_key_shares().
 initialize(Threshold) ->
@@ -226,16 +236,22 @@ unlocked({get_key, KeyId}, _From, #state{keyring = Keyring} = StateData) ->
     {reply, cds_keyring:get_key(KeyId, Keyring), unlocked, StateData};
 unlocked(get_current_key, _From, #state{keyring = Keyring} = StateData) ->
     {reply, {ok, cds_keyring:get_current_key(Keyring)}, unlocked, StateData};
-unlocked({rotate, Share}, _From, #state{keyring = OldKeyring} = StateData) ->
-    case cds_keyring_rotator:rotate(Share, OldKeyring) of
+unlocked(start_rotate, _From, #state{keyring = OldKeyring} = StateData) ->
+    Result = cds_keyring_rotator:initialize(OldKeyring),
+    {reply, Result, unlocked, StateData};
+unlocked({validate_rotate, Share}, _From, StateData) ->
+    case cds_keyring_rotator:validate(Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
         {ok, {EncryptedNewKeyring, NewKeyring}} ->
             ok = cds_keyring_storage:update(EncryptedNewKeyring),
             {reply, ok, unlocked, StateData#state{keyring = NewKeyring}};
-        Result ->
-            {reply, Result, unlocked, StateData}
+        {error, Error} ->
+            {reply, {error, Error}, unlocked, StateData}
     end;
+unlocked(cancel_rotate, _From, StateData) ->
+    ok = cds_keyring_rotator:cancel(),
+    {reply, ok, unlocked, StateData};
 unlocked(_Event, _From, StateData) ->
     {reply, {error, {invalid_status, unlocked}}, unlocked, StateData}.
 

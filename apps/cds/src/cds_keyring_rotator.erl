@@ -1,23 +1,28 @@
 -module(cds_keyring_rotator).
 
--behavior(gen_server).
+-behavior(gen_statem).
 
 -include_lib("shamir/include/shamir.hrl").
 
--define(SERVER, ?MODULE).
+-define(STATEM, ?MODULE).
 
 %% API
--export([init/1, handle_call/3, handle_cast/2,
-    handle_info/2, code_change/3, terminate/2]).
+-export([init/1, callback_mode/0]).
 
 -export([start_link/0]).
--export([rotate/2]).
+-export([initialize/1]).
+-export([validate/1]).
+-export([get_state/0]).
+-export([cancel/0]).
+-export([handle_event/4]).
 
--record(state, {
+-record(data, {
+    keyring,
     shares = #{}
 }).
 
--type state() :: #state{}.
+-type data() :: #data{}.
+-type state() :: uninitialized | validation.
 
 -type masterkey() :: binary().
 -type masterkey_share() :: cds_keysharing:masterkey_share().
@@ -32,75 +37,111 @@
     {ok, {more, non_neg_integer()}}|
     {error, rotate_errors()}.
 
+-spec callback_mode() -> handle_event_function.
+
+callback_mode() -> handle_event_function.
+
 -spec start_link() -> {ok, pid()}.
 
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    gen_statem:start_link({local, ?STATEM}, ?MODULE, [], []).
 
--spec rotate(masterkey_share(), keyring()) -> rotate_resp().
+-spec initialize(keyring()) ->
+    ok | {error, }.
 
-rotate(Share, Keyring) ->
-    call({rotate, Share, Keyring}).
+initialize(Keyring) ->
+    call({initialize, Keyring}).
+
+-spec validate(masterkey_share()) -> rotate_resp().
+
+validate(Share) ->
+    call({validate, Share}).
+
+-spec cancel() -> ok.
+
+cancel() ->
+    call(cancel).
+
+-spec get_state() -> atom().
+
+get_state() ->
+    call(get_state).
 
 call(Msg) ->
-    case gen_server:call(?SERVER, Msg) of
-        ignored ->
-            ok;
-        {Result, Payload} ->
-            {Result, Payload}
-    end.
+    gen_statem:call(?STATEM, Msg).
 
--spec init(_) -> {ok, state()}.
+-spec init(_) -> {ok, data()}.
 
 init([]) ->
-    {ok, #state{}}.
+    {ok, uninitialized, #data{}}.
 
--spec handle_call(term(), term(), state()) ->
-    {reply, {ok, keyring()}, state()} |
-    {reply, {error, {operation_aborted, rotate_errors()}}, state()} |
-    {reply, {ok, {more, non_neg_integer()}}, state(), non_neg_integer()}.
+-spec handle_event(gen_statem:event_type(), term(), state(), data()) ->
+    gen_statem:event_handler_result(state()).
 
-handle_call({rotate, Share, OldKeyring}, _From, #state{shares = Shares} = StateData) ->
+%% Successful workflow events
+
+handle_event({call, From}, {initialize, Keyring}, uninitialized, _Data) ->
+    {next_state,
+        validation,
+        #data{keyring = Keyring},
+        [
+            {reply, From, ok},
+            {{timeout, lifetime}, get_timeout(), expired}
+        ]};
+
+handle_event({call, From}, {rotate, Share}, validation, #data{keyring = OldKeyring, shares = Shares} = StateData) ->
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             case update_keyring(OldKeyring, AllShares) of
                 {ok, NewKeyring} ->
-                    {reply, {ok, NewKeyring}, #state{}};
+                    {next_state, uninitialized, #data{},
+                        [
+                            {reply, From, {ok, NewKeyring}},
+                            {{timeout, lifetime}, infinite, expired}
+                        ]};
                 {error, Error} ->
-                    {reply, {error, {operation_aborted, Error}}, #state{}}
+                    {next_state, uninitialized, #data{},
+                        [
+                            {reply, From, {error, {operation_aborted, Error}}},
+                            {{timeout, lifetime}, infinite, expired}
+                        ]}
             end;
         More ->
-            {reply, {ok, {more, Threshold - map_size(More)}}, StateData#state{shares = More}, timeout()}
+            {keep_state,
+                StateData#data{shares = More},
+                [{reply, From, {ok, {more, Threshold - map_size(More)}}}]}
     end;
-handle_call(_Request, _Form, State) ->
-    {reply, ignored, State}.
 
--spec handle_cast(term(), state()) -> {noreply, state()}.
+%% InvalidActivity events
 
-handle_cast(_Request, State) ->
-    {noreply, State}.
+handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
+    {keep_state_and_data, [
+        {reply, From, {error, {invalid_activity, {initialization, uninitialized}}}}
+    ]};
+handle_event({call, From}, {initialize, _Threshold}, validation, _Data) ->
+    {keep_state_and_data, [
+        {reply, From, {error, {invalid_activity, {initialization, validation}}}}
+    ]};
 
--spec handle_info(term(), state()) -> {noreply, state()}.
 
-handle_info(timeout, _StateData) ->
-    {noreply, #state{}};
-handle_info(_Info, StateData) ->
-    {noreply, StateData}.
+%% Common events
 
--spec terminate(term(), term()) -> ok.
+handle_event({call, From}, get_state, State, _Data) ->
+    {keep_state_and_data, [
+        {reply, From, State}
+    ]};
+handle_event({call, From}, cancel, _State, _Data) ->
+    {next_state, uninitialized, #data{}, [
+        {reply, From, ok},
+        {{timeout, lifetime}, infinity, []}
+    ]};
+handle_event({timeout, lifetime}, expired, _State, _Data) ->
+    {next_state, uninitialized, #data{}, [{{timeout, lifetime}, infinity, []}]}.
 
-terminate(_Reason, _StateData) ->
-    ok.
+-spec get_timeout() -> non_neg_integer().
 
--spec code_change(term(), state(), term()) -> {ok, state()}.
-
-code_change(_OldVsn, StateData, _Extra) ->
-    {ok, StateData}.
-
--spec timeout() -> non_neg_integer().
-
-timeout() ->
+get_timeout() ->
     application:get_env(cds, keyring_rotation_lifetime, 60000).
 
 -spec update_keyring(keyring(), masterkey_shares()) ->
