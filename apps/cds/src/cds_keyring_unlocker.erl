@@ -1,4 +1,4 @@
--module(cds_keyring_rotator).
+-module(cds_keyring_unlocker).
 
 -behavior(gen_statem).
 
@@ -10,14 +10,13 @@
 -export([init/1, callback_mode/0]).
 
 -export([start_link/0]).
--export([initialize/2]).
+-export([initialize/1]).
 -export([validate/1]).
 -export([get_state/0]).
 -export([cancel/0]).
 -export([handle_event/4]).
 
 -record(data, {
-    encrypted_keyring,
     keyring,
     shares = #{}
 }).
@@ -29,6 +28,7 @@
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: #{integer() => masterkey_share()}.
 -type keyring() :: cds_keyring:keyring().
+-type locked_keyring() :: cds_keyring:encrypted_keyring().
 -type encrypted_keyring() :: cds_keyring:encrypted_keyring().
 -type rotate_errors() ::
     wrong_masterkey | failed_to_recover.
@@ -47,10 +47,10 @@ callback_mode() -> handle_event_function.
 start_link() ->
     gen_statem:start_link({local, ?STATEM}, ?MODULE, [], []).
 
--spec initialize(keyring(), encrypted_keyring()) -> ok.
+-spec initialize(locked_keyring()) -> ok.
 
-initialize(Keyring, EncryptedKeyring) ->
-    call({initialize, Keyring, EncryptedKeyring}).
+initialize(Keyring) ->
+    call({initialize, Keyring}).
 
 -spec validate(masterkey_share()) -> rotate_resp().
 
@@ -80,25 +80,24 @@ init([]) ->
 
 %% Successful workflow events
 
-handle_event({call, From}, {initialize, Keyring}, uninitialized, _Data) ->
+handle_event({call, From}, {initialize, LockedKeyring}, uninitialized, _Data) ->
     {next_state,
         validation,
-        #data{keyring = Keyring},
+        #data{keyring = LockedKeyring},
         [
             {reply, From, ok},
             {{timeout, lifetime}, get_timeout(), expired}
         ]};
 
-handle_event({call, From}, {validate, Share}, validation,
-    #data{encrypted_keyring = EncryptedOldKeyring, keyring = OldKeyring, shares = Shares} = StateData) ->
+handle_event({call, From}, {validate, Share}, validation, #data{keyring = LockedKeyring, shares = Shares} = StateData) ->
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
-            case update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) of
-                {ok, NewKeyring} ->
+            case unlock(LockedKeyring, AllShares) of
+                {ok, UnlockedKeyring} ->
                     {next_state, uninitialized, #data{},
                         [
-                            {reply, From, {ok, NewKeyring}},
+                            {reply, From, {ok, UnlockedKeyring}},
                             {{timeout, lifetime}, infinite, expired}
                         ]};
                 {error, Error} ->
@@ -118,11 +117,11 @@ handle_event({call, From}, {validate, Share}, validation,
 
 handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
     {keep_state_and_data, [
-        {reply, From, {error, {invalid_activity, {initialization, uninitialized}}}}
+        {reply, From, {error, {invalid_activity, {unlock, uninitialized}}}}
     ]};
 handle_event({call, From}, {initialize, _Threshold}, validation, _Data) ->
     {keep_state_and_data, [
-        {reply, From, {error, {invalid_activity, {initialization, validation}}}}
+        {reply, From, {error, {invalid_activity, {unlock, validation}}}}
     ]};
 
 
@@ -143,17 +142,17 @@ handle_event({timeout, lifetime}, expired, _State, _Data) ->
 -spec get_timeout() -> non_neg_integer().
 
 get_timeout() ->
-    application:get_env(cds, keyring_rotation_lifetime, 60000).
+    application:get_env(cds, keyring_unlock_lifetime, 60000).
 
--spec update_keyring(keyring(), encrypted_keyring(), masterkey_shares()) ->
-    {ok, {encrypted_keyring(), keyring()}} | {error, rotate_errors()}.
+-spec unlock(locked_keyring(), masterkey_shares()) ->
+    {ok, keyring()} | {error, unlock_errors()}.
 
-update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
+unlock(LockedKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
-            case validate_masterkey(MasterKey, OldKeyring, EncryptedOldKeyring) of
-                {ok, OldKeyring} ->
-                    rotate_keyring(MasterKey, OldKeyring);
+            case unlock_keyring(MasterKey, LockedKeyring) of
+                {ok, UnlockedKeyring} ->
+                    {ok, UnlockedKeyring};
                 {error, Error} ->
                     {error, Error}
             end;
@@ -161,22 +160,13 @@ update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
             {error, Error}
     end.
 
--spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) -> {ok, keyring()} | {error, wrong_masterkey | no_keyring}.
+-spec unlock_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}
 
-validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
-    try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of
+unlock_keyring(MasterKey, LockedKeyring) ->
+    try cds_keyring:decrypt(MasterKey, LockedKeyring) of
         Keyring ->
-            {ok, Keyring};
-        _NotMatchingKeyring ->
-            {error, wrong_masterkey}
+            {ok, Keyring}
     catch
         decryption_failed ->
             {error, wrong_masterkey}
     end.
-
--spec rotate_keyring(masterkey(), keyring()) -> {ok, {encrypted_keyring(), keyring()}}.
-
-rotate_keyring(MasterKey, Keyring) ->
-    NewKeyring = cds_keyring:rotate(Keyring),
-    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    {ok, {EncryptedNewKeyring, NewKeyring}}.

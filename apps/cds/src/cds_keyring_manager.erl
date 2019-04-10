@@ -237,7 +237,8 @@ unlocked({get_key, KeyId}, _From, #state{keyring = Keyring} = StateData) ->
 unlocked(get_current_key, _From, #state{keyring = Keyring} = StateData) ->
     {reply, {ok, cds_keyring:get_current_key(Keyring)}, unlocked, StateData};
 unlocked(start_rotate, _From, #state{keyring = OldKeyring} = StateData) ->
-    Result = cds_keyring_rotator:initialize(OldKeyring),
+    EncryptedKeyring = cds_keyring_storage:read(),
+    Result = cds_keyring_rotator:initialize(OldKeyring, EncryptedKeyring),
     {reply, Result, unlocked, StateData};
 unlocked({validate_rotate, Share}, _From, StateData) ->
     case cds_keyring_rotator:validate(Share) of
