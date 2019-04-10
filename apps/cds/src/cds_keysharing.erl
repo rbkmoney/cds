@@ -57,6 +57,7 @@ recover(Shares) ->
     (share()) -> masterkey_share();
     (masterkey_share()) -> share().
 convert(#share{threshold = Threshold, x = X, y = Y}) ->
-    <<Threshold, X, Y/binary>>;
-convert(<<Threshold, X, Y/binary>>) ->
+    base64:encode(<<Threshold, X, Y/binary>>);
+convert(Share) when is_binary(Share) ->
+    <<Threshold, X, Y/binary>> = base64:decode(Share),
     #share{threshold = Threshold, x = X, y = Y}.
