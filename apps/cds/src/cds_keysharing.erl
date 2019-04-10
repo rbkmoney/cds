@@ -4,15 +4,31 @@
 
 -export([share/3]).
 -export([recover/1]).
+-export([convert/1]).
 
 -export_type([masterkey_share/0]).
+-export_type([signed_masterkey_share/0]).
+-export_type([encrypted_master_key_share/0]).
+-export_type([encrypted_master_key_shares/0]).
+-export_type([masterkey/0]).
 
+-type masterkey() :: binary().
 -type masterkey_share() :: binary().
+-type signed_masterkey_share() :: binary().
 -type share() :: #share{
     threshold :: byte(),
     x :: byte(),
     y :: binary()
 }.
+
+-type encrypted_master_key_share() :: #{
+    id := binary(),
+    owner := binary(),
+    encrypted_share := binary()
+}.
+-type encrypted_master_key_shares() :: list(encrypted_master_key_share()).
+
+
 
 -spec share(binary(), byte(), byte()) -> [masterkey_share()].
 share(Secret, Threshold, Count) ->
@@ -24,19 +40,24 @@ share(Secret, Threshold, Count) ->
     end.
 
 
--spec recover([masterkey_share()]) -> binary().
+-spec recover([masterkey_share()] | #{integer() => masterkey_share()}) ->
+    {ok, masterkey()} | {error, failed_to_recover}.
+
+recover(Shares) when is_map(Shares) ->
+    recover(maps:values(Shares));
 recover(Shares) ->
     try
-        shamir:recover([convert(Share) || Share <- Shares])
+        {ok, shamir:recover([convert(Share) || Share <- Shares])}
     catch Class:Reason ->
         _ = lager:error("keysharing recover failed ~p ~p", [Class, Reason]),
-        throw(shamir_failed)
+        {error, failed_to_recover}
     end.
 
 -spec convert
     (share()) -> masterkey_share();
     (masterkey_share()) -> share().
 convert(#share{threshold = Threshold, x = X, y = Y}) ->
-    <<Threshold, X, Y/binary>>;
-convert(<<Threshold, X, Y/binary>>) ->
+    base64:encode(<<Threshold, X, Y/binary>>);
+convert(Share) when is_binary(Share) ->
+    <<Threshold, X, Y/binary>> = base64:decode(Share),
     #share{threshold = Threshold, x = X, y = Y}.

@@ -1,6 +1,8 @@
 -module(cds_keyring_manager).
 -behaviour(gen_fsm).
 
+-include_lib("shamir/include/shamir.hrl").
+
 %% API.
 -export([start_link/0]).
 -export([get_key/1]).
@@ -11,7 +13,9 @@
 -export([lock/0]).
 -export([update/0]).
 -export([rotate/1]).
--export([initialize/2]).
+-export([initialize/1]).
+-export([validate_init/1]).
+-export([cancel_init/0]).
 -export([get_state/0]).
 
 %% gen_fsm.
@@ -78,9 +82,17 @@ update() ->
 rotate(Share) ->
     sync_send_event({rotate, Share}).
 
--spec initialize(integer(), integer()) -> [cds_keysharing:masterkey_share()].
-initialize(Threshold, Count) ->
-    sync_send_event({initialize, Threshold, Count}).
+-spec initialize(integer()) -> cds_keyring_initializer:encrypted_master_key_shares().
+initialize(Threshold) ->
+    sync_send_event({initialize, Threshold}).
+
+-spec validate_init(cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
+validate_init(Share) ->
+    sync_send_event({validate_init, Share}).
+
+-spec cancel_init() -> ok.
+cancel_init() ->
+    sync_send_event(cancel_init).
 
 -spec get_state() -> locked | unlocked | not_initialized.
 get_state() ->
@@ -146,20 +158,25 @@ handle_event(_Event, StateName, StateData) ->
 
 -spec not_initialized(term(), term(), state()) -> term().
 
-not_initialized({initialize, Threshold, Count}, _From, StateData) ->
-    MasterKey = cds_crypto:key(),
-    Keyring = cds_keyring:new(),
-    Shares = cds_keysharing:share(MasterKey, Threshold, Count),
-    EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
-    try cds_keyring_storage:create(EncryptedKeyring) of
-        ok ->
-            {reply, {ok, Shares}, unlocked, StateData#state{masterkey = MasterKey, keyring = Keyring}}
-    catch
-        already_exists ->
-            {stop, normal, {error, already_initialized}, StateData}
+not_initialized({initialize, Threshold}, _From, StateData) ->
+    Result = cds_keyring_initializer:initialize(Threshold),
+    {reply, Result, not_initialized, StateData};
+not_initialized({validate_init, Share}, _From, StateData) ->
+    case cds_keyring_initializer:validate(Share) of
+        {ok, {more, _More}} = Result ->
+            {reply, Result, not_initialized, StateData};
+        {ok, {EncryptedKeyring, DecryptedKeyring}} ->
+            ok = cds_keyring_storage:create(EncryptedKeyring),
+            NewStateData = StateData#state{keyring = DecryptedKeyring},
+            {reply, ok, unlocked, NewStateData};
+        {error, _Error} = Result ->
+            {reply, Result, not_initialized, StateData}
     end;
+not_initialized(cancel_init, _From, StateData) ->
+    ok = cds_keyring_initializer:cancel(),
+    {reply, ok, not_initialized, StateData};
 not_initialized(_Event, _From, StateData) ->
-    {reply, {error, not_initialized}, not_initialized, StateData}.
+    {reply, {error, {invalid_status, not_initialized}}, not_initialized, StateData}.
 
 -spec locked(term(), term(), term()) -> term().
 
@@ -171,11 +188,12 @@ locked(update, _From, StateData) ->
         not_found ->
             {reply, ok, not_initialized, StateData}
     end;
-locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
+locked({unlock, Share}, _From, #state{shares = Shares, keyring = Keyring} = StateData) ->
+    #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             try
-                MasterKey = cds_keysharing:recover(maps:values(AllShares)),
+                {ok, MasterKey} = cds_keysharing:recover(AllShares),
                 DecryptedKeyring = cds_keyring:decrypt(MasterKey, Keyring),
                 NewStateData = StateData#state{shares = #{}, keyring = DecryptedKeyring, masterkey = MasterKey},
                 {reply, ok, unlocked, NewStateData}
@@ -185,15 +203,13 @@ locked({unlock, <<Threshold, X, _Y/binary>> = Share}, _From, #state{shares = Sha
         More ->
             {reply, {ok, {more, Threshold - maps:size(More)}}, locked, StateData#state{shares = More}}
     end;
-locked({initialize, _, _}, _From, StateData) ->
-    {reply, {error, already_initialized}, locked, StateData};
 locked(_Event, _From, StateData) ->
-    {reply, {error, locked}, locked, StateData}.
+    {reply, {error, {invalid_status, locked}}, locked, StateData}.
 
 -spec unlocked(term(), term(), state()) -> term().
 
-unlocked(lock, _From, #state{masterkey = MasterKey, keyring = Keyring} = StateData) ->
-    EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
+unlocked(lock, _From, StateData) ->
+    EncryptedKeyring = cds_keyring_storage:read(),
     {reply, ok, locked, StateData#state{keyring = EncryptedKeyring, masterkey = undefined}};
 unlocked(update, _From, #state{masterkey = MasterKey} = StateData) ->
     try cds_keyring_storage:read() of
@@ -214,15 +230,14 @@ unlocked({rotate, Share}, _From, #state{keyring = OldKeyring} = StateData) ->
     case cds_keyring_rotator:rotate(Share, OldKeyring) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
-        {ok, NewKeyring} ->
+        {ok, {EncryptedNewKeyring, NewKeyring}} ->
+            ok = cds_keyring_storage:update(EncryptedNewKeyring),
             {reply, ok, unlocked, StateData#state{keyring = NewKeyring}};
         Result ->
             {reply, Result, unlocked, StateData}
     end;
-unlocked({initialize, _, _}, _From, StateData) ->
-    {reply, {error, already_initialized}, unlocked, StateData};
 unlocked(_Event, _From, StateData) ->
-    {reply, ignored, unlocked, StateData}.
+    {reply, {error, {invalid_status, unlocked}}, unlocked, StateData}.
 
 -spec handle_sync_event(term(), term(), atom(), state()) -> {reply, term(), atom(), state()}.
 

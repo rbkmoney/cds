@@ -74,13 +74,9 @@ init([]) ->
             additional_routes => [erl_health_handle:get_route(HealthCheckers)]
         }
     ),
-    KeyringManager = #{
-        id => cds_keyring_manager,
-        start => {cds_keyring_manager, start_link, []}
-    },
-    KeyringRotator = #{
-        id => cds_keyring_rotator,
-        start => {cds_keyring_rotator, start_link, []}
+    KeyringSupervisor = #{
+        id => cds_keyring_sup,
+        start => {cds_keyring_sup, start_link, []}
     },
     Maintenance = #{
         id => cds_maintenance_sup,
@@ -94,8 +90,7 @@ init([]) ->
     },
     Procs = [
         Service,
-        KeyringManager,
-        KeyringRotator,
+        KeyringSupervisor,
         Maintenance,
         HashSup
     ],
