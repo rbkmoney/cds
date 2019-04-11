@@ -25,6 +25,10 @@ init(_) ->
         #{
             id => cds_keyring_rotator,
             start => {cds_keyring_rotator, start_link, []}
+        },
+        #{
+            id => cds_keyring_unlocker,
+            start => {cds_keyring_unlocker, start_link, []}
         }
     ],
     SupFlags = #{

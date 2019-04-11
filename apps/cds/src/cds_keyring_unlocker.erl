@@ -30,13 +30,13 @@
 -type keyring() :: cds_keyring:keyring().
 -type locked_keyring() :: cds_keyring:encrypted_keyring().
 -type encrypted_keyring() :: cds_keyring:encrypted_keyring().
--type rotate_errors() ::
+-type unlock_errors() ::
     wrong_masterkey | failed_to_recover.
--type rotate_resp() ::
+-type unlock_resp() ::
     ok |
     {ok, {encrypted_keyring(), keyring()}} |
     {ok, {more, non_neg_integer()}}|
-    {error, rotate_errors()}.
+    {error, unlock_errors()}.
 
 -spec callback_mode() -> handle_event_function.
 
@@ -52,7 +52,7 @@ start_link() ->
 initialize(Keyring) ->
     call({initialize, Keyring}).
 
--spec validate(masterkey_share()) -> rotate_resp().
+-spec validate(masterkey_share()) -> unlock_resp().
 
 validate(Share) ->
     call({validate, Share}).
@@ -70,7 +70,7 @@ get_state() ->
 call(Msg) ->
     gen_statem:call(?STATEM, Msg).
 
--spec init(_) -> {ok, data()}.
+-spec init(_) -> {ok, state(), data()}.
 
 init([]) ->
     {ok, uninitialized, #data{}}.
@@ -89,7 +89,8 @@ handle_event({call, From}, {initialize, LockedKeyring}, uninitialized, _Data) ->
             {{timeout, lifetime}, get_timeout(), expired}
         ]};
 
-handle_event({call, From}, {validate, Share}, validation, #data{keyring = LockedKeyring, shares = Shares} = StateData) ->
+handle_event({call, From}, {validate, Share}, validation,
+    #data{keyring = LockedKeyring, shares = Shares} = StateData) ->
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
@@ -98,13 +99,13 @@ handle_event({call, From}, {validate, Share}, validation, #data{keyring = Locked
                     {next_state, uninitialized, #data{},
                         [
                             {reply, From, {ok, UnlockedKeyring}},
-                            {{timeout, lifetime}, infinite, expired}
+                            {{timeout, lifetime}, infinity, expired}
                         ]};
                 {error, Error} ->
                     {next_state, uninitialized, #data{},
                         [
                             {reply, From, {error, {operation_aborted, Error}}},
-                            {{timeout, lifetime}, infinite, expired}
+                            {{timeout, lifetime}, infinity, expired}
                         ]}
             end;
         More ->
@@ -160,7 +161,7 @@ unlock(LockedKeyring, AllShares) ->
             {error, Error}
     end.
 
--spec unlock_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}
+-spec unlock_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}.
 
 unlock_keyring(MasterKey, LockedKeyring) ->
     try cds_keyring:decrypt(MasterKey, LockedKeyring) of

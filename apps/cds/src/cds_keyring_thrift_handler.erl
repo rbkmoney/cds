@@ -63,9 +63,16 @@ handle_function_('Lock', [], _Context, _Opts) ->
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;
-handle_function_('Unlock', [ShareholderId, Share], _Context, _Opts) ->
+handle_function_('StartUnlock', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:start_unlock()} catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {invalid_activity, Activity} ->
+            cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity})
+    end;
+handle_function_('ValidateUnlock', [ShareholderId, Share], _Context, _Opts) ->
     VerifiedShare = verify_signed_share(ShareholderId, Share),
-    try cds_keyring_manager:unlock(VerifiedShare) of
+    try cds_keyring_manager:validate_unlock(VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -73,6 +80,13 @@ handle_function_('Unlock', [ShareholderId, Share], _Context, _Opts) ->
     catch
         verification_failed ->
             cds_thrift_handler_utils:raise(#'VerificationFailed'{});
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {operation_aborted, Reason} ->
+            cds_thrift_handler_utils:raise(#'OperationAborted'{reason = atom_to_binary(Reason, utf8)})
+    end;
+handle_function_('CancelUnlock', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:cancel_unlock()} catch
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end;

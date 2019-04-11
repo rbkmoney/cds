@@ -70,7 +70,7 @@ get_state() ->
 call(Msg) ->
     gen_statem:call(?STATEM, Msg).
 
--spec init(_) -> {ok, data()}.
+-spec init(_) -> {ok, state(), data()}.
 
 init([]) ->
     {ok, uninitialized, #data{}}.
@@ -80,10 +80,10 @@ init([]) ->
 
 %% Successful workflow events
 
-handle_event({call, From}, {initialize, Keyring}, uninitialized, _Data) ->
+handle_event({call, From}, {initialize, Keyring, EncryptedKeyring}, uninitialized, _Data) ->
     {next_state,
         validation,
-        #data{keyring = Keyring},
+        #data{keyring = Keyring, encrypted_keyring = EncryptedKeyring},
         [
             {reply, From, ok},
             {{timeout, lifetime}, get_timeout(), expired}
@@ -99,13 +99,13 @@ handle_event({call, From}, {validate, Share}, validation,
                     {next_state, uninitialized, #data{},
                         [
                             {reply, From, {ok, NewKeyring}},
-                            {{timeout, lifetime}, infinite, expired}
+                            {{timeout, lifetime}, infinity, expired}
                         ]};
                 {error, Error} ->
                     {next_state, uninitialized, #data{},
                         [
                             {reply, From, {error, {operation_aborted, Error}}},
-                            {{timeout, lifetime}, infinite, expired}
+                            {{timeout, lifetime}, infinity, expired}
                         ]}
             end;
         More ->
@@ -120,7 +120,7 @@ handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
     {keep_state_and_data, [
         {reply, From, {error, {invalid_activity, {initialization, uninitialized}}}}
     ]};
-handle_event({call, From}, {initialize, _Threshold}, validation, _Data) ->
+handle_event({call, From}, {initialize, _Keyring, _EncryptedKeyring}, validation, _Data) ->
     {keep_state_and_data, [
         {reply, From, {error, {invalid_activity, {initialization, validation}}}}
     ]};
@@ -161,7 +161,8 @@ update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
             {error, Error}
     end.
 
--spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) -> {ok, keyring()} | {error, wrong_masterkey | no_keyring}.
+-spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
+    {ok, keyring()} | {error, wrong_masterkey | no_keyring}.
 
 validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
     try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of
