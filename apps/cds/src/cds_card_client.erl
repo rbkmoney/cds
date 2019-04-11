@@ -5,6 +5,8 @@
 -export([put_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
+-export([put_card/2]).
+-export([put_session/3]).
 
 %%
 %% Internal types
@@ -37,3 +39,11 @@ put_card_data(CardData, SessionData, RootUrl) ->
 -spec get_session_data(cds:session(), woody:url()) -> result().
 get_session_data(Session, RootUrl) ->
     cds_woody_client:call(card, 'GetSessionData', [Session], RootUrl).
+
+-spec put_card(card_data(), woody:url()) -> result().
+put_card(CardData, RootUrl) ->
+    cds_woody_client:call(card, 'PutCard', [CardData], RootUrl).
+
+-spec put_session(cds:session(), session_data(), woody:url()) -> result().
+put_session(SessionID, SessionData, RootUrl) ->
+    cds_woody_client:call(card, 'PutSession', [SessionID, SessionData], RootUrl).
