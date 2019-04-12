@@ -38,7 +38,7 @@
 -define(FSM, ?MODULE).
 
 -record(state, {
-    keyring
+    keyring :: cds_keyring:keyring() | undefined
 }).
 
 -type state() :: #state{}.
@@ -142,8 +142,8 @@ sync_send_all_state_event(Event) ->
 
 init([]) ->
     try cds_keyring_storage:read() of
-        Keyring ->
-            {ok, locked, #state{keyring = Keyring}}
+        _Keyring ->
+            {ok, locked, #state{keyring = undefined}}
     catch
         not_found ->
             {ok, not_initialized, #state{}}
@@ -178,7 +178,7 @@ not_initialized({validate_init, Share}, _From, StateData) ->
     case cds_keyring_initializer:validate(Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, not_initialized, StateData};
-        {ok, {EncryptedKeyring, DecryptedKeyring}} ->
+        {ok, {done, {EncryptedKeyring, DecryptedKeyring}}} ->
             ok = cds_keyring_storage:create(EncryptedKeyring),
             NewStateData = StateData#state{keyring = DecryptedKeyring},
             {reply, ok, unlocked, NewStateData};
@@ -201,7 +201,7 @@ locked({validate_unlock, Share}, _From, StateData) ->
     case cds_keyring_unlocker:validate(Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, locked, StateData};
-        {ok, UnlockedKeyring} ->
+        {ok, {done, UnlockedKeyring}} ->
             NewStateData = StateData#state{keyring = UnlockedKeyring},
             {reply, ok, unlocked, NewStateData};
         {error, Error} ->
@@ -231,7 +231,7 @@ unlocked({validate_rotate, Share}, _From, StateData) ->
     case cds_keyring_rotator:validate(Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
-        {ok, {EncryptedNewKeyring, NewKeyring}} ->
+        {ok, {done, {EncryptedNewKeyring, NewKeyring}}} ->
             ok = cds_keyring_storage:update(EncryptedNewKeyring),
             NewStateData = StateData#state{keyring = NewKeyring},
             {reply, ok, unlocked, NewStateData};

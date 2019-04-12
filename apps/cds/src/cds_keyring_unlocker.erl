@@ -29,12 +29,11 @@
 -type masterkey_shares() :: #{integer() => masterkey_share()}.
 -type keyring() :: cds_keyring:keyring().
 -type locked_keyring() :: cds_keyring:encrypted_keyring().
--type encrypted_keyring() :: cds_keyring:encrypted_keyring().
 -type unlock_errors() ::
     wrong_masterkey | failed_to_recover.
 -type unlock_resp() ::
     ok |
-    {ok, {encrypted_keyring(), keyring()}} |
+    {ok, {done, keyring()}} |
     {ok, {more, non_neg_integer()}}|
     {error, unlock_errors()}.
 
@@ -138,7 +137,7 @@ handle_event({call, From}, cancel, _State, _Data) ->
         {{timeout, lifetime}, infinity, []}
     ]};
 handle_event({timeout, lifetime}, expired, _State, _Data) ->
-    {next_state, uninitialized, #data{}, [{{timeout, lifetime}, infinity, []}]}.
+    {next_state, uninitialized, #data{}, []}.
 
 -spec get_timeout() -> non_neg_integer().
 
@@ -146,14 +145,14 @@ get_timeout() ->
     application:get_env(cds, keyring_unlock_lifetime, 60000).
 
 -spec unlock(locked_keyring(), masterkey_shares()) ->
-    {ok, keyring()} | {error, unlock_errors()}.
+    {ok, {done, keyring()}} | {error, unlock_errors()}.
 
 unlock(LockedKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
-            case unlock_keyring(MasterKey, LockedKeyring) of
+            case try_decrypt_keyring(MasterKey, LockedKeyring) of
                 {ok, UnlockedKeyring} ->
-                    {ok, UnlockedKeyring};
+                    {ok, {done, UnlockedKeyring}};
                 {error, Error} ->
                     {error, Error}
             end;
@@ -161,9 +160,9 @@ unlock(LockedKeyring, AllShares) ->
             {error, Error}
     end.
 
--spec unlock_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}.
+-spec try_decrypt_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}.
 
-unlock_keyring(MasterKey, LockedKeyring) ->
+try_decrypt_keyring(MasterKey, LockedKeyring) ->
     try cds_keyring:decrypt(MasterKey, LockedKeyring) of
         Keyring ->
             {ok, Keyring}

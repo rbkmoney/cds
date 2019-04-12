@@ -63,7 +63,7 @@ initialize(Threshold) ->
     call({initialize, Threshold}).
 
 -spec validate(masterkey_share()) ->
-    {ok, {more, integer()}} | {ok, {encrypted_keyring(), decrypted_keyring()}} | {error, validate_errors()}.
+    {ok, {more, integer()}} | {ok, {done, {encrypted_keyring(), decrypted_keyring()}}} | {error, validate_errors()}.
 
 validate(Share) ->
     call({validate, Share}).
@@ -172,7 +172,7 @@ get_timeout() ->
     genlib_app:env(cds, keyring_initialize_lifetime, 3 * 60 * 1000).
 
 -spec validate(threshold(), masterkey_shares(), encrypted_keyring()) ->
-    {ok, {encrypted_keyring(), decrypted_keyring()}} | {error, validate_errors()}.
+    {ok, {done, {encrypted_keyring(), decrypted_keyring()}}} | {error, validate_errors()}.
 
 validate(Threshold, Shares, EncryptedKeyring) ->
     AllSharesCombos = lib_combin:cnr(Threshold, Shares),
@@ -180,7 +180,7 @@ validate(Threshold, Shares, EncryptedKeyring) ->
         {ok, MasterKey} ->
             case decrypt_keyring(MasterKey, EncryptedKeyring) of
                 {ok, DecryptedKeyring} ->
-                    {ok, {EncryptedKeyring, DecryptedKeyring}};
+                    {ok, {done, {EncryptedKeyring, DecryptedKeyring}}};
                 {error, Error} ->
                     {error, Error}
             end;

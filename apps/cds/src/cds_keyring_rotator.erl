@@ -34,7 +34,7 @@
     wrong_masterkey | failed_to_recover.
 -type rotate_resp() ::
     ok |
-    {ok, {encrypted_keyring(), keyring()}} |
+    {ok, {done, {encrypted_keyring(), keyring()}}} |
     {ok, {more, non_neg_integer()}}|
     {error, rotate_errors()}.
 
@@ -95,10 +95,10 @@ handle_event({call, From}, {validate, Share}, validation,
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
             case update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) of
-                {ok, NewKeyring} ->
+                {ok, {done, NewKeyring}} ->
                     {next_state, uninitialized, #data{},
                         [
-                            {reply, From, {ok, NewKeyring}},
+                            {reply, From, {ok, {done, NewKeyring}}},
                             {{timeout, lifetime}, infinity, expired}
                         ]};
                 {error, Error} ->
@@ -118,11 +118,11 @@ handle_event({call, From}, {validate, Share}, validation,
 
 handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
     {keep_state_and_data, [
-        {reply, From, {error, {invalid_activity, {initialization, uninitialized}}}}
+        {reply, From, {error, {invalid_activity, {rotation, uninitialized}}}}
     ]};
 handle_event({call, From}, {initialize, _Keyring, _EncryptedKeyring}, validation, _Data) ->
     {keep_state_and_data, [
-        {reply, From, {error, {invalid_activity, {initialization, validation}}}}
+        {reply, From, {error, {invalid_activity, {rotation, validation}}}}
     ]};
 
 
@@ -138,7 +138,7 @@ handle_event({call, From}, cancel, _State, _Data) ->
         {{timeout, lifetime}, infinity, []}
     ]};
 handle_event({timeout, lifetime}, expired, _State, _Data) ->
-    {next_state, uninitialized, #data{}, [{{timeout, lifetime}, infinity, []}]}.
+    {next_state, uninitialized, #data{}, []}.
 
 -spec get_timeout() -> non_neg_integer().
 
@@ -146,7 +146,7 @@ get_timeout() ->
     application:get_env(cds, keyring_rotation_lifetime, 60000).
 
 -spec update_keyring(keyring(), encrypted_keyring(), masterkey_shares()) ->
-    {ok, {encrypted_keyring(), keyring()}} | {error, rotate_errors()}.
+    {ok, {done, {encrypted_keyring(), keyring()}}} | {error, rotate_errors()}.
 
 update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
@@ -175,9 +175,9 @@ validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
             {error, wrong_masterkey}
     end.
 
--spec rotate_keyring(masterkey(), keyring()) -> {ok, {encrypted_keyring(), keyring()}}.
+-spec rotate_keyring(masterkey(), keyring()) -> {ok, {done, {encrypted_keyring(), keyring()}}}.
 
 rotate_keyring(MasterKey, Keyring) ->
     NewKeyring = cds_keyring:rotate(Keyring),
     EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    {ok, {EncryptedNewKeyring, NewKeyring}}.
+    {ok, {done, {EncryptedNewKeyring, NewKeyring}}}.
