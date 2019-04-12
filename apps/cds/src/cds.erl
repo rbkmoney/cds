@@ -33,7 +33,7 @@
 
 -type hash() :: binary().
 -type token() :: <<_:128>>.
--type session() :: <<_:128>>.
+-type session() :: binary().
 -type metadata() :: #{binary() := binary()}.
 -type ciphermeta() :: binary().
 -type plaintext() :: binary() | {binary(), metadata()}.
