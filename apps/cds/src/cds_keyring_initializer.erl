@@ -164,7 +164,7 @@ handle_event({call, From}, cancel, _State, _Data) ->
         {{timeout, lifetime}, infinity, []}
     ]};
 handle_event({timeout, lifetime}, expired, _State, _Data) ->
-    {next_state, uninitialized, #data{}, [{{timeout, lifetime}, infinity, []}]}.
+    {next_state, uninitialized, #data{}, []}.
 
 -spec get_timeout() -> non_neg_integer().
 

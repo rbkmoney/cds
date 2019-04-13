@@ -26,7 +26,7 @@
 
 -type masterkey() :: binary().
 -type masterkey_share() :: cds_keysharing:masterkey_share().
--type masterkey_shares() :: #{integer() => masterkey_share()}.
+-type masterkey_shares() :: #{cds_keysharing:share_id() => masterkey_share()}.
 -type keyring() :: cds_keyring:keyring().
 -type locked_keyring() :: cds_keyring:encrypted_keyring().
 -type unlock_errors() ::
