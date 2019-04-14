@@ -11,6 +11,8 @@
 -export([get_session_card_data/2]).
 -export([get_session_data/1]).
 -export([put_card_data/7]).
+-export([put_card/4]).
+-export([put_session/4]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/4]).
 -export([get_sessions_by_key_id_between/4]).
@@ -68,14 +70,24 @@ get_session_card_data(Token, Session) ->
     cds_keyring:key_id(),
     timestamp()
 ) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, {SessionData, SessionMeta}, KeyID, CreatedAt) ->
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
+    ok = put_card(Token, Hash, CardData, KeyID),
+    ok = put_session(Session, SessionData, KeyID, CreatedAt).
+
+-spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
+    ok | no_return().
+put_card(Token, Hash, CardData, KeyID) ->
     ok = cds_storage:put(
         ?TOKEN_NS,
         Token,
         CardData,
         undefined,
         prepare_card_data_indexes(Hash, KeyID)
-    ),
+    ).
+
+-spec put_session(cds:session(), cds:ciphertext(), cds_keyring:key_id(), timestamp()) ->
+    ok | no_return().
+put_session(Session, {SessionData, SessionMeta}, KeyID, CreatedAt) ->
     ok = cds_storage:put(
         ?SESSION_NS,
         Session,

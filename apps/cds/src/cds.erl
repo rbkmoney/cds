@@ -17,6 +17,8 @@
 -export([get_cardholder_data/1]).
 -export([get_card_data/2]).
 -export([put_card_data/1]).
+-export([put_card/1]).
+-export([put_session/2]).
 -export([get_session_data/1]).
 
 -export([update_cardholder_data/2]).
@@ -31,7 +33,7 @@
 
 -type hash() :: binary().
 -type token() :: <<_:128>>.
--type session() :: <<_:128>>.
+-type session() :: binary().
 -type metadata() :: #{binary() := binary()}.
 -type ciphermeta() :: binary().
 -type plaintext() :: binary() | {binary(), metadata()}.
@@ -154,6 +156,31 @@ put_card_data({MarshalledCardData, MarshalledSessionData}) ->
         cds_utils:current_time()
     ),
     {Token, Session}.
+
+-spec put_card(plaintext()) -> token().
+put_card(MarshalledCardData) ->
+    UniqueCardData = cds_card_data:unique(MarshalledCardData),
+    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {Token, Hash} = find_or_create_token(CurrentKey, UniqueCardData),
+    EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
+    ok = cds_card_storage:put_card(
+        Token,
+        Hash,
+        EncryptedCardData,
+        KeyID
+    ),
+    Token.
+
+-spec put_session(session(), plaintext()) -> ok.
+put_session(Session, MarshalledSessionData) ->
+    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    EncryptedSessionData = encrypt(MarshalledSessionData, CurrentKey),
+    ok = cds_card_storage:put_session(
+        Session,
+        EncryptedSessionData,
+        KeyID,
+        cds_utils:current_time()
+    ).
 
 -spec get_session_data(session()) -> plaintext().
 get_session_data(Session) ->
