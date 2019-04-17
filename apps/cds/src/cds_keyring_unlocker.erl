@@ -32,7 +32,6 @@
 -type unlock_errors() ::
     wrong_masterkey | failed_to_recover.
 -type unlock_resp() ::
-    ok |
     {ok, {done, keyring()}} |
     {ok, {more, non_neg_integer()}}|
     {error, unlock_errors()}.
@@ -97,7 +96,7 @@ handle_event({call, From}, {validate, Share}, validation,
                 {ok, UnlockedKeyring} ->
                     {next_state, uninitialized, #data{},
                         [
-                            {reply, From, {ok, UnlockedKeyring}},
+                            {reply, From, {ok, {done, UnlockedKeyring}}},
                             {{timeout, lifetime}, infinity, expired}
                         ]};
                 {error, Error} ->
@@ -152,7 +151,7 @@ unlock(LockedKeyring, AllShares) ->
         {ok, MasterKey} ->
             case try_decrypt_keyring(MasterKey, LockedKeyring) of
                 {ok, UnlockedKeyring} ->
-                    {ok, {done, UnlockedKeyring}};
+                    {ok, UnlockedKeyring};
                 {error, Error} ->
                     {error, Error}
             end;
