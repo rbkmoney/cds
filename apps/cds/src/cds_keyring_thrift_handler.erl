@@ -116,6 +116,60 @@ handle_function_('CancelRotate', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:cancel_rotate()} catch
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
+    end;
+handle_function_('StartRekey', [Threshold], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:start_rekey(Threshold)} catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {invalid_activity, Activity} ->
+            cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity});
+        invalid_args ->
+            cds_thrift_handler_utils:raise(#'InvalidArguments'{})
+    end;
+handle_function_('ConfirmRekey', [ShareholderId, Share], _Context, _Opts) ->
+    VerifiedShare = verify_signed_share(ShareholderId, Share),
+    try cds_keyring_manager:confirm_rekey(ShareholderId, VerifiedShare) of
+        {more, More} ->
+            {ok, {more_keys_needed, More}};
+        ok ->
+            {ok, {success, #'Success'{}}}
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {invalid_activity, Activity} ->
+            cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity});
+        {operation_aborted, Reason} ->
+            cds_thrift_handler_utils:raise(#'OperationAborted'{reason = atom_to_binary(Reason, utf8)})
+    end;
+handle_function_('StartRekeyValidation', [], _Context, _Opts) ->
+    try cds_keyring_manager:start_validate_rekey() of
+        EncryptedMasterKeyShares ->
+            {ok, encode_encrypted_shares(EncryptedMasterKeyShares)}
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {invalid_activity, Activity} ->
+            cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity})
+    end;
+handle_function_('ValidateRekey', [ShareholderId, Share], _Context, _Opts) ->
+    VerifiedShare = verify_signed_share(ShareholderId, Share),
+    try cds_keyring_manager:validate_rekey(ShareholderId, VerifiedShare) of
+        {more, More} ->
+            {ok, {more_keys_needed, More}};
+        ok ->
+            {ok, {success, #'Success'{}}}
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status});
+        {invalid_activity, Activity} ->
+            cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity});
+        {operation_aborted, Reason} ->
+            cds_thrift_handler_utils:raise(#'OperationAborted'{reason = atom_to_binary(Reason, utf8)})
+    end;
+handle_function_('CancelRekey', [], _Context, _Opts) ->
+    try {ok, cds_keyring_manager:cancel_rekey()} catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
     end.
 
 -spec encode_encrypted_shares([cds_keysharing:encrypted_master_key_share()]) ->

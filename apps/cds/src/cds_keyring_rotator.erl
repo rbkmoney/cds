@@ -17,15 +17,14 @@
 -export([handle_event/4]).
 
 -record(data, {
-    encrypted_keyring,
-    keyring,
-    shares = #{}
+    encrypted_keyring :: encrypted_keyring() | undefined,
+    keyring :: keyring() | undefined,
+    shares = #{} :: masterkey_shares()
 }).
 
 -type data() :: #data{}.
 -type state() :: uninitialized | validation.
 
--type masterkey() :: binary().
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: #{cds_keysharing:share_id() => masterkey_share()}.
 -type keyring() :: cds_keyring:keyring().
@@ -143,33 +142,14 @@ get_timeout() ->
 update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
-            case validate_masterkey(MasterKey, OldKeyring, EncryptedOldKeyring) of
+            case cds_keyring:validate_masterkey(MasterKey, OldKeyring, EncryptedOldKeyring) of
                 {ok, OldKeyring} ->
-                    {ok, {done, rotate_keyring(MasterKey, OldKeyring)}};
+                    NewKeyring = cds_keyring:rotate(OldKeyring),
+                    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
+                    {ok, {done, {EncryptedNewKeyring, NewKeyring}}};
                 {error, Error} ->
                     {error, {operation_aborted, Error}}
             end;
         {error, Error} ->
             {error, {operation_aborted, Error}}
     end.
-
--spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
-    {ok, keyring()} | {error, wrong_masterkey}.
-
-validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
-    try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of
-        Keyring ->
-            {ok, Keyring};
-        _NotMatchingKeyring ->
-            {error, wrong_masterkey}
-    catch
-        decryption_failed ->
-            {error, wrong_masterkey}
-    end.
-
--spec rotate_keyring(masterkey(), keyring()) -> {encrypted_keyring(), keyring()}.
-
-rotate_keyring(MasterKey, Keyring) ->
-    NewKeyring = cds_keyring:rotate(Keyring),
-    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    {EncryptedNewKeyring, NewKeyring}.

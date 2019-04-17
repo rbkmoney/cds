@@ -142,23 +142,12 @@ get_timeout() ->
 unlock(LockedKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
-            case try_decrypt_keyring(MasterKey, LockedKeyring) of
+            case cds_keyring:decrypt(MasterKey, LockedKeyring) of
                 {ok, UnlockedKeyring} ->
                     {ok, {done, UnlockedKeyring}};
-                {error, Error} ->
-                    {error, {operation_aborted, Error}}
+                {error, decryption_failed} ->
+                    {error, {operation_aborted, wrong_masterkey}}
             end;
         {error, Error} ->
             {error, {operation_aborted, Error}}
-    end.
-
--spec try_decrypt_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}.
-
-try_decrypt_keyring(MasterKey, LockedKeyring) ->
-    try cds_keyring:decrypt(MasterKey, LockedKeyring) of
-        Keyring ->
-            {ok, Keyring}
-    catch
-        decryption_failed ->
-            {error, wrong_masterkey}
     end.

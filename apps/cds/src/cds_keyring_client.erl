@@ -10,6 +10,11 @@
 -export([start_rotate/1]).
 -export([validate_rotate/3]).
 -export([cancel_rotate/1]).
+-export([start_rekey/2]).
+-export([confirm_rekey/3]).
+-export([start_rekey_validation/1]).
+-export([validate_rekey/3]).
+-export([cancel_rekey/1]).
 
 %%
 %% Internal types
@@ -60,3 +65,23 @@ validate_rotate(ShareholderId, Share, RootUrl) ->
 -spec cancel_rotate(woody:url()) -> result().
 cancel_rotate(RootUrl) ->
     cds_woody_client:call(keyring, 'CancelRotate', [], RootUrl).
+
+-spec start_rekey(integer(), woody:url()) -> result().
+start_rekey(Threshold, RootUrl) ->
+    cds_woody_client:call(keyring, 'StartRekey', [Threshold], RootUrl).
+
+-spec confirm_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
+confirm_rekey(ShareholderId, Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'ConfirmRekey', [ShareholderId, Share], RootUrl).
+
+-spec start_rekey_validation(woody:url()) -> result().
+start_rekey_validation(RootUrl) ->
+    cds_woody_client:call(keyring, 'StartRekeyValidation', [], RootUrl).
+
+-spec validate_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
+validate_rekey(ShareholderId, Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'ValidateRekey', [ShareholderId, Share], RootUrl).
+
+-spec cancel_rekey(woody:url()) -> result().
+cancel_rekey(RootUrl) ->
+    cds_woody_client:call(keyring, 'CancelRekey', [], RootUrl).

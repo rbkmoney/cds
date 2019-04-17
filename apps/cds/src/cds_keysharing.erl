@@ -5,6 +5,8 @@
 -export([share/3]).
 -export([recover/1]).
 -export([convert/1]).
+-export([encrypt_shares_for_shareholders/2]).
+-export([restore_and_compare_masterkey/1]).
 
 -export_type([masterkey_share/0]).
 -export_type([signed_masterkey_share/0]).
@@ -15,6 +17,7 @@
 
 -type masterkey() :: binary().
 -type masterkey_share() :: binary().
+-type masterkey_shares() :: [masterkey_share()].
 -type signed_masterkey_share() :: binary().
 -type share_id() :: byte().
 -type share() :: #share{
@@ -22,6 +25,9 @@
     x :: share_id(),
     y :: binary()
 }.
+
+-type shareholder() :: cds_shareholder:shareholder().
+-type shareholders() :: cds_shareholder:shareholders().
 
 -type encrypted_master_key_share() :: #{
     id := binary(),
@@ -63,3 +69,40 @@ convert(#share{threshold = Threshold, x = X, y = Y}) ->
 convert(Share) when is_binary(Share) ->
     <<Threshold, X, Y/binary>> = base64:decode(Share),
     #share{threshold = Threshold, x = X, y = Y}.
+
+-spec encrypt_shares_for_shareholders(masterkey_shares(), shareholders()) -> encrypted_master_key_shares().
+
+encrypt_shares_for_shareholders(Shares, Shareholders) ->
+    lists:map(fun encrypt_share_for_shareholder/1, lists:zip(Shares, Shareholders)).
+
+-spec encrypt_share_for_shareholder({masterkey_share(), shareholder()}) -> encrypted_master_key_share().
+
+encrypt_share_for_shareholder({Share, #{id := Id, owner := Owner} = Shareholder}) ->
+    PublicKey = cds_shareholder:get_public_key(Shareholder, enc),
+    #{
+        id => Id,
+        owner => Owner,
+        encrypted_share => cds_crypto:public_encrypt(PublicKey, Share)
+    }.
+
+-spec restore_and_compare_masterkey([masterkey_shares(), ...]) ->
+    {ok, masterkey()} | {error, non_matching_masterkey | failed_to_recover}.
+
+restore_and_compare_masterkey([FirstCombo | CombosOfShares]) ->
+    lists:foldl(
+        fun
+            (ComboOfShares, {ok, MasterKey}) ->
+                case cds_keysharing:recover(ComboOfShares) of
+                    {ok, MasterKey} ->
+                        {ok, MasterKey};
+                    {ok, _NonMatchingMasterkey} ->
+                        {error, non_matching_masterkey};
+                    {error, failed_to_recover} ->
+                        {error, failed_to_recover}
+                end;
+            (_ComboOfShares, Error) ->
+                Error
+        end,
+        cds_keysharing:recover(FirstCombo),
+        CombosOfShares
+    ).

@@ -29,6 +29,10 @@ init(_) ->
         #{
             id => cds_keyring_unlocker,
             start => {cds_keyring_unlocker, start_link, []}
+        },
+        #{
+            id => cds_keyring_rekeyer,
+            start => {cds_keyring_rekeyer, start_link, []}
         }
     ],
     SupFlags = #{

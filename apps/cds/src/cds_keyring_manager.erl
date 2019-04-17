@@ -19,6 +19,11 @@
 -export([initialize/1]).
 -export([validate_init/1]).
 -export([cancel_init/0]).
+-export([start_rekey/1]).
+-export([confirm_rekey/2]).
+-export([start_validate_rekey/0]).
+-export([validate_rekey/2]).
+-export([cancel_rekey/0]).
 -export([get_state/0]).
 
 %% gen_fsm.
@@ -107,10 +112,33 @@ validate_init(Share) ->
 cancel_init() ->
     sync_send_event(cancel_init).
 
+-spec start_rekey(integer()) -> ok.
+start_rekey(Threshold) ->
+    sync_send_event({start_rekey, Threshold}).
+
+-spec confirm_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
+confirm_rekey(ShareholderId, Share) ->
+    sync_send_event({confirm_rekey, ShareholderId, Share}).
+
+-spec start_validate_rekey() -> cds_keyring_initializer:encrypted_master_key_shares().
+start_validate_rekey() ->
+    sync_send_event(start_validate_rekey).
+
+-spec validate_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
+validate_rekey(ShareholderId, Share) ->
+    sync_send_event({validate_rekey, ShareholderId, Share}).
+
+-spec cancel_rekey() -> ok.
+cancel_rekey() ->
+    sync_send_event(cancel_rekey).
+
 -spec get_state() -> locked | unlocked | not_initialized.
 get_state() ->
     sync_send_all_state_event(get_state).
 
+-spec get_status() -> maps().
+get_status() ->
+    sync_send_all_state_event(get_status).
 
 sync_send_event(Event) ->
     case gen_fsm:sync_send_event(?FSM, Event) of
@@ -241,11 +269,51 @@ unlocked({validate_rotate, Share}, _From, StateData) ->
 unlocked(cancel_rotate, _From, StateData) ->
     ok = cds_keyring_rotator:cancel(),
     {reply, ok, unlocked, StateData};
+unlocked({start_rekey, Threshold}, _From, StateData) ->
+    EncryptedKeyring = cds_keyring_storage:read(),
+    Result = cds_keyring_rekeyer:initialize(Threshold, EncryptedKeyring),
+    {reply, Result, unlocked, StateData};
+unlocked({confirm_rekey, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_rekeyer:confirm(ShareholderId, Share) of
+        {ok, {more, _More}} = Result ->
+            {reply, Result, unlocked, StateData};
+        ok ->
+            {reply, ok, unlocked, StateData};
+        {error, Error} ->
+            {reply, {error, Error}, unlocked, StateData}
+    end;
+unlocked(start_validate_rekey, _From, StateData) ->
+    Result = cds_keyring_rekeyer:start_validation(),
+    {reply, Result, unlocked, StateData};
+unlocked({validate_rekey, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_rekeyer:validate(ShareholderId, Share) of
+        {ok, {more, _More}} = Result ->
+            {reply, Result, unlocked, StateData};
+        {ok, EncryptedNewKeyring} ->
+            ok = cds_keyring_storage:update(EncryptedNewKeyring),
+            {reply, ok, unlocked, StateData};
+        {error, Error} ->
+            {reply, {error, Error}, unlocked, StateData}
+    end;
+unlocked(cancel_rekey, _From, StateData) ->
+    ok = cds_keyring_rekeyer:cancel(),
+    {reply, ok, unlocked, StateData};
 unlocked(_Event, _From, StateData) ->
     {reply, {error, {invalid_status, unlocked}}, unlocked, StateData}.
 
 -spec handle_sync_event(term(), term(), atom(), state()) -> {reply, term(), atom(), state()}.
 
+handle_sync_event(get_status, _From, StateName, StateData) ->
+    Status = #{
+        status => StateName,
+        activities => #{
+            initialization => cds_keyring_initializer:get_status(),
+            rotation => cds_keyring_rotator:get_status(),
+            unlock => cds_keyring_unlocker:get_status(),
+            rekeying => cds_keyring_rekeyer:get_status()
+        }
+    },
+    {reply, {ok, Status}, StateName, StateData};
 handle_sync_event(get_state, _From, StateName, StateData) ->
     {reply, {ok, StateName}, StateName, StateData};
 handle_sync_event(_Event, _From, StateName, StateData) ->
