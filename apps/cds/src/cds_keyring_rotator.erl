@@ -32,8 +32,8 @@
 -type encrypted_keyring() :: cds_keyring:encrypted_keyring().
 -type rotate_errors() ::
     wrong_masterkey | failed_to_recover.
+-type invalid_activity() :: {error, {invalid_activity, {rotation, state()}}}.
 -type rotate_resp() ::
-    ok |
     {ok, {done, {encrypted_keyring(), keyring()}}} |
     {ok, {more, non_neg_integer()}}|
     {error, rotate_errors()}.
@@ -47,12 +47,12 @@ callback_mode() -> handle_event_function.
 start_link() ->
     gen_statem:start_link({local, ?STATEM}, ?MODULE, [], []).
 
--spec initialize(keyring(), encrypted_keyring()) -> ok.
+-spec initialize(keyring(), encrypted_keyring()) -> ok | invalid_activity().
 
 initialize(Keyring, EncryptedKeyring) ->
     call({initialize, Keyring, EncryptedKeyring}).
 
--spec validate(masterkey_share()) -> rotate_resp().
+-spec validate(masterkey_share()) -> rotate_resp() | invalid_activity().
 
 validate(Share) ->
     call({validate, Share}).
@@ -111,27 +111,27 @@ handle_event({call, From}, {validate, Share}, validation,
         More ->
             {keep_state,
                 StateData#data{shares = More},
-                [{reply, From, {ok, {more, Threshold - map_size(More)}}}]}
+                {reply, From, {ok, {more, Threshold - map_size(More)}}}}
     end;
 
 %% InvalidActivity events
 
 handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
-    {keep_state_and_data, [
+    {keep_state_and_data,
         {reply, From, {error, {invalid_activity, {rotation, uninitialized}}}}
-    ]};
+    };
 handle_event({call, From}, {initialize, _Keyring, _EncryptedKeyring}, validation, _Data) ->
-    {keep_state_and_data, [
+    {keep_state_and_data,
         {reply, From, {error, {invalid_activity, {rotation, validation}}}}
-    ]};
+    };
 
 
 %% Common events
 
 handle_event({call, From}, get_state, State, _Data) ->
-    {keep_state_and_data, [
+    {keep_state_and_data,
         {reply, From, State}
-    ]};
+    };
 handle_event({call, From}, cancel, _State, _Data) ->
     {next_state, uninitialized, #data{}, [
         {reply, From, ok},
@@ -162,7 +162,7 @@ update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
     end.
 
 -spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
-    {ok, keyring()} | {error, wrong_masterkey | no_keyring}.
+    {ok, keyring()} | {error, wrong_masterkey}.
 
 validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
     try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of

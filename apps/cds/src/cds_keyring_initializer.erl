@@ -46,6 +46,7 @@
 -type validate_errors() :: {operation_aborted,
     non_matching_masterkey | failed_to_decrypt_keyring | failed_to_recover}.
 -type initialize_errors() :: invalid_args.
+-type invalid_activity() :: {error, {invalid_activity, {initialization, state()}}}.
 
 -spec callback_mode() -> handle_event_function.
 
@@ -57,13 +58,15 @@ start_link() ->
     gen_statem:start_link({local, ?STATEM}, ?MODULE, [], []).
 
 -spec initialize(threshold()) ->
-    {ok, encrypted_master_key_shares()} | {error, initialize_errors()}.
+    {ok, encrypted_master_key_shares()} | {error, initialize_errors()} | invalid_activity().
 
 initialize(Threshold) ->
     call({initialize, Threshold}).
 
 -spec validate(masterkey_share()) ->
-    {ok, {more, integer()}} | {ok, {done, {encrypted_keyring(), decrypted_keyring()}}} | {error, validate_errors()}.
+    {ok, {more, integer()}} |
+    {ok, {done, {encrypted_keyring(), decrypted_keyring()}}} |
+    {error, validate_errors()} | invalid_activity().
 
 validate(Share) ->
     call({validate, Share}).

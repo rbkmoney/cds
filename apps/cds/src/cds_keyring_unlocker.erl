@@ -17,7 +17,7 @@
 -export([handle_event/4]).
 
 -record(data, {
-    keyring,
+    locked_keyring,
     shares = #{}
 }).
 
@@ -31,6 +31,7 @@
 -type locked_keyring() :: cds_keyring:encrypted_keyring().
 -type unlock_errors() ::
     wrong_masterkey | failed_to_recover.
+-type invalid_activity() :: {error, {invalid_activity, {unlock, state()}}}.
 -type unlock_resp() ::
     {ok, {done, keyring()}} |
     {ok, {more, non_neg_integer()}}|
@@ -45,12 +46,12 @@ callback_mode() -> handle_event_function.
 start_link() ->
     gen_statem:start_link({local, ?STATEM}, ?MODULE, [], []).
 
--spec initialize(locked_keyring()) -> ok.
+-spec initialize(locked_keyring()) -> ok | invalid_activity().
 
-initialize(Keyring) ->
-    call({initialize, Keyring}).
+initialize(LockedKeyring) ->
+    call({initialize, LockedKeyring}).
 
--spec validate(masterkey_share()) -> unlock_resp().
+-spec validate(masterkey_share()) -> unlock_resp() | invalid_activity().
 
 validate(Share) ->
     call({validate, Share}).
@@ -81,14 +82,14 @@ init([]) ->
 handle_event({call, From}, {initialize, LockedKeyring}, uninitialized, _Data) ->
     {next_state,
         validation,
-        #data{keyring = LockedKeyring},
+        #data{locked_keyring = LockedKeyring},
         [
             {reply, From, ok},
             {{timeout, lifetime}, get_timeout(), expired}
         ]};
 
 handle_event({call, From}, {validate, Share}, validation,
-    #data{keyring = LockedKeyring, shares = Shares} = StateData) ->
+    #data{locked_keyring = LockedKeyring, shares = Shares} = StateData) ->
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
@@ -109,27 +110,27 @@ handle_event({call, From}, {validate, Share}, validation,
         More ->
             {keep_state,
                 StateData#data{shares = More},
-                [{reply, From, {ok, {more, Threshold - map_size(More)}}}]}
+                {reply, From, {ok, {more, Threshold - map_size(More)}}}}
     end;
 
 %% InvalidActivity events
 
 handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
-    {keep_state_and_data, [
+    {keep_state_and_data,
         {reply, From, {error, {invalid_activity, {unlock, uninitialized}}}}
-    ]};
-handle_event({call, From}, {initialize, _Threshold}, validation, _Data) ->
-    {keep_state_and_data, [
+    };
+handle_event({call, From}, {initialize, _LockedKeyring}, validation, _Data) ->
+    {keep_state_and_data,
         {reply, From, {error, {invalid_activity, {unlock, validation}}}}
-    ]};
+    };
 
 
 %% Common events
 
 handle_event({call, From}, get_state, State, _Data) ->
-    {keep_state_and_data, [
+    {keep_state_and_data,
         {reply, From, State}
-    ]};
+    };
 handle_event({call, From}, cancel, _State, _Data) ->
     {next_state, uninitialized, #data{}, [
         {reply, From, ok},
