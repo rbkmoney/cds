@@ -106,6 +106,7 @@ start_clear(Config, Stash) ->
                 {timeout, 60000}
             ]},
             {keyring_rotation_lifetime, 1000},
+            {keyring_unlock_lifetime, 1000},
             {keyring_initialize_lifetime, 3000},
             {shareholders, #{
                 <<"1">> => #{

@@ -11,13 +11,15 @@
 -export_type([encrypted_master_key_share/0]).
 -export_type([encrypted_master_key_shares/0]).
 -export_type([masterkey/0]).
+-export_type([share_id/0]).
 
 -type masterkey() :: binary().
 -type masterkey_share() :: binary().
 -type signed_masterkey_share() :: binary().
+-type share_id() :: byte().
 -type share() :: #share{
     threshold :: byte(),
-    x :: byte(),
+    x :: share_id(),
     y :: binary()
 }.
 
