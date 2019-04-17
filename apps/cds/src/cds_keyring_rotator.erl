@@ -36,7 +36,7 @@
 -type rotate_resp() ::
     {ok, {done, {encrypted_keyring(), keyring()}}} |
     {ok, {more, non_neg_integer()}}|
-    {error, rotate_errors()}.
+    {error, {operation_aborted, rotate_errors()}}.
 
 -spec callback_mode() -> handle_event_function.
 
