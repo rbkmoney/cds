@@ -94,20 +94,12 @@ handle_event({call, From}, {validate, Share}, validation,
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
-            case update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) of
-                {ok, {done, NewKeyring}} ->
-                    {next_state, uninitialized, #data{},
-                        [
-                            {reply, From, {ok, {done, NewKeyring}}},
-                            {{timeout, lifetime}, infinity, expired}
-                        ]};
-                {error, Error} ->
-                    {next_state, uninitialized, #data{},
-                        [
-                            {reply, From, {error, {operation_aborted, Error}}},
-                            {{timeout, lifetime}, infinity, expired}
-                        ]}
-            end;
+            Result = update_keyring(OldKeyring, EncryptedOldKeyring, AllShares),
+            {next_state, uninitialized, #data{},
+                [
+                    {reply, From, Result},
+                    {{timeout, lifetime}, infinity, expired}
+                ]};
         More ->
             {keep_state,
                 StateData#data{shares = More},
@@ -146,19 +138,19 @@ get_timeout() ->
     application:get_env(cds, keyring_rotation_lifetime, 60000).
 
 -spec update_keyring(keyring(), encrypted_keyring(), masterkey_shares()) ->
-    {ok, {done, {encrypted_keyring(), keyring()}}} | {error, rotate_errors()}.
+    {ok, {done, {encrypted_keyring(), keyring()}}} | {error, {operation_aborted, rotate_errors()}}.
 
 update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
             case validate_masterkey(MasterKey, OldKeyring, EncryptedOldKeyring) of
                 {ok, OldKeyring} ->
-                    rotate_keyring(MasterKey, OldKeyring);
+                    {ok, {done, rotate_keyring(MasterKey, OldKeyring)}};
                 {error, Error} ->
-                    {error, Error}
+                    {error, {operation_aborted, Error}}
             end;
         {error, Error} ->
-            {error, Error}
+            {error, {operation_aborted, Error}}
     end.
 
 -spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
@@ -175,9 +167,9 @@ validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
             {error, wrong_masterkey}
     end.
 
--spec rotate_keyring(masterkey(), keyring()) -> {ok, {done, {encrypted_keyring(), keyring()}}}.
+-spec rotate_keyring(masterkey(), keyring()) -> {encrypted_keyring(), keyring()}.
 
 rotate_keyring(MasterKey, Keyring) ->
     NewKeyring = cds_keyring:rotate(Keyring),
     EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    {ok, {done, {EncryptedNewKeyring, NewKeyring}}}.
+    {EncryptedNewKeyring, NewKeyring}.

@@ -93,20 +93,12 @@ handle_event({call, From}, {validate, Share}, validation,
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
     case Shares#{X => Share} of
         AllShares when map_size(AllShares) =:= Threshold ->
-            case unlock(LockedKeyring, AllShares) of
-                {ok, UnlockedKeyring} ->
-                    {next_state, uninitialized, #data{},
-                        [
-                            {reply, From, {ok, {done, UnlockedKeyring}}},
-                            {{timeout, lifetime}, infinity, expired}
-                        ]};
-                {error, Error} ->
-                    {next_state, uninitialized, #data{},
-                        [
-                            {reply, From, {error, {operation_aborted, Error}}},
-                            {{timeout, lifetime}, infinity, expired}
-                        ]}
-            end;
+            Result = unlock(LockedKeyring, AllShares),
+            {next_state, uninitialized, #data{},
+                [
+                    {reply, From, Result},
+                    {{timeout, lifetime}, infinity, expired}
+                ]};
         More ->
             {keep_state,
                 StateData#data{shares = More},
@@ -145,19 +137,19 @@ get_timeout() ->
     application:get_env(cds, keyring_unlock_lifetime, 60000).
 
 -spec unlock(locked_keyring(), masterkey_shares()) ->
-    {ok, {done, keyring()}} | {error, unlock_errors()}.
+    {ok, {done, keyring()}} | {error, {operation_aborted, unlock_errors()}}.
 
 unlock(LockedKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
             case try_decrypt_keyring(MasterKey, LockedKeyring) of
                 {ok, UnlockedKeyring} ->
-                    {ok, UnlockedKeyring};
+                    {ok, {done, UnlockedKeyring}};
                 {error, Error} ->
-                    {error, Error}
+                    {error, {operation_aborted, Error}}
             end;
         {error, Error} ->
-            {error, Error}
+            {error, {operation_aborted, Error}}
     end.
 
 -spec try_decrypt_keyring(masterkey(), locked_keyring()) -> {ok, keyring()} | {error, wrong_masterkey}.
