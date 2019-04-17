@@ -34,7 +34,7 @@
 -type unlock_resp() ::
     {ok, {done, keyring()}} |
     {ok, {more, non_neg_integer()}}|
-    {error, unlock_errors()}.
+    {error, {operation_aborted, unlock_errors()}}.
 
 -spec callback_mode() -> handle_event_function.
 
