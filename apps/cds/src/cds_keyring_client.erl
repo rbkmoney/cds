@@ -15,6 +15,7 @@
 -export([start_rekey_validation/1]).
 -export([validate_rekey/3]).
 -export([cancel_rekey/1]).
+-export([get_state/1]).
 
 %%
 %% Internal types
@@ -85,3 +86,7 @@ validate_rekey(ShareholderId, Share, RootUrl) ->
 -spec cancel_rekey(woody:url()) -> result().
 cancel_rekey(RootUrl) ->
     cds_woody_client:call(keyring, 'CancelRekey', [], RootUrl).
+
+-spec get_state(woody:url()) -> result().
+get_state(RootUrl) ->
+    cds_woody_client:call(keyring, 'GetState', [], RootUrl).

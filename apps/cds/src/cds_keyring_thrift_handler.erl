@@ -36,7 +36,7 @@ handle_function_('StartInit', [Threshold], _Context, _Opts) ->
     end;
 handle_function_('ValidateInit', [ShareholderId, Share], _Context, _Opts) ->
     VerifiedShare = verify_signed_share(ShareholderId, Share),
-    try cds_keyring_manager:validate_init(VerifiedShare) of
+    try cds_keyring_manager:validate_init(ShareholderId, VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -72,7 +72,7 @@ handle_function_('StartUnlock', [], _Context, _Opts) ->
     end;
 handle_function_('ValidateUnlock', [ShareholderId, Share], _Context, _Opts) ->
     VerifiedShare = verify_signed_share(ShareholderId, Share),
-    try cds_keyring_manager:validate_unlock(VerifiedShare) of
+    try cds_keyring_manager:validate_unlock(ShareholderId, VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -99,7 +99,7 @@ handle_function_('StartRotate', [], _Context, _Opts) ->
     end;
 handle_function_('ValidateRotate', [ShareholderId, Share], _Context, _Opts) ->
     VerifiedShare = verify_signed_share(ShareholderId, Share),
-    try cds_keyring_manager:validate_rotate(VerifiedShare) of
+    try cds_keyring_manager:validate_rotate(ShareholderId, VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -170,6 +170,12 @@ handle_function_('CancelRekey', [], _Context, _Opts) ->
     try {ok, cds_keyring_manager:cancel_rekey()} catch
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise(#'InvalidStatus'{status = Status})
+    end;
+
+handle_function_('GetState', [], _Context, _Opts) ->
+    case cds_keyring_manager:get_status() of
+        Status ->
+            {ok, convert_to_state(Status)}
     end.
 
 -spec encode_encrypted_shares([cds_keysharing:encrypted_master_key_share()]) ->
@@ -227,3 +233,56 @@ verify_signed_share(ShareholderId, SignedShare) ->
         {error, not_found} ->
             cds_thrift_handler_utils:raise(#'VerificationFailed'{})
     end.
+
+convert_to_state(#{
+    status := Status,
+    activities := #{
+        initialization := #{
+            phase := InitPhase,
+            lifetime := InitLifetime,
+            validation_shares := InitValShares
+        },
+        rotation := #{
+            phase := RotatePhase,
+            lifetime := RotateLifetime,
+            validation_shares := RotateValShares
+        },
+        unlock := #{
+            phase := UnlockPhase,
+            lifetime := UnlockLifetime,
+            validation_shares := UnlockValShares
+        },
+        rekeying := #{
+            phase := RekeyPhase,
+            lifetime := RekeyLifetime,
+            confirmation_shares := RekeyConShares,
+            validation_shares := RekeyValShares
+        }
+    }
+}) ->
+    #'KeyringState'{
+        status = Status,
+        activities = #'ActivitiesState'{
+            initialization = #'InitializationState'{
+                phase = InitPhase,
+                lifetime = InitLifetime,
+                validation_shares = InitValShares%maps:to_list(InitValShares)
+            },
+            rotation = #'RotationState'{
+                phase = RotatePhase,
+                lifetime = RotateLifetime,
+                validation_shares = RotateValShares%maps:to_list(RotateValShares)
+            },
+            unlock = #'UnlockState'{
+                phase = UnlockPhase,
+                lifetime = UnlockLifetime,
+                validation_shares = UnlockValShares%maps:to_list(UnlockValShares)
+            },
+            rekeying = #'RekeyingState'{
+                phase = RekeyPhase,
+                lifetime = RekeyLifetime,
+                confirmation_shares = RekeyConShares,%maps:to_list(RekeyConShares),
+                validation_shares = RekeyValShares%maps:to_list(RekeyValShares)
+            }
+        }
+    }.

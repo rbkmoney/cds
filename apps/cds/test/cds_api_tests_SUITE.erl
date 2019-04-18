@@ -294,7 +294,9 @@ init(C) ->
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
     DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]) ,
     ok = validate_init(DecryptedMasterKeyShares, C),
+    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
 -spec init_with_timeout(config()) -> _.
@@ -377,9 +379,11 @@ lock(C) ->
 -spec unlock(config()) -> _.
 
 unlock(C) ->
+    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     _ = ?assertEqual(ok, cds_keyring_client:start_unlock(root_url(C))),
     _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:validate_unlock(Id1, MasterKey1, root_url(C))),
+    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
     _ = ?assertEqual({success, #'Success'{}}, cds_keyring_client:validate_unlock(Id2, MasterKey2, root_url(C))).
 
 -spec unlock_with_timeout(config()) -> _.
@@ -427,6 +431,7 @@ rekey(C) ->
     EncodedEncryptedMasterKeyShares = cds_keyring_client:start_rekey_validation(root_url(C)),
     EncryptedMasterKeyShares =
         cds_keyring_thrift_handler:decode_encrypted_shares(EncodedEncryptedMasterKeyShares),
+    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),

@@ -28,7 +28,7 @@
     validation_shares = #{},
     timeout
 }).
-.
+
 -type shareholder_id() :: cds_shareholder:shareholder_id().
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: [masterkey_share()].
@@ -91,7 +91,7 @@ cancel() ->
 get_state() ->
     call(get_state).
 
--spec get_status() -> maps().
+-spec get_status() -> map().
 
 get_status() ->
     call(get_status).
@@ -114,7 +114,7 @@ handle_event({call, From}, {initialize, Threshold, EncryptedKeyring}, uninitiali
     ShareholdersLength = length(Shareholders),
     case (Threshold >= 1) and (ShareholdersLength >= 1) and (Threshold =< ShareholdersLength) of
         true ->
-            TimerRef = start_timer(get_timeout(), self(), lifetime_expired),
+            TimerRef = erlang:start_timer(get_timeout(), self(), lifetime_expired),
             NewData = Data#data{
                 encrypted_keyring = EncryptedKeyring,
                 threshold = Threshold,
@@ -135,16 +135,16 @@ handle_event({call, From}, {confirm, ShareholderId, Share}, confirmation,
     #share{x = X, threshold = Threshold} = cds_keysharing:convert(Share),
     case Shares#{X => {ShareholderId, Share}} of
         AllShares when map_size(AllShares) =:= Threshold ->
-            ListShares = lists:map(fun ({_ShareholderId, Share}) -> Share end, maps:values(AllShares)),
+            ListShares = lists:map(fun ({_ShareholderId, Share1}) -> Share1 end, maps:values(AllShares)),
             case confirm_operation(EncryptedKeyring, ListShares) of
                 {ok, Keyring} ->
                     NewData = Data#data{confirmation_shares = AllShares, keyring = Keyring},
                     {next_state,
-                        post_confirmation,
+                        postconfirmation,
                         NewData,
                         {reply, From, ok}};
                 {error, Error} ->
-                    _Time = cancel_timer(TimerRef),
+                    _Time = erlang:cancel_timer(TimerRef),
                     {next_state,
                         uninitialized,
                         #data{},
@@ -157,7 +157,7 @@ handle_event({call, From}, {confirm, ShareholderId, Share}, confirmation,
                 NewData,
                 {reply, From, {ok, {more, Threshold - maps:size(Shares1)}}}}
     end;
-handle_event({call, From}, start_validatation, post_confirmation,
+handle_event({call, From}, start_validatation, postconfirmation,
     #data{shareholders = Shareholders, threshold = Threshold, keyring = Keyring} = Data) ->
     MasterKey = cds_crypto:key(),
     EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
@@ -179,8 +179,8 @@ handle_event({call, From}, {validate, ShareholderId, Share}, validation,
     ShareholdersCount = length(Shareholders),
     case Shares#{X => {ShareholderId, Share}} of
         AllShares when map_size(AllShares) =:= ShareholdersCount ->
-            _Time = cancel_timer(TimerRef),
-            ListShares = lists:map(fun ({_ShareholderId, Share}) -> Share end, maps:values(AllShares)),
+            _Time = erlang:cancel_timer(TimerRef),
+            ListShares = lists:map(fun ({_ShareholderId, Share1}) -> Share1 end, maps:values(AllShares)),
             Result = validate_operation(Threshold, ListShares, EncryptedKeyring),
             {next_state,
                 uninitialized,
@@ -202,7 +202,12 @@ handle_event({call, From}, get_state, State, _Data) ->
     ]};
 handle_event({call, From}, get_status, State,
     #data{timeout = TimerRef, confirmation_shares = ConfirmationShares, validation_shares = ValidationShares}) ->
-    Lifetime = read_timer(TimerRef) / 1000,
+    Lifetime = case TimerRef of
+                   undefined ->
+                       get_timeout() div 1000;
+                   TimerRef ->
+                       erlang:read_timer(TimerRef) div 1000
+               end,
     ConfirmationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ConfirmationShares),
     ValidationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ValidationShares),
     Status = #{
@@ -213,9 +218,9 @@ handle_event({call, From}, get_status, State,
     },
     {keep_state_and_data, {reply, From, Status}};
 handle_event({call, From}, cancel, _State, #data{timeout = TimerRef}) ->
-    _ = cancel_timer(TimerRef),
+    _ = erlang:cancel_timer(TimerRef),
     {next_state, uninitialized, #data{}, {reply, From, ok}};
-handle_event(info, lifetime_expired, _State, _Data) ->
+handle_event(info, {timeout, _TimerRef, lifetime_expired}, _State, _Data) ->
     {next_state, uninitialized, #data{}, []};
 
 %% InvalidActivity events
@@ -228,7 +233,7 @@ handle_event({call, From}, _Event, confirmation, _Data) ->
     {keep_state_and_data, [
         {reply, From, {error, {invalid_activity, {rekeying, confirmation}}}}
     ]};
-handle_event({call, From}, _Event, post_confirmation, _Data) ->
+handle_event({call, From}, _Event, postconfirmation, _Data) ->
     {keep_state_and_data, [
         {reply, From, {error, {invalid_activity, {rekeying, postconfirmation}}}}
     ]};

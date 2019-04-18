@@ -8,8 +8,9 @@
 -export([init/1, callback_mode/0]).
 -export([start_link/0]).
 -export([initialize/1]).
--export([validate/1]).
+-export([validate/2]).
 -export([get_state/0]).
+-export([get_status/0]).
 -export([cancel/0]).
 -export([handle_event/4]).
 -export_type([encrypted_master_key_shares/0]).
@@ -20,8 +21,11 @@
     num,
     threshold,
     keyring,
-    shares = #{}
+    shares = #{},
+    timeout
 }).
+
+-type shareholder_id() :: cds_shareholder:shareholder_id().
 
 -type masterkey_share() :: cds_keysharing:masterkey_share().
 -type masterkey_shares() :: [masterkey_share()].
@@ -57,13 +61,13 @@ start_link() ->
 initialize(Threshold) ->
     call({initialize, Threshold}).
 
--spec validate(masterkey_share()) ->
+-spec validate(shareholder_id(), masterkey_share()) ->
     {ok, {more, integer()}} |
     {ok, {done, {encrypted_keyring(), decrypted_keyring()}}} |
     {error, validate_errors()} | invalid_activity().
 
-validate(Share) ->
-    call({validate, Share}).
+validate(ShareholderId, Share) ->
+    call({validate, ShareholderId, Share}).
 
 -spec cancel() -> ok.
 
@@ -74,6 +78,11 @@ cancel() ->
 
 get_state() ->
     call(get_state).
+
+-spec get_status() -> map().
+
+get_status() ->
+    call(get_status).
 
 call(Message) ->
     gen_statem:call(?STATEM, Message).
@@ -98,56 +107,38 @@ handle_event({call, From}, {initialize, Threshold}, uninitialized, Data) ->
             EncryptedKeyring = cds_keyring:encrypt(MasterKey, Keyring),
             Shares = cds_keysharing:share(MasterKey, Threshold, length(Shareholders)),
             EncryptedShares = cds_keysharing:encrypt_shares_for_shareholders(Shares, Shareholders),
-            NewData = Data#data{num = length(EncryptedShares), threshold = Threshold, keyring = EncryptedKeyring},
+            TimerRef = erlang:start_timer(get_timeout(), self(), lifetime_expired),
+            NewData = Data#data{
+                num = length(EncryptedShares),
+                threshold = Threshold,
+                keyring = EncryptedKeyring,
+                timeout = TimerRef},
             {next_state,
                 validation,
                 NewData,
-                [
-                    {reply, From, {ok, EncryptedShares}},
-                    {{timeout, lifetime}, get_timeout(), expired}
-                ]};
+                {reply, From, {ok, EncryptedShares}}};
         false ->
-            {next_state,
-                uninitialized,
-                #data{},
-                [
-                    {reply, From, {error, invalid_args}}
-                ]}
+            {next_state, uninitialized, #data{}, {reply, From, {error, invalid_args}}}
     end;
-handle_event({call, From}, {validate, Share}, validation,
-    #data{num = Num, threshold = Threshold, shares = Shares, keyring = Keyring} = Data) ->
+handle_event({call, From}, {validate, ShareholderId, Share}, validation,
+    #data{num = Num, threshold = Threshold, shares = Shares, keyring = Keyring, timeout = TimerRef} = Data) ->
     #share{x = X} = cds_keysharing:convert(Share),
-    case Shares#{X => Share} of
+    case Shares#{X => {ShareholderId, Share}} of
         AllShares when map_size(AllShares) =:= Num ->
-            ListShares = maps:values(AllShares),
+            _ = erlang:cancel_timer(TimerRef),
+            ListShares = lists:map(fun ({_ShareholderId, Share1}) -> Share1 end, maps:values(AllShares)),
             Result = validate(Threshold, ListShares, Keyring),
             {next_state,
                 uninitialized,
                 #data{},
-                [
-                    {reply, From, Result},
-                    {{timeout, lifetime}, infinity, []}
-                ]};
+                {reply, From, Result}};
         Shares1 ->
             NewData = Data#data{shares = Shares1},
             {next_state,
                 validation,
                 NewData,
-                [
-                    {reply, From, {ok, {more, Num - maps:size(Shares1)}}}
-                ]}
+                {reply, From, {ok, {more, Num - maps:size(Shares1)}}}}
     end;
-
-%% InvalidActivity events
-
-handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
-    {keep_state_and_data, [
-        {reply, From, {error, {invalid_activity, {initialization, uninitialized}}}}
-    ]};
-handle_event({call, From}, {initialize, _Threshold}, validation, _Data) ->
-    {keep_state_and_data, [
-        {reply, From, {error, {invalid_activity, {initialization, validation}}}}
-    ]};
 
 %% Common events
 
@@ -155,13 +146,36 @@ handle_event({call, From}, get_state, State, _Data) ->
     {keep_state_and_data, [
         {reply, From, State}
     ]};
-handle_event({call, From}, cancel, _State, _Data) ->
-    {next_state, uninitialized, #data{}, [
-        {reply, From, ok},
-        {{timeout, lifetime}, infinity, []}
+handle_event({call, From}, get_status, State, #data{timeout = TimerRef, shares = ValidationShares}) ->
+    Lifetime = case TimerRef of
+                   undefined ->
+                       get_timeout() div 1000;
+                   TimerRef ->
+                       erlang:read_timer(TimerRef) div 1000
+               end,
+    ValidationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ValidationShares),
+    Status = #{
+        phase => State,
+        lifetime => Lifetime,
+        validation_shares => ValidationSharesStripped
+    },
+    {keep_state_and_data, {reply, From, Status}};
+handle_event({call, From}, cancel, _State, #data{timeout = TimerRef}) ->
+    _ = erlang:cancel_timer(TimerRef),
+    {next_state, uninitialized, #data{}, {reply, From, ok}};
+handle_event(info, {timeout, _TimerRef, lifetime_expired}, _State, _Data) ->
+    {next_state, uninitialized, #data{}, []};
+
+%% InvalidActivity events
+
+handle_event({call, From}, _Event, uninitialized, _Data) ->
+    {keep_state_and_data, [
+        {reply, From, {error, {invalid_activity, {initialization, uninitialized}}}}
     ]};
-handle_event({timeout, lifetime}, expired, _State, _Data) ->
-    {next_state, uninitialized, #data{}, []}.
+handle_event({call, From}, _Event, validation, _Data) ->
+    {keep_state_and_data, [
+        {reply, From, {error, {invalid_activity, {initialization, validation}}}}
+    ]}.
 
 -spec get_timeout() -> non_neg_integer().
 

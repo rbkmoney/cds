@@ -10,14 +10,14 @@
 -export([get_current_key/0]).
 -export([get_outdated_keys/0]).
 -export([start_unlock/0]).
--export([validate_unlock/1]).
+-export([validate_unlock/2]).
 -export([cancel_unlock/0]).
 -export([lock/0]).
 -export([start_rotate/0]).
--export([validate_rotate/1]).
+-export([validate_rotate/2]).
 -export([cancel_rotate/0]).
 -export([initialize/1]).
--export([validate_init/1]).
+-export([validate_init/2]).
 -export([cancel_init/0]).
 -export([start_rekey/1]).
 -export([confirm_rekey/2]).
@@ -25,6 +25,7 @@
 -export([validate_rekey/2]).
 -export([cancel_rekey/0]).
 -export([get_state/0]).
+-export([get_status/0]).
 
 %% gen_fsm.
 -export([init/1]).
@@ -76,9 +77,10 @@ get_outdated_keys() ->
 start_unlock() ->
     sync_send_event(start_unlock).
 
--spec validate_unlock(cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
-validate_unlock(Share) ->
-    sync_send_event({validate_unlock, Share}).
+-spec validate_unlock(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+    {more, non_neg_integer()} | ok.
+validate_unlock(ShareholderId, Share) ->
+    sync_send_event({validate_unlock, ShareholderId, Share}).
 
 -spec cancel_unlock() -> ok.
 cancel_unlock() ->
@@ -92,9 +94,10 @@ lock() ->
 start_rotate() ->
     sync_send_event(start_rotate).
 
--spec validate_rotate(cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
-validate_rotate(Share) ->
-    sync_send_event({validate_rotate, Share}).
+-spec validate_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+    {more, non_neg_integer()} | ok.
+validate_rotate(ShareholderId, Share) ->
+    sync_send_event({validate_rotate, ShareholderId, Share}).
 
 -spec cancel_rotate() -> ok.
 cancel_rotate() ->
@@ -104,9 +107,10 @@ cancel_rotate() ->
 initialize(Threshold) ->
     sync_send_event({initialize, Threshold}).
 
--spec validate_init(cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
-validate_init(Share) ->
-    sync_send_event({validate_init, Share}).
+-spec validate_init(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+    {more, non_neg_integer()} | ok.
+validate_init(ShareholderId, Share) ->
+    sync_send_event({validate_init, ShareholderId, Share}).
 
 -spec cancel_init() -> ok.
 cancel_init() ->
@@ -116,7 +120,8 @@ cancel_init() ->
 start_rekey(Threshold) ->
     sync_send_event({start_rekey, Threshold}).
 
--spec confirm_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
+-spec confirm_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+    {more, non_neg_integer()} | ok.
 confirm_rekey(ShareholderId, Share) ->
     sync_send_event({confirm_rekey, ShareholderId, Share}).
 
@@ -124,7 +129,8 @@ confirm_rekey(ShareholderId, Share) ->
 start_validate_rekey() ->
     sync_send_event(start_validate_rekey).
 
--spec validate_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) -> {more, non_neg_integer()} | ok.
+-spec validate_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+    {more, non_neg_integer()} | ok.
 validate_rekey(ShareholderId, Share) ->
     sync_send_event({validate_rekey, ShareholderId, Share}).
 
@@ -136,7 +142,7 @@ cancel_rekey() ->
 get_state() ->
     sync_send_all_state_event(get_state).
 
--spec get_status() -> maps().
+-spec get_status() -> map().
 get_status() ->
     sync_send_all_state_event(get_status).
 
@@ -202,8 +208,8 @@ handle_event(_Event, StateName, StateData) ->
 not_initialized({initialize, Threshold}, _From, StateData) ->
     Result = cds_keyring_initializer:initialize(Threshold),
     {reply, Result, not_initialized, StateData};
-not_initialized({validate_init, Share}, _From, StateData) ->
-    case cds_keyring_initializer:validate(Share) of
+not_initialized({validate_init, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_initializer:validate(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, not_initialized, StateData};
         {ok, {done, {EncryptedKeyring, DecryptedKeyring}}} ->
@@ -225,8 +231,8 @@ locked(start_unlock, _From, StateData) ->
     LockedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_unlocker:initialize(LockedKeyring),
     {reply, Result, locked, StateData};
-locked({validate_unlock, Share}, _From, StateData) ->
-    case cds_keyring_unlocker:validate(Share) of
+locked({validate_unlock, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_unlocker:validate(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, locked, StateData};
         {ok, {done, UnlockedKeyring}} ->
@@ -255,8 +261,8 @@ unlocked(start_rotate, _From, #state{keyring = OldKeyring} = StateData) ->
     EncryptedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_rotator:initialize(OldKeyring, EncryptedKeyring),
     {reply, Result, unlocked, StateData};
-unlocked({validate_rotate, Share}, _From, StateData) ->
-    case cds_keyring_rotator:validate(Share) of
+unlocked({validate_rotate, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_rotator:validate(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
         {ok, {done, {EncryptedNewKeyring, NewKeyring}}} ->
