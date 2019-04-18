@@ -266,23 +266,23 @@ convert_to_state(#{
             initialization = #'InitializationState'{
                 phase = InitPhase,
                 lifetime = InitLifetime,
-                validation_shares = InitValShares%maps:to_list(InitValShares)
+                validation_shares = InitValShares
             },
             rotation = #'RotationState'{
                 phase = RotatePhase,
                 lifetime = RotateLifetime,
-                validation_shares = RotateValShares%maps:to_list(RotateValShares)
+                validation_shares = RotateValShares
             },
             unlock = #'UnlockState'{
                 phase = UnlockPhase,
                 lifetime = UnlockLifetime,
-                validation_shares = UnlockValShares%maps:to_list(UnlockValShares)
+                validation_shares = UnlockValShares
             },
             rekeying = #'RekeyingState'{
                 phase = RekeyPhase,
                 lifetime = RekeyLifetime,
-                confirmation_shares = RekeyConShares,%maps:to_list(RekeyConShares),
-                validation_shares = RekeyValShares%maps:to_list(RekeyValShares)
+                confirmation_shares = RekeyConShares,
+                validation_shares = RekeyValShares
             }
         }
     }.

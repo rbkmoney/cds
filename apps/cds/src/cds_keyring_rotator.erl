@@ -21,7 +21,7 @@
     encrypted_keyring :: encrypted_keyring() | undefined,
     keyring :: keyring() | undefined,
     shares = #{} :: #{cds_keyring:share_id() => {shareholder_id(), masterkey_share()}},
-    timeout :: timer:tref()
+    timeout :: reference() | undefined
 }).
 
 -type data() :: #data{}.
@@ -116,12 +116,7 @@ handle_event({call, From}, {validate, ShareholderId, Share}, validation,
 handle_event({call, From}, get_state, State, _Data) ->
     {keep_state_and_data, {reply, From, State}};
 handle_event({call, From}, get_status, State, #data{timeout = TimerRef, shares = ValidationShares}) ->
-    Lifetime = case TimerRef of
-                   undefined ->
-                       get_timeout() div 1000;
-                   TimerRef ->
-                       erlang:read_timer(TimerRef) div 1000
-               end,
+    Lifetime = get_lifetime(TimerRef),
     ValidationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ValidationShares),
     Status = #{
         phase => State,
@@ -150,6 +145,16 @@ handle_event({call, From}, _Event, validation, _Data) ->
 
 get_timeout() ->
     application:get_env(cds, keyring_rotation_lifetime, 60000).
+
+-spec get_lifetime(reference() | undefined) -> non_neg_integer().
+
+get_lifetime(TimerRef) ->
+    case TimerRef of
+        undefined ->
+            get_timeout() div 1000;
+        TimerRef ->
+            erlang:read_timer(TimerRef) div 1000
+    end.
 
 -spec update_keyring(keyring(), encrypted_keyring(), masterkey_shares()) ->
     {ok, {done, {encrypted_keyring(), keyring()}}} | {error, {operation_aborted, rotate_errors()}}.

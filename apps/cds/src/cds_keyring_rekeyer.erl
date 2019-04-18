@@ -202,12 +202,7 @@ handle_event({call, From}, get_state, State, _Data) ->
     ]};
 handle_event({call, From}, get_status, State,
     #data{timeout = TimerRef, confirmation_shares = ConfirmationShares, validation_shares = ValidationShares}) ->
-    Lifetime = case TimerRef of
-                   undefined ->
-                       get_timeout() div 1000;
-                   TimerRef ->
-                       erlang:read_timer(TimerRef) div 1000
-               end,
+    Lifetime = get_lifetime(TimerRef),
     ConfirmationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ConfirmationShares),
     ValidationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ValidationShares),
     Status = #{
@@ -246,6 +241,16 @@ handle_event({call, From}, _Event, validation, _Data) ->
 
 get_timeout() ->
     genlib_app:env(cds, keyring_rekeying_lifetime, 3 * 60 * 1000).
+
+-spec get_lifetime(reference() | undefined) -> non_neg_integer().
+
+get_lifetime(TimerRef) ->
+    case TimerRef of
+        undefined ->
+            get_timeout() div 1000;
+        TimerRef ->
+            erlang:read_timer(TimerRef) div 1000
+    end.
 
 -spec confirm_operation(encrypted_keyring(), masterkey_shares()) ->
     ok | {error, confirm_errors()}.
