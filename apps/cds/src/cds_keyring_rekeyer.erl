@@ -53,6 +53,7 @@
 -type confirm_errors() :: {operation_aborted,
     failed_to_recover | wrong_masterkey}.
 -type initialize_errors() :: invalid_args.
+-type invalid_activity_errors() :: {invalid_activity, state()}.
 
 -spec callback_mode() -> handle_event_function.
 
@@ -64,18 +65,18 @@ start_link() ->
     gen_statem:start_link({local, ?STATEM}, ?MODULE, [], []).
 
 -spec initialize(threshold(), encrypted_keyring()) ->
-    ok | {error, initialize_errors()}.
+    ok | {error, initialize_errors() | invalid_activity_errors()}.
 
 initialize(Threshold, EncryptedKeyring) ->
     call({initialize, Threshold, EncryptedKeyring}).
 
 -spec confirm(shareholder_id(), masterkey_share()) ->
-    {ok, {more, integer()}} | ok | {error, confirm_errors()}.
+    {ok, {more, integer()}} | ok | {error, confirm_errors() | invalid_activity_errors()}.
 
 confirm(ShareholderId, Share) ->
     call({confirm, ShareholderId, Share}).
 
--spec start_validation() -> {ok, encrypted_master_key_shares()}.
+-spec start_validation() -> {ok, encrypted_master_key_shares()} | {error, invalid_activity_errors()}.
 
 start_validation() ->
     call(start_validatation).
@@ -83,8 +84,7 @@ start_validation() ->
 -spec validate(shareholder_id(), masterkey_share()) ->
     {ok, {more, integer()}} |
     {ok, {done, encrypted_keyring()}} |
-    {error, validate_errors()} |
-    {error, {invalid_activity, state()}}.
+    {error, validate_errors() | invalid_activity_errors()}.
 
 validate(ShareholderId, Share) ->
     call({validate, ShareholderId, Share}).
