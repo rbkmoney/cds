@@ -11,11 +11,11 @@
 -export([confirm/2]).
 -export([start_validation/0]).
 -export([validate/2]).
--export([get_state/0]).
 -export([get_status/0]).
 -export([cancel/0]).
 -export([handle_event/4]).
 -export_type([encrypted_master_key_shares/0]).
+-export_type([status/0]).
 
 -define(STATEM, ?MODULE).
 
@@ -26,7 +26,7 @@
     shareholders,
     confirmation_shares = #{},
     validation_shares = #{},
-    timeout
+    timer
 }).
 
 -type shareholder_id() :: cds_shareholder:shareholder_id().
@@ -35,13 +35,18 @@
 -type encrypted_master_key_shares() :: cds_keysharing:encrypted_master_key_shares().
 
 -type data() :: #data{}.
+-type status() :: #{
+    phase => state(),
+    lifetime => timer:seconds(),
+    confirmation_shares => #{cds_keysharing:share_id() => shareholder_id()},
+    validation_shares => #{cds_keysharing:share_id() => shareholder_id()}
+}.
 
 -type encrypted_keyring() :: cds_keyring:encrypted_keyring().
--type decrypted_keyring() :: cds_keyring:keyring().
 
 -type state() :: uninitialized | validation.
 
--type threshold() :: non_neg_integer().
+-type threshold() :: cds_keysharing:threshold().
 
 -type validate_errors() :: {operation_aborted,
     non_matching_masterkey | failed_to_decrypt_keyring | failed_to_recover}.
@@ -76,7 +81,10 @@ start_validation() ->
     call(start_validatation).
 
 -spec validate(shareholder_id(), masterkey_share()) ->
-    {ok, {more, integer()}} | {ok, encrypted_keyring()} | {error, validate_errors()}.
+    {ok, {more, integer()}} |
+    {ok, {done, encrypted_keyring()}} |
+    {error, validate_errors()} |
+    {error, {invalid_activity, state()}}.
 
 validate(ShareholderId, Share) ->
     call({validate, ShareholderId, Share}).
@@ -86,12 +94,7 @@ validate(ShareholderId, Share) ->
 cancel() ->
     call(cancel).
 
--spec get_state() -> atom().
-
-get_state() ->
-    call(get_state).
-
--spec get_status() -> map().
+-spec get_status() -> status().
 
 get_status() ->
     call(get_status).
@@ -119,7 +122,7 @@ handle_event({call, From}, {initialize, Threshold, EncryptedKeyring}, uninitiali
                 encrypted_keyring = EncryptedKeyring,
                 threshold = Threshold,
                 shareholders = Shareholders,
-                timeout = TimerRef},
+                timer = TimerRef},
             {next_state,
                 confirmation,
                 NewData,
@@ -131,11 +134,11 @@ handle_event({call, From}, {initialize, Threshold, EncryptedKeyring}, uninitiali
                 {reply, From, {error, invalid_args}}}
     end;
 handle_event({call, From}, {confirm, ShareholderId, Share}, confirmation,
-    #data{confirmation_shares = Shares, encrypted_keyring = EncryptedKeyring, timeout = TimerRef} = Data) ->
+    #data{confirmation_shares = Shares, encrypted_keyring = EncryptedKeyring, timer = TimerRef} = Data) ->
     #share{x = X, threshold = Threshold} = cds_keysharing:convert(Share),
     case Shares#{X => {ShareholderId, Share}} of
         AllShares when map_size(AllShares) =:= Threshold ->
-            ListShares = lists:map(fun ({_ShareholderId, Share1}) -> Share1 end, maps:values(AllShares)),
+            ListShares = cds_keysharing:get_shares(AllShares),
             case confirm_operation(EncryptedKeyring, ListShares) of
                 {ok, Keyring} ->
                     NewData = Data#data{confirmation_shares = AllShares, keyring = Keyring},
@@ -174,13 +177,13 @@ handle_event({call, From}, {validate, ShareholderId, Share}, validation,
         threshold = Threshold,
         validation_shares = Shares,
         encrypted_keyring = EncryptedKeyring,
-        timeout = TimerRef} = Data) ->
+        timer = TimerRef} = Data) ->
     #share{x = X} = cds_keysharing:convert(Share),
     ShareholdersCount = length(Shareholders),
     case Shares#{X => {ShareholderId, Share}} of
         AllShares when map_size(AllShares) =:= ShareholdersCount ->
             _Time = erlang:cancel_timer(TimerRef),
-            ListShares = lists:map(fun ({_ShareholderId, Share1}) -> Share1 end, maps:values(AllShares)),
+            ListShares = cds_keysharing:get_shares(AllShares),
             Result = validate_operation(Threshold, ListShares, EncryptedKeyring),
             {next_state,
                 uninitialized,
@@ -201,10 +204,10 @@ handle_event({call, From}, get_state, State, _Data) ->
         {reply, From, State}
     ]};
 handle_event({call, From}, get_status, State,
-    #data{timeout = TimerRef, confirmation_shares = ConfirmationShares, validation_shares = ValidationShares}) ->
+    #data{timer = TimerRef, confirmation_shares = ConfirmationShares, validation_shares = ValidationShares}) ->
     Lifetime = get_lifetime(TimerRef),
-    ConfirmationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ConfirmationShares),
-    ValidationSharesStripped = maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, ValidationShares),
+    ConfirmationSharesStripped = cds_keysharing:get_id_map(ConfirmationShares),
+    ValidationSharesStripped = cds_keysharing:get_id_map(ValidationShares),
     Status = #{
         phase => State,
         lifetime => Lifetime,
@@ -212,7 +215,7 @@ handle_event({call, From}, get_status, State,
         validation_shares => ValidationSharesStripped
     },
     {keep_state_and_data, {reply, From, Status}};
-handle_event({call, From}, cancel, _State, #data{timeout = TimerRef}) ->
+handle_event({call, From}, cancel, _State, #data{timer = TimerRef}) ->
     _ = erlang:cancel_timer(TimerRef),
     {next_state, uninitialized, #data{}, {reply, From, ok}};
 handle_event(info, {timeout, _TimerRef, lifetime_expired}, _State, _Data) ->
@@ -242,7 +245,7 @@ handle_event({call, From}, _Event, validation, _Data) ->
 get_timeout() ->
     genlib_app:env(cds, keyring_rekeying_lifetime, 3 * 60 * 1000).
 
--spec get_lifetime(reference() | undefined) -> non_neg_integer().
+-spec get_lifetime(reference() | undefined) -> timer:seconds().
 
 get_lifetime(TimerRef) ->
     case TimerRef of
@@ -269,15 +272,14 @@ confirm_operation(EncryptedOldKeyring, AllShares) ->
     end.
 
 -spec validate_operation(threshold(), masterkey_shares(), encrypted_keyring()) ->
-    {ok, {done, {encrypted_keyring(), decrypted_keyring()}}} | {error, validate_errors()}.
+    {ok, {done, encrypted_keyring()}} | {error, validate_errors()}.
 
 validate_operation(Threshold, Shares, EncryptedKeyring) ->
-    AllSharesCombos = lib_combin:cnr(Threshold, Shares),
-    case cds_keysharing:restore_and_compare_masterkey(AllSharesCombos) of
+    case cds_keysharing:validate_shares(Threshold, Shares) of
         {ok, MasterKey} ->
             case cds_keyring:decrypt(MasterKey, EncryptedKeyring) of
                 {ok, _DecryptedKeyring} ->
-                    {ok, EncryptedKeyring};
+                    {ok, {done, EncryptedKeyring}};
                 {error, decryption_failed} ->
                     {error, {operation_aborted, failed_to_decrypt_keyring}}
             end;

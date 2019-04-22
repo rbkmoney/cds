@@ -24,7 +24,6 @@
 -export([start_validate_rekey/0]).
 -export([validate_rekey/2]).
 -export([cancel_rekey/0]).
--export([get_state/0]).
 -export([get_status/0]).
 
 %% gen_fsm.
@@ -40,6 +39,7 @@
 -export([handle_info/3]).
 -export([terminate/3]).
 -export([code_change/4]).
+-export_type([status/0]).
 
 -define(FSM, ?MODULE).
 
@@ -48,6 +48,15 @@
 }).
 
 -type state() :: #state{}.
+-type status() :: #{
+    status => locked | unlocked | not_initialized,
+    activities => #{
+        initialization => cds_keyring_initializer:status(),
+        rotation => cds_keyring_rotator:status(),
+        unlock => cds_keyring_unlocker:status(),
+        rekeying => cds_keyring_rekeyer:status()
+    }
+}.
 
 %% API.
 
@@ -138,11 +147,7 @@ validate_rekey(ShareholderId, Share) ->
 cancel_rekey() ->
     sync_send_event(cancel_rekey).
 
--spec get_state() -> locked | unlocked | not_initialized.
-get_state() ->
-    sync_send_all_state_event(get_state).
-
--spec get_status() -> map().
+-spec get_status() -> status().
 get_status() ->
     sync_send_all_state_event(get_status).
 
@@ -280,14 +285,8 @@ unlocked({start_rekey, Threshold}, _From, StateData) ->
     Result = cds_keyring_rekeyer:initialize(Threshold, EncryptedKeyring),
     {reply, Result, unlocked, StateData};
 unlocked({confirm_rekey, ShareholderId, Share}, _From, StateData) ->
-    case cds_keyring_rekeyer:confirm(ShareholderId, Share) of
-        {ok, {more, _More}} = Result ->
-            {reply, Result, unlocked, StateData};
-        ok ->
-            {reply, ok, unlocked, StateData};
-        {error, Error} ->
-            {reply, {error, Error}, unlocked, StateData}
-    end;
+    Result =  cds_keyring_rekeyer:confirm(ShareholderId, Share),
+    {reply, Result, unlocked, StateData};
 unlocked(start_validate_rekey, _From, StateData) ->
     Result = cds_keyring_rekeyer:start_validation(),
     {reply, Result, unlocked, StateData};
@@ -295,7 +294,7 @@ unlocked({validate_rekey, ShareholderId, Share}, _From, StateData) ->
     case cds_keyring_rekeyer:validate(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
-        {ok, EncryptedNewKeyring} ->
+        {ok, {done, EncryptedNewKeyring}} ->
             ok = cds_keyring_storage:update(EncryptedNewKeyring),
             {reply, ok, unlocked, StateData};
         {error, Error} ->

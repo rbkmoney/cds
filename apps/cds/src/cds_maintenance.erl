@@ -75,9 +75,9 @@ refresh(Getter, Refresher, Continuation0) ->
     end.
 
 assert_keyring_available() ->
-    case cds_keyring_manager:get_state() of
-        unlocked ->
+    case cds_keyring_manager:get_status() of
+        #{status := unlocked} ->
             ok;
-        locked ->
+        #{status := locked} ->
             throw(locked)
     end.

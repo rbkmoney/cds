@@ -6,7 +6,10 @@
 -export([recover/1]).
 -export([convert/1]).
 -export([encrypt_shares_for_shareholders/2]).
--export([restore_and_compare_masterkey/1]).
+-export([get_shares/1]).
+-export([get_id_map/1]).
+-export([validate_shares/2]).
+-export([validate_share_combos/1]).
 
 -export_type([masterkey_share/0]).
 -export_type([signed_masterkey_share/0]).
@@ -14,18 +17,22 @@
 -export_type([encrypted_master_key_shares/0]).
 -export_type([masterkey/0]).
 -export_type([share_id/0]).
+-export_type([threshold/0]).
 
 -type masterkey() :: binary().
 -type masterkey_share() :: binary().
 -type masterkey_shares() :: [masterkey_share()].
+-type masterkey_shares_map() :: #{share_id() => {shareholder_id(), masterkey_share()}}.
 -type signed_masterkey_share() :: binary().
 -type share_id() :: byte().
+-type threshold() :: byte().
 -type share() :: #share{
-    threshold :: byte(),
+    threshold :: threshold(),
     x :: share_id(),
     y :: binary()
 }.
 
+-type shareholder_id() :: cds_shareholder:shareholder_id().
 -type shareholder() :: cds_shareholder:shareholder().
 -type shareholders() :: cds_shareholder:shareholders().
 
@@ -85,10 +92,27 @@ encrypt_share_for_shareholder({Share, #{id := Id, owner := Owner} = Shareholder}
         encrypted_share => cds_crypto:public_encrypt(PublicKey, Share)
     }.
 
--spec restore_and_compare_masterkey([masterkey_shares(), ...]) ->
+-spec get_shares(masterkey_shares_map()) -> masterkey_shares().
+
+get_shares(Shares) ->
+    lists:map(fun ({_ShareholderId, Share}) -> Share end, maps:values(Shares)).
+
+-spec get_id_map(masterkey_shares_map()) -> #{share_id() => shareholder_id()}.
+
+get_id_map(Shares) ->
+    maps:map(fun (_K, {ShareholderId, _Share}) -> ShareholderId end, Shares).
+
+-spec validate_shares(threshold(), masterkey_shares()) ->
     {ok, masterkey()} | {error, non_matching_masterkey | failed_to_recover}.
 
-restore_and_compare_masterkey([FirstCombo | CombosOfShares]) ->
+validate_shares(Threshold, Shares) ->
+    AllSharesCombos = lib_combin:cnr(Threshold, Shares),
+    validate_share_combos(AllSharesCombos).
+
+-spec validate_share_combos([masterkey_shares(), ...]) ->
+    {ok, masterkey()} | {error, non_matching_masterkey | failed_to_recover}.
+
+validate_share_combos([FirstCombo | CombosOfShares]) ->
     lists:foldl(
         fun
             (ComboOfShares, {ok, MasterKey}) ->

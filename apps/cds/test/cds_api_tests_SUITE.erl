@@ -51,7 +51,7 @@
 -export([get_session_card_data_unavailable/1]).
 -export([put_card_data_no_member/1]).
 
--export([decrypt_masterkeys/3]).
+-export([decrypt_and_sign_masterkeys/3]).
 -export([validate_init/2]).
 
 %%
@@ -293,10 +293,32 @@ init(C) ->
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
-    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
-    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]) ,
+    DecryptedMasterKeyShares = decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+    _ = ?assertMatch(
+        #'KeyringState'{
+            status = not_initialized,
+            activities = #'ActivitiesState'{
+                initialization = #'InitializationState'{
+                    phase = validation,
+                    validation_shares = #{}
+                }
+            }
+        },
+        cds_keyring_client:get_state(root_url(C))
+    ),
     ok = validate_init(DecryptedMasterKeyShares, C),
-    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
+    _ = ?assertMatch(
+        #'KeyringState'{
+            status = unlocked,
+            activities = #'ActivitiesState'{
+                initialization = #'InitializationState'{
+                    phase = uninitialized,
+                    validation_shares = #{}
+                }
+            }
+        },
+        cds_keyring_client:get_state(root_url(C))
+    ),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
 -spec init_with_timeout(config()) -> _.
@@ -333,7 +355,7 @@ partial_init(C) ->
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
     [{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares] =
-        decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+        decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
     _ = ?assertEqual(
         {more_keys_needed, DecryptedMasterKeySharesCount},
@@ -345,10 +367,10 @@ partial_init(C) ->
     ),
     {Id, DecryptedMasterKeyShare}.
 
--spec decrypt_masterkeys(cds_keysharing:encrypted_master_key_shares(), map(), map()) ->
+-spec decrypt_and_sign_masterkeys(cds_keysharing:encrypted_master_key_shares(), map(), map()) ->
     [{cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()}].
 
-decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys) ->
+decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys) ->
     lists:map(
         fun
             (#{id := Id, owner := Owner, encrypted_share := EncryptedShare}) ->
@@ -363,12 +385,17 @@ decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys) ->
 -spec validate_init([{cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()}], config()) -> ok.
 
 validate_init([{Id, DecryptedMasterKeyShare} | []], C) ->
-    {success, #'Success'{}} = cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C)),
+    _ = ?assertEqual(
+        {success, #'Success'{}},
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+    ),
     ok;
 validate_init([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
-    {more_keys_needed, DecryptedMasterKeySharesCount} =
-        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C)),
+    _ = ?assertEqual(
+        {more_keys_needed, DecryptedMasterKeySharesCount},
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+    ),
     validate_init(DecryptedMasterKeyShares, C).
 
 -spec lock(config()) -> _.
@@ -379,11 +406,32 @@ lock(C) ->
 -spec unlock(config()) -> _.
 
 unlock(C) ->
-    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
+    _ = ?assertMatch(
+        #'KeyringState'{
+            status = locked,
+            activities = #'ActivitiesState'{
+                unlock = #'UnlockState'{
+                    phase = uninitialized
+                }
+            }
+        },
+        cds_keyring_client:get_state(root_url(C))
+    ),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     _ = ?assertEqual(ok, cds_keyring_client:start_unlock(root_url(C))),
     _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:validate_unlock(Id1, MasterKey1, root_url(C))),
-    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
+    _ = ?assertMatch(
+        #'KeyringState'{
+            status = locked,
+            activities = #'ActivitiesState'{
+                unlock = #'UnlockState'{
+                    phase = validation,
+                    validation_shares = #{1 := Id1}
+                }
+            }
+        },
+        cds_keyring_client:get_state(root_url(C))
+    ),
     _ = ?assertEqual({success, #'Success'{}}, cds_keyring_client:validate_unlock(Id2, MasterKey2, root_url(C))).
 
 -spec unlock_with_timeout(config()) -> _.
@@ -431,12 +479,24 @@ rekey(C) ->
     EncodedEncryptedMasterKeyShares = cds_keyring_client:start_rekey_validation(root_url(C)),
     EncryptedMasterKeyShares =
         cds_keyring_thrift_handler:decode_encrypted_shares(EncodedEncryptedMasterKeyShares),
-    ok = ct:print("GetState: ~w ~n", [cds_keyring_client:get_state(root_url(C))]),
+    _ = ?assertMatch(
+        #'KeyringState'{
+            status = unlocked,
+            activities = #'ActivitiesState'{
+                rekeying = #'RekeyingState'{
+                    phase = validation,
+                    confirmation_shares = #{1 := Id1, 2 := Id2},
+                    validation_shares = #{}
+                }
+            }
+        },
+        cds_keyring_client:get_state(root_url(C))
+    ),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
-    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+    DecryptedMasterKeyShares = decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
     ok = validate_rekey(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
@@ -471,7 +531,7 @@ rekey_with_timeout(C) ->
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
-    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+    DecryptedMasterKeyShares = decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
     ok = validate_rekey(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
@@ -497,19 +557,24 @@ rekey_with_cancel(C) ->
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
-    DecryptedMasterKeyShares = decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+    DecryptedMasterKeyShares = decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
     ok = validate_rekey(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
 -spec validate_rekey([{cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()}], config()) -> ok.
 
 validate_rekey([{Id, DecryptedMasterKeyShare} | []], C) ->
-    {success, #'Success'{}} = cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C)),
+    _ = ?assertEqual(
+        {success, #'Success'{}},
+        cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C))
+    ),
     ok;
 validate_rekey([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
-    {more_keys_needed, DecryptedMasterKeySharesCount} =
-        cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C)),
+    _ = ?assertEqual(
+        {more_keys_needed, DecryptedMasterKeySharesCount},
+        cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C))
+    ),
     validate_rekey(DecryptedMasterKeyShares, C).
 
 -spec put_card_data(config()) -> _.
@@ -679,27 +744,24 @@ init_operation_aborted(C) ->
     _ = cds_keyring_client:start_init(2, root_url(C)),
     {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    Reason1 = atom_to_binary(failed_to_recover, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason1},
+        #'OperationAborted'{reason = <<"failed_to_recover">>},
         cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey4), root_url(C))
     ),
 
     _ = cds_keyring_client:start_init(2, root_url(C)),
     {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    Reason2 = atom_to_binary(failed_to_decrypt_keyring, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason2},
+        #'OperationAborted'{reason = <<"failed_to_decrypt_keyring">>},
         cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey3), root_url(C))
     ),
 
     _ = cds_keyring_client:start_init(1, root_url(C)),
     {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey5), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey6), root_url(C)),
-    Reason3 = atom_to_binary(non_matching_masterkey, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason3},
+        #'OperationAborted'{reason = <<"non_matching_masterkey">>},
         cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey9), root_url(C))
     ).
 
@@ -721,17 +783,15 @@ rekey_operation_aborted(C) ->
     ok = cds_keyring_client:start_rekey(2, root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    Reason1 = atom_to_binary(wrong_masterkey, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason1},
+        #'OperationAborted'{reason = <<"wrong_masterkey">>},
         cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))
     ),
 
     ok = cds_keyring_client:start_rekey(2, root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    Reason2 = atom_to_binary(failed_to_recover, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason2},
+        #'OperationAborted'{reason = <<"failed_to_recover">>},
         cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey4), root_url(C))
     ),
 
@@ -742,9 +802,8 @@ rekey_operation_aborted(C) ->
     {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    Reason3 = atom_to_binary(failed_to_recover, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason3},
+        #'OperationAborted'{reason = <<"failed_to_recover">>},
         cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey4), root_url(C))
     ),
 
@@ -754,9 +813,8 @@ rekey_operation_aborted(C) ->
     _ = cds_keyring_client:start_rekey_validation(root_url(C)),
     {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    Reason4 = atom_to_binary(failed_to_decrypt_keyring, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason4},
+        #'OperationAborted'{reason = <<"failed_to_decrypt_keyring">>},
         cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey3), root_url(C))
     ),
 
@@ -766,9 +824,8 @@ rekey_operation_aborted(C) ->
     _ = cds_keyring_client:start_rekey_validation(root_url(C)),
     {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey5), root_url(C)),
     {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey6), root_url(C)),
-    Reason5 = atom_to_binary(non_matching_masterkey, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason5},
+        #'OperationAborted'{reason = <<"non_matching_masterkey">>},
         cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey9), root_url(C))
     )
 .
@@ -832,9 +889,8 @@ rotate_failed_to_recover(C) ->
         {more_keys_needed, 1},
         cds_keyring_client:validate_rotate(Id1, MasterKey1, root_url(C))
     ),
-    Reason = atom_to_binary(failed_to_recover, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason},
+        #'OperationAborted'{reason = <<"failed_to_recover">>},
         cds_keyring_client:validate_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))
     ).
 
@@ -853,9 +909,8 @@ rotate_wrong_masterkey(C) ->
         {more_keys_needed, 1},
         cds_keyring_client:validate_rotate(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C))
     ),
-    Reason = atom_to_binary(wrong_masterkey, utf8),
     _ = ?assertThrow(
-        #'OperationAborted'{reason = Reason},
+        #'OperationAborted'{reason = <<"wrong_masterkey">>},
         cds_keyring_client:validate_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))
     ).
 

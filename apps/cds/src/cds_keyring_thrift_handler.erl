@@ -175,7 +175,7 @@ handle_function_('CancelRekey', [], _Context, _Opts) ->
 handle_function_('GetState', [], _Context, _Opts) ->
     case cds_keyring_manager:get_status() of
         Status ->
-            {ok, convert_to_state(Status)}
+            {ok, encode_state(Status)}
     end.
 
 -spec encode_encrypted_shares([cds_keysharing:encrypted_master_key_share()]) ->
@@ -234,7 +234,7 @@ verify_signed_share(ShareholderId, SignedShare) ->
             cds_thrift_handler_utils:raise(#'VerificationFailed'{})
     end.
 
-convert_to_state(#{
+encode_state(#{
     status := Status,
     activities := #{
         initialization := #{
