@@ -103,54 +103,12 @@ $ woorl -s damsel/proto/cds.thrift \
 Каждый владелец фрагментов ключа расшифровывает свою часть, подписывает и отдает на валидацию:
 
 ```bash
-$ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step crypto jwe decrypt --key rsa-enc.json) --key ec.json | \
- (read DecryptedShare; \
+$ echo "<insert EncryptedMasterKeyShare here>" | \
+  step crypto jwe decrypt --key rsa-enc.json | \
+  step crypto jws sign - --key ec.json | \
   woorl -s damsel/proto/cds.thrift \
    'http://cds:8022/v1/keyring' \
-   Keyring ValidateInit '"<insert id, ex. ndiezel>"' '"'"$(echo $DecryptedShare)"'"')
-```
-
-`EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
-
-`http://cds:8022/v1/keyring` - пример пути до `cds`
-
-## Ротация
-
-Создание нового ключа для токенизации карточных данных и добавление его в `Keyring`.
-
-Разделен на 2 этапа: Начало и Валидация.
-
-На этапе 'Начало' вызывается метод начала операции.
-
-На этапе Валидация владельцы фрагментов мастер-ключа отправляют фрагменты в виде JWS,
- подписанного криптоключом. Собранные фрагменты востанавливают мастер-ключ и 
- расшифровывают `Keyring`. В случае успеха последнему, отправившему фрагмент, вернется
- `Success` и новый `Keyring` будет использоваться в дальнейшем. Если не удается
- востановить `MasterKey` из фрагментов или востановленным ключом не получается 
- расшифровать `Keyring`, то процесс Ротации прерывается и необходимо начинать с этапа
- 'Начало'.
- 
-### Начало
-
-Начинаем процесс ротации:
-
-```bash
-$ woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
-   Keyring StartRotate
-```
-
-### Валидация
-
-`Threshold` владельцев фрагментов ключа расшифровывают свою часть, подписывают и отдают
- на валидацию:
- 
-```bash
-$ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step crypto jwe decrypt --key rsa-enc.json) --key ec.json | \
- (read DecryptedShare; \
-  woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
-   Keyring ValidateRotate '"<insert id, ex. ndiezel>"' '"'"$(echo $DecryptedShare)"'"')
+   Keyring ValidateInit '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
@@ -159,7 +117,7 @@ $ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step cry
 
 ## Разблокировка
 
-Расшифровывает зашиврованный `Keyring`, что позволяет производить другие операции.
+Расшифровывает зашифрованный `Keyring`, что позволяет производить другие операции.
 
 Разделен на 2 этапа: Начало и Валидация.
 
@@ -189,21 +147,67 @@ $ woorl -s damsel/proto/cds.thrift \
  на валидацию:
  
 ```bash
-$ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step crypto jwe decrypt --key rsa-enc.json) --key ec.json | \
- (read DecryptedShare; \
+$ echo "<insert EncryptedMasterKeyShare here>" | \
+  step crypto jwe decrypt --key rsa-enc.json | \
+  step crypto jws sign - --key ec.json | \
   woorl -s damsel/proto/cds.thrift \
    'http://cds:8022/v1/keyring' \
-   Keyring ValidateUnlock '"<insert id, ex. ndiezel>"' '"'"$(echo $DecryptedShare)"'"')
+   Keyring ValidateUnlock '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
 
 `http://cds:8022/v1/keyring` - пример пути до `cds`
 
-## Замена ключа
+## Ротация ключа шифрования карточных данных
 
-Перегенерация `MasterKey`, разделение на количество `shareholders`, указанных в конфиге
- фрагментов, и отдача держателям указаным в `shareholders`.
+Создание нового ключа для шифрования карточных данных и добавление его в `Keyring`.
+
+Разделен на 2 этапа: Начало и Валидация.
+
+На этапе 'Начало' вызывается метод начала операции.
+
+На этапе Валидация владельцы фрагментов мастер-ключа отправляют фрагменты в виде JWS,
+ подписанного криптоключом. Собранные фрагменты востанавливают мастер-ключ и 
+ расшифровывают `Keyring`. В случае успеха последнему, отправившему фрагмент, вернется
+ `Success` и новый `Keyring` будет использоваться в дальнейшем. Если не удается
+ востановить `MasterKey` из фрагментов или востановленным ключом не получается 
+ расшифровать `Keyring`, то процесс Ротации прерывается и необходимо начинать с этапа
+ 'Начало'.
+ 
+### Начало
+
+Начинаем процесс ротации:
+
+```bash
+$ woorl -s damsel/proto/cds.thrift \
+   'http://cds:8022/v1/keyring' \
+   Keyring StartRotate
+```
+
+### Валидация
+
+`Threshold` владельцев фрагментов ключа расшифровывают свою часть, подписывают и отдают
+ на валидацию:
+ 
+```bash
+$ echo "<insert EncryptedMasterKeyShare here>" | \
+  step crypto jwe decrypt --key rsa-enc.json | \
+  step crypto jws sign - --key ec.json | \
+  woorl -s damsel/proto/cds.thrift \
+   'http://cds:8022/v1/keyring' \
+   Keyring ValidateRotate '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+```
+
+`EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
+
+`http://cds:8022/v1/keyring` - пример пути до `cds`
+
+## Замена ключа шифрования `keyring`
+
+Перегенерация `MasterKey`, используемого для шифрования `keyring`, разделение на
+ количество `shareholders`, указанных в конфиге фрагментов, и отдача держателям
+ указаным в `shareholders`.
  
 Разделен на 4 этапа: Начало, Подтверждение, Постподтверждение и Валидация
 
@@ -244,11 +248,12 @@ $ woorl -s damsel/proto/cds.thrift \
  на подтверждение:
  
 ```bash
-$ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step crypto jwe decrypt --key rsa-enc.json) --key ec.json | \
- (read DecryptedShare; \
+$ echo "<insert EncryptedMasterKeyShare here>" | \
+  step crypto jwe decrypt --key rsa-enc.json | \
+  step crypto jws sign - --key ec.json | \
   woorl -s damsel/proto/cds.thrift \
    'http://cds:8022/v1/keyring' \
-   Keyring ConfirmRekey '"<insert id, ex. ndiezel>"' '"'"$(echo $DecryptedShare)"'"')
+   Keyring ConfirmRekey '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
@@ -257,7 +262,7 @@ $ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step cry
 
 ### Постподтверждение
 
-Получаем зашиврованные фрагменты мастер-ключа.
+Получаем зашифрованные фрагменты мастер-ключа.
 
 ```bash
 $ woorl -s damsel/proto/cds.thrift \
@@ -283,11 +288,12 @@ $ woorl -s damsel/proto/cds.thrift \
  на валидацию:
  
 ```bash
-$ step crypto jws sign <(echo "<insert EncryptedMasterKeyShare here>" | step crypto jwe decrypt --key rsa-enc.json) --key ec.json | \
- (read DecryptedShare; \
+$ echo "<insert EncryptedMasterKeyShare here>" | \
+  step crypto jwe decrypt --key rsa-enc.json | \
+  step crypto jws sign - --key ec.json | \
   woorl -s damsel/proto/cds.thrift \
    'http://cds:8022/v1/keyring' \
-   Keyring ValidateRekey '"<insert id, ex. ndiezel>"' '"'"$(echo $DecryptedShare)"'"')
+   Keyring ValidateRekey '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
