@@ -152,7 +152,7 @@ get_timeout() ->
 get_lifetime(TimerRef) ->
     case TimerRef of
         undefined ->
-            get_timeout() div 1000;
+            undefined;
         TimerRef ->
             erlang:read_timer(TimerRef) div 1000
     end.
