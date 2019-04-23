@@ -37,12 +37,18 @@
 -export([refresh_sessions/1]).
 -export([init_invalid_status/1]).
 -export([init_invalid_args/1]).
--export([init_operation_aborted/1]).
+-export([init_operation_aborted_failed_to_recover/1]).
+-export([init_operation_aborted_failed_to_decrypt/1]).
+-export([init_operation_aborted_non_matching_mk/1]).
 -export([lock_invalid_status/1]).
 -export([rotate_invalid_status/1]).
 -export([rekey_invalid_args/1]).
 -export([rekey_invalid_status/1]).
--export([rekey_operation_aborted/1]).
+-export([rekey_operation_aborted_failed_to_decrypt_keyring/1]).
+-export([rekey_operation_aborted_failed_to_recover_confirm/1]).
+-export([rekey_operation_aborted_failed_to_recover_validate/1]).
+-export([rekey_operation_aborted_non_matching_masterkey/1]).
+-export([rekey_operation_aborted_wrong_masterkey/1]).
 -export([rotate_failed_to_recover/1]).
 -export([rotate_wrong_masterkey/1]).
 -export([put_card_data_unavailable/1]).
@@ -145,7 +151,9 @@ groups() ->
             init_invalid_args,
             init_with_cancel,
             init_with_timeout,
-            init_operation_aborted,
+            init_operation_aborted_failed_to_recover,
+            init_operation_aborted_failed_to_decrypt,
+            init_operation_aborted_non_matching_mk,
             init,
             init_invalid_status,
             lock,
@@ -161,7 +169,11 @@ groups() ->
             get_session_card_data_unavailable,
             unlock,
             rekey_invalid_args,
-            rekey_operation_aborted,
+            rekey_operation_aborted_failed_to_decrypt_keyring,
+            rekey_operation_aborted_failed_to_recover_confirm,
+            rekey_operation_aborted_failed_to_recover_validate,
+            rekey_operation_aborted_non_matching_masterkey,
+            rekey_operation_aborted_wrong_masterkey,
             rotate_with_cancel,
             rotate_failed_to_recover,
             rotate_wrong_masterkey
@@ -727,108 +739,161 @@ init_invalid_args(C) ->
         cds_keyring_client:start_init(0, root_url(C))
     ).
 
--spec init_operation_aborted(config) -> _.
+-spec init_operation_aborted_failed_to_recover(config()) -> _.
 
-init_operation_aborted(C) ->
-    MK = cds_crypto:key(),
-    [MasterKey1, MasterKey2, MasterKey3] = cds_keysharing:share(MK, 2, 3),
-    MasterKey4 = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
+init_operation_aborted_failed_to_recover(C) ->
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
+    InvalidShare = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
-    MK2 = cds_crypto:key(),
-    [MasterKey5, MasterKey6 | _] = cds_keysharing:share(MK2, 1, 3),
-    MK3 = cds_crypto:key(),
-    [_MasterKey7, _MasterKey8, MasterKey9] = cds_keysharing:share(MK3, 1, 3),
 
     _ = cds_keyring_client:start_init(2, root_url(C)),
-    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
     _ = ?assertThrow(
         #'OperationAborted'{reason = <<"failed_to_recover">>},
-        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey4), root_url(C))
-    ),
-
-    _ = cds_keyring_client:start_init(2, root_url(C)),
-    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    _ = ?assertThrow(
-        #'OperationAborted'{reason = <<"failed_to_decrypt_keyring">>},
-        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey3), root_url(C))
-    ),
-
-    _ = cds_keyring_client:start_init(1, root_url(C)),
-    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey5), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey6), root_url(C)),
-    _ = ?assertThrow(
-        #'OperationAborted'{reason = <<"non_matching_masterkey">>},
-        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey9), root_url(C))
+        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, InvalidShare), root_url(C))
     ).
 
--spec rekey_operation_aborted(config()) -> _.
+-spec init_operation_aborted_failed_to_decrypt(config()) -> _.
 
-rekey_operation_aborted(C) ->
-    MK = cds_crypto:key(),
-    [{Id1, TrueMasterKey1}, {Id2, TrueMasterKey2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
-    [MasterKey1, MasterKey2, MasterKey3] = cds_keysharing:share(MK, 2, 3),
-    MasterKey4 = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
+init_operation_aborted_failed_to_decrypt(C) ->
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
-    MK2 = cds_crypto:key(),
-    [MasterKey5, MasterKey6 | _] = cds_keysharing:share(MK2, 1, 3),
-    MK3 = cds_crypto:key(),
-    [_MasterKey7, _MasterKey8, MasterKey9] = cds_keysharing:share(MK3, 1, 3),
 
-    ok = cds_keyring_client:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    _ = ?assertThrow(
-        #'OperationAborted'{reason = <<"wrong_masterkey">>},
-        cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))
-    ),
-
-    ok = cds_keyring_client:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    _ = ?assertThrow(
-        #'OperationAborted'{reason = <<"failed_to_recover">>},
-        cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey4), root_url(C))
-    ),
-
-    ok = cds_keyring_client:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueMasterKey1, root_url(C)),
-    {success, #'Success'{}} = cds_keyring_client:confirm_rekey(Id2, TrueMasterKey2, root_url(C)),
-    _ = cds_keyring_client:start_rekey_validation(root_url(C)),
-    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
-    _ = ?assertThrow(
-        #'OperationAborted'{reason = <<"failed_to_recover">>},
-        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey4), root_url(C))
-    ),
-
-    ok = cds_keyring_client:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueMasterKey1, root_url(C)),
-    {success, #'Success'{}} = cds_keyring_client:confirm_rekey(Id2, TrueMasterKey2, root_url(C)),
-    _ = cds_keyring_client:start_rekey_validation(root_url(C)),
-    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C)),
+    _ = cds_keyring_client:start_init(2, root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
     _ = ?assertThrow(
         #'OperationAborted'{reason = <<"failed_to_decrypt_keyring">>},
-        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey3), root_url(C))
-    ),
+        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare3), root_url(C))
+    ).
 
-    ok = cds_keyring_client:start_rekey(1, root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueMasterKey1, root_url(C)),
-    {success, #'Success'{}} = cds_keyring_client:confirm_rekey(Id2, TrueMasterKey2, root_url(C)),
-    _ = cds_keyring_client:start_rekey_validation(root_url(C)),
-    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey5), root_url(C)),
-    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey6), root_url(C)),
+-spec init_operation_aborted_non_matching_mk(config()) -> _.
+
+init_operation_aborted_non_matching_mk(C) ->
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 1, 3),
+    MasterKey2 = cds_crypto:key(),
+    [_WrongShare4, _WrongShare5, WrongShare6] = cds_keysharing:share(MasterKey2, 1, 3),
+    SigPrivateKeys = sig_private_keys(C),
+    [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
+        maps:to_list(SigPrivateKeys),
+
+    _ = cds_keyring_client:start_init(1, root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
     _ = ?assertThrow(
         #'OperationAborted'{reason = <<"non_matching_masterkey">>},
-        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, MasterKey9), root_url(C))
-    )
-.
+        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare6), root_url(C))
+    ).
+
+-spec rekey_operation_aborted_wrong_masterkey(config()) -> _.
+
+rekey_operation_aborted_wrong_masterkey(C) ->
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
+    SigPrivateKeys = sig_private_keys(C),
+    [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {_Id3, _SigPrivateKey3}] =
+        maps:to_list(SigPrivateKeys),
+
+    ok = cds_keyring_client:start_rekey(2, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    _ = ?assertThrow(
+        #'OperationAborted'{reason = <<"wrong_masterkey">>},
+        cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C))
+    ).
+
+-spec rekey_operation_aborted_failed_to_recover_confirm(config()) -> _.
+
+rekey_operation_aborted_failed_to_recover_confirm(C) ->
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, _WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
+    InvalidShare = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
+    SigPrivateKeys = sig_private_keys(C),
+    [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {_Id3, _SigPrivateKey3}] =
+        maps:to_list(SigPrivateKeys),
+
+    ok = cds_keyring_client:start_rekey(2, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    _ = ?assertThrow(
+        #'OperationAborted'{reason = <<"failed_to_recover">>},
+        cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, InvalidShare), root_url(C))
+    ).
+
+-spec rekey_operation_aborted_failed_to_recover_validate(config()) -> _.
+
+rekey_operation_aborted_failed_to_recover_validate(C) ->
+    [{Id1, TrueSignedShare1}, {Id2, TrueSignedShare2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
+    SigPrivateKeys = sig_private_keys(C),
+    [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
+        maps:to_list(SigPrivateKeys),
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
+    InvalidShare = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
+
+    ok = cds_keyring_client:start_rekey(2, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueSignedShare1, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:confirm_rekey(Id2, TrueSignedShare2, root_url(C)),
+    _ = cds_keyring_client:start_rekey_validation(root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    _ = ?assertThrow(
+        #'OperationAborted'{reason = <<"failed_to_recover">>},
+        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, InvalidShare), root_url(C))
+    ).
+
+-spec rekey_operation_aborted_failed_to_decrypt_keyring(config()) -> _.
+
+rekey_operation_aborted_failed_to_decrypt_keyring(C) ->
+    [{Id1, TrueSignedShare1}, {Id2, TrueSignedShare2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
+    SigPrivateKeys = sig_private_keys(C),
+    [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
+        maps:to_list(SigPrivateKeys),
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
+
+    ok = cds_keyring_client:start_rekey(2, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueSignedShare1, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:confirm_rekey(Id2, TrueSignedShare2, root_url(C)),
+    _ = cds_keyring_client:start_rekey_validation(root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    _ = ?assertThrow(
+        #'OperationAborted'{reason = <<"failed_to_decrypt_keyring">>},
+        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare3), root_url(C))
+    ).
+
+
+-spec rekey_operation_aborted_non_matching_masterkey(config()) -> _.
+
+rekey_operation_aborted_non_matching_masterkey(C) ->
+    [{Id1, TrueSignedShare1}, {Id2, TrueSignedShare2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
+    SigPrivateKeys = sig_private_keys(C),
+    [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
+        maps:to_list(SigPrivateKeys),
+    MasterKey = cds_crypto:key(),
+    [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 1, 3),
+    MasterKey2 = cds_crypto:key(),
+    [_WrongShare4, _WrongShare5, WrongShare6] = cds_keysharing:share(MasterKey2, 1, 3),
+
+    ok = cds_keyring_client:start_rekey(1, root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueSignedShare1, root_url(C)),
+    {success, #'Success'{}} = cds_keyring_client:confirm_rekey(Id2, TrueSignedShare2, root_url(C)),
+    _ = cds_keyring_client:start_rekey_validation(root_url(C)),
+    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    _ = ?assertThrow(
+        #'OperationAborted'{reason = <<"non_matching_masterkey">>},
+        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare6), root_url(C))
+    ).
 
 -spec rekey_invalid_args(config()) -> _.
 
