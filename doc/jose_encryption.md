@@ -133,7 +133,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
  
 ### Начало
 
-Начинаем процесс ротации:
+Начинаем процесс разблокировки:
 
 ```bash
 $ woorl -s damsel/proto/cds.thrift \
