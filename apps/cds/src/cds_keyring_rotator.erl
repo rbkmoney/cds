@@ -11,23 +11,31 @@
 
 -export([start_link/0]).
 -export([initialize/2]).
--export([validate/1]).
--export([get_state/0]).
+-export([validate/2]).
+-export([get_status/0]).
 -export([cancel/0]).
 -export([handle_event/4]).
+-export_type([status/0]).
 
 -record(data, {
-    encrypted_keyring,
-    keyring,
-    shares = #{}
+    encrypted_keyring :: encrypted_keyring() | undefined,
+    keyring :: keyring() | undefined,
+    shares = #{} :: #{cds_keyring:share_id() => {shareholder_id(), masterkey_share()}},
+    timer :: reference() | undefined
 }).
 
 -type data() :: #data{}.
+-type status() :: #{
+    phase => state(),
+    lifetime => timer:seconds(),
+    validation_shares => #{cds_keysharing:share_id() => shareholder_id()}
+}.
+
 -type state() :: uninitialized | validation.
 
--type masterkey() :: binary().
+-type shareholder_id() :: cds_shareholder:shareholder_id().
 -type masterkey_share() :: cds_keysharing:masterkey_share().
--type masterkey_shares() :: #{cds_keysharing:share_id() => masterkey_share()}.
+-type masterkey_shares() :: cds_keysharing:masterkey_shares().
 -type keyring() :: cds_keyring:keyring().
 -type encrypted_keyring() :: cds_keyring:encrypted_keyring().
 -type rotate_errors() ::
@@ -52,20 +60,20 @@ start_link() ->
 initialize(Keyring, EncryptedKeyring) ->
     call({initialize, Keyring, EncryptedKeyring}).
 
--spec validate(masterkey_share()) -> rotate_resp() | invalid_activity().
+-spec validate(shareholder_id(), masterkey_share()) -> rotate_resp() | invalid_activity().
 
-validate(Share) ->
-    call({validate, Share}).
+validate(ShareholderId, Share) ->
+    call({validate, ShareholderId, Share}).
 
 -spec cancel() -> ok.
 
 cancel() ->
     call(cancel).
 
--spec get_state() -> atom().
+-spec get_status() -> status().
 
-get_state() ->
-    call(get_state).
+get_status() ->
+    call(get_status).
 
 call(Msg) ->
     gen_statem:call(?STATEM, Msg).
@@ -81,61 +89,73 @@ init([]) ->
 %% Successful workflow events
 
 handle_event({call, From}, {initialize, Keyring, EncryptedKeyring}, uninitialized, _Data) ->
+    TimerRef = erlang:start_timer(get_timeout(), self(), lifetime_expired),
     {next_state,
         validation,
-        #data{keyring = Keyring, encrypted_keyring = EncryptedKeyring},
-        [
-            {reply, From, ok},
-            {{timeout, lifetime}, get_timeout(), expired}
-        ]};
+        #data{keyring = Keyring, encrypted_keyring = EncryptedKeyring, timer = TimerRef}, {reply, From, ok}};
 
-handle_event({call, From}, {validate, Share}, validation,
-    #data{encrypted_keyring = EncryptedOldKeyring, keyring = OldKeyring, shares = Shares} = StateData) ->
+handle_event({call, From}, {validate, ShareholderId, Share}, validation,
+    #data{encrypted_keyring = EncryptedOldKeyring,
+        keyring = OldKeyring,
+        shares = Shares,
+        timer = TimerRef} = StateData) ->
     #share{threshold = Threshold, x = X} = cds_keysharing:convert(Share),
-    case Shares#{X => Share} of
+    case Shares#{X => {ShareholderId, Share}} of
         AllShares when map_size(AllShares) =:= Threshold ->
-            Result = update_keyring(OldKeyring, EncryptedOldKeyring, AllShares),
-            {next_state, uninitialized, #data{},
-                [
-                    {reply, From, Result},
-                    {{timeout, lifetime}, infinity, expired}
-                ]};
+            _ = erlang:cancel_timer(TimerRef),
+            ListShares = cds_keysharing:get_shares(AllShares),
+            Result = update_keyring(OldKeyring, EncryptedOldKeyring, ListShares),
+            {next_state, uninitialized, #data{}, {reply, From, Result}};
         More ->
             {keep_state,
                 StateData#data{shares = More},
                 {reply, From, {ok, {more, Threshold - map_size(More)}}}}
     end;
 
-%% InvalidActivity events
-
-handle_event({call, From}, {validate, _Share}, uninitialized, _Data) ->
-    {keep_state_and_data,
-        {reply, From, {error, {invalid_activity, {rotation, uninitialized}}}}
-    };
-handle_event({call, From}, {initialize, _Keyring, _EncryptedKeyring}, validation, _Data) ->
-    {keep_state_and_data,
-        {reply, From, {error, {invalid_activity, {rotation, validation}}}}
-    };
-
-
 %% Common events
 
 handle_event({call, From}, get_state, State, _Data) ->
+    {keep_state_and_data, {reply, From, State}};
+handle_event({call, From}, get_status, State, #data{timer = TimerRef, shares = ValidationShares}) ->
+    Lifetime = get_lifetime(TimerRef),
+    ValidationSharesStripped = cds_keysharing:get_id_map(ValidationShares),
+    Status = #{
+        phase => State,
+        lifetime => Lifetime,
+        validation_shares => ValidationSharesStripped
+    },
+    {keep_state_and_data, {reply, From, Status}};
+handle_event({call, From}, cancel, _State, #data{timer = TimerRef}) ->
+    _ = erlang:cancel_timer(TimerRef),
+    {next_state, uninitialized, #data{}, {reply, From, ok}};
+handle_event(info, {timeout, _TimerRef, lifetime_expired}, _State, _Data) ->
+    {next_state, uninitialized, #data{}, []};
+
+%% InvalidActivity events
+
+handle_event({call, From}, _Event, uninitialized, _Data) ->
     {keep_state_and_data,
-        {reply, From, State}
+        {reply, From, {error, {invalid_activity, {rotation, uninitialized}}}}
     };
-handle_event({call, From}, cancel, _State, _Data) ->
-    {next_state, uninitialized, #data{}, [
-        {reply, From, ok},
-        {{timeout, lifetime}, infinity, []}
-    ]};
-handle_event({timeout, lifetime}, expired, _State, _Data) ->
-    {next_state, uninitialized, #data{}, []}.
+handle_event({call, From}, _Event, validation, _Data) ->
+    {keep_state_and_data,
+        {reply, From, {error, {invalid_activity, {rotation, validation}}}}
+    }.
 
 -spec get_timeout() -> non_neg_integer().
 
 get_timeout() ->
     application:get_env(cds, keyring_rotation_lifetime, 60000).
+
+-spec get_lifetime(reference() | undefined) -> timer:seconds().
+
+get_lifetime(TimerRef) ->
+    case TimerRef of
+        undefined ->
+            undefined;
+        TimerRef ->
+            erlang:read_timer(TimerRef) div 1000
+    end.
 
 -spec update_keyring(keyring(), encrypted_keyring(), masterkey_shares()) ->
     {ok, {done, {encrypted_keyring(), keyring()}}} | {error, {operation_aborted, rotate_errors()}}.
@@ -143,33 +163,14 @@ get_timeout() ->
 update_keyring(OldKeyring, EncryptedOldKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of
         {ok, MasterKey} ->
-            case validate_masterkey(MasterKey, OldKeyring, EncryptedOldKeyring) of
+            case cds_keyring:validate_masterkey(MasterKey, OldKeyring, EncryptedOldKeyring) of
                 {ok, OldKeyring} ->
-                    {ok, {done, rotate_keyring(MasterKey, OldKeyring)}};
+                    NewKeyring = cds_keyring:rotate(OldKeyring),
+                    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
+                    {ok, {done, {EncryptedNewKeyring, NewKeyring}}};
                 {error, Error} ->
                     {error, {operation_aborted, Error}}
             end;
         {error, Error} ->
             {error, {operation_aborted, Error}}
     end.
-
--spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
-    {ok, keyring()} | {error, wrong_masterkey}.
-
-validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
-    try cds_keyring:decrypt(MasterKey, EncryptedOldKeyring) of
-        Keyring ->
-            {ok, Keyring};
-        _NotMatchingKeyring ->
-            {error, wrong_masterkey}
-    catch
-        decryption_failed ->
-            {error, wrong_masterkey}
-    end.
-
--spec rotate_keyring(masterkey(), keyring()) -> {encrypted_keyring(), keyring()}.
-
-rotate_keyring(MasterKey, Keyring) ->
-    NewKeyring = cds_keyring:rotate(Keyring),
-    EncryptedNewKeyring = cds_keyring:encrypt(MasterKey, NewKeyring),
-    {EncryptedNewKeyring, NewKeyring}.

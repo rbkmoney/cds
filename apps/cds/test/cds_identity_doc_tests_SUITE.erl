@@ -96,7 +96,7 @@ init(C) ->
     EncPrivateKeys = enc_private_keys(C),
     SigPrivateKeys = sig_private_keys(C),
     DecryptedMasterKeyShares =
-        cds_api_tests_SUITE:decrypt_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
+        cds_api_tests_SUITE:decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
     ok = cds_api_tests_SUITE:validate_init(DecryptedMasterKeyShares, C).
 
 -spec put_passport(config()) -> any() | no_return().
