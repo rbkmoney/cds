@@ -242,9 +242,9 @@ init_per_group(session_management, C) ->
         {
             session_cleaning,
             #{
-                session_lifetime => 7,
+                session_lifetime => 4,
                 batch_size => 1000,
-                interval => 6000
+                interval => 1000
             }
         }
     ],
@@ -1034,15 +1034,10 @@ session_cleaning(C) ->
         session_lifetime := Lifetime,
         interval := Interval
     }}] = config(session_cleaning_config, C),
-    timer:sleep(Lifetime*1000 + Interval*2),
-    ok = try
-        _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
-        error
-    catch
-        throw:#'CardDataNotFound'{} ->
-            ok
-    end,
-    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)).
+
+    ok = timer:sleep(Lifetime * 1000 + Interval * 2),
+    _ = ?assertThrow( #'CardDataNotFound'{}, cds_card_client:get_session_card_data(Token, Session, root_url(C))),
+    _ = ?assertMatch(?CREDIT_CARD(<<>>), cds_card_client:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
 
@@ -1061,25 +1056,17 @@ refresh_sessions(C) ->
 
     [
         begin
-            ok = cds_maintenance:refresh_sessions_created_at(),
-            timer:sleep(Lifetime * 100)
+            _ = ?assertEqual(ok, catch cds_maintenance:refresh_sessions_created_at()),
+            timer:sleep((Lifetime * 1000) div 4)
         end
-    || _ <- lists:seq(1, 25)],
+    || _ <- lists:seq(1, 6)],
 
-    timer:sleep(Interval),
+    ok = timer:sleep(Interval),
+    _ = ?assertMatch(?CREDIT_CARD(_), cds_card_client:get_session_card_data(Token, Session, root_url(C))),
+    ok = timer:sleep(Lifetime * 1000 + Interval),
 
-    _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
-
-    timer:sleep(Lifetime * 1000 + Interval),
-
-    ok = try
-        _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
-        error
-    catch
-        throw:#'CardDataNotFound'{} ->
-            ok
-    end,
-    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)).
+    _ = ?assertThrow( #'CardDataNotFound'{}, cds_card_client:get_session_card_data(Token, Session, root_url(C))),
+    _ = ?assertMatch(?CREDIT_CARD(<<>>), cds_card_client:get_card_data(Token, root_url(C))).
 
 
 -spec recrypt(config()) -> _.
@@ -1119,7 +1106,7 @@ recrypt(C) ->
     }}] = config(recrypting_config, C),
 
     % we should meet reencryption at least once _after_ rotation
-    _ = timer:sleep(Interval * 3),
+    _ = timer:sleep(Interval * 2),
     {KeyID, _} = cds_keyring_manager:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
