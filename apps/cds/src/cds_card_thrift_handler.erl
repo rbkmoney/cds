@@ -95,8 +95,8 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
-        Reason when Reason == locked; Reason == not_initialized ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end;
 
 handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
@@ -105,8 +105,8 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
         ok = put_session(Session, OwnSessionData),
         {ok, ok}
     catch
-        Reason when Reason == locked; Reason == not_initialized ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end;
 
 handle_function_('GetSessionData', [Session], _Context, _Opts) ->
