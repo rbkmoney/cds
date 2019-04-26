@@ -22,29 +22,31 @@ EC ключ для криптоподписи:
 
 ```
 {shareholders, #{
-            <<"ndiezel">> => #{
-                owner => <<"ndiezel0@gmail.com">>,
-                public_keys => #{
-                    enc =>  <<"{
-                                  \"use\": \"enc\",
-                                  \"kty\": \"RSA\",
-                                  \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
-                                  \"alg\": \"RSA-OAEP-256\",
-                                  \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
-                                  \"e\": \"AQAB\"
-                                }">>,
-                    sig =>  <<"{
-                                  \"use\": \"sig\",
-                                  \"kty\": \"EC\",
-                                  \"kid\": \"03ohMufKvFyAtbaXJO83S4nPkaiiLPF8dSUPtetU_CA\",
-                                  \"crv\": \"P-256\",
-                                  \"alg\": \"ES256\",
-                                  \"x\": \"N3E6i6WabPQg7MVqsjXd81z6dmSVibxLbgYJ1UIvHR4\",
-                                  \"y\": \"jDzBx7KDMzesKbpwl5H1J0TtwvOJxPaEC5wH6zZs_r8\"
-                                }">>
-                }
-            }
-        }}
+    <<"ndiezel">> => #{
+        owner => <<"ndiezel0@gmail.com">>,
+        public_keys => #{
+            enc =>
+                <<"{
+                    \"use\": \"enc\",
+                    \"kty\": \"RSA\",
+                    \"kid\": \"KUb1fNMc5j9Ei_IV3DguhJh5UOH30uvO7qXq13uevnk\",
+                    \"alg\": \"RSA-OAEP-256\",
+                    \"n\": \"2bxkamUQjD4CN8rcq5BfNLJmRmosb-zY7ajPBJqtiLUTcqym23OkUIA1brBg34clmU2ZQmtd3LWi5kVJk_wr4WsMG_78jHK3wQA-HRhY4WZDZrULTsi4XWpNSwL4dCml4fs536RKy_TyrnpiXg0ug4JVVaEeo7VIZ593mVhCxC8Ev6FK8tZ2HGGOerUXLpgQdhcp9UwaI_l7jgoWNp1f7SuBqv1mfiw4ziC1yvwyXHTKy-37LjLmVB9EVyjqpkwZgzapaOvHc1ABqJpdOrUh-PyOgq-SduqSkMrvqZEdUeR_KbFVxqbxqWJMrqkl2HOJxOla9cHRowg5ObUBjeMoaTJfqie3t6uRUsFEFMzhIyvo6QMYHooxIdOdwpZ4tpzML6jv9o5DPtN375bKzy-UsjeshYbvad1mbrcxc8tYeiQkDZEIM0KeOdHm5C6neEyY6oF4s1vSYBNCnhE5O-R9dmp8Sk5KEseEkOH5u4G2RsIXBA9z1OTDoy6qF21EvRCGzsGfExfkmPAtzbnS-EHHxbMUiio0ZJoZshYo8dwJY6vSN7UsXBgW1v7GvIF9VsfzRmgkl_3rdemYy28DJKC0U2yufePcA3nUJEhtR3UO_tIlHxZvlDSX5eTx4vs5VkFfujNSiPsgH0PEeXABGBFbal7QxU1u0XHXIFwhW5cM8Fs\",
+                    \"e\": \"AQAB\"
+                }">>,
+            sig =>
+                <<"{
+                    \"use\": \"sig\",
+                    \"kty\": \"EC\",
+                    \"kid\": \"03ohMufKvFyAtbaXJO83S4nPkaiiLPF8dSUPtetU_CA\",
+                    \"crv\": \"P-256\",
+                    \"alg\": \"ES256\",
+                    \"x\": \"N3E6i6WabPQg7MVqsjXd81z6dmSVibxLbgYJ1UIvHR4\",
+                    \"y\": \"jDzBx7KDMzesKbpwl5H1J0TtwvOJxPaEC5wH6zZs_r8\"
+                }">>
+        }
+    }
+}}
 ```
 
 ## Инициализация
