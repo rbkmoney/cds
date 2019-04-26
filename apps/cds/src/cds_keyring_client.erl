@@ -4,11 +4,11 @@
 -export([validate_init/3]).
 -export([cancel_init/1]).
 -export([start_unlock/1]).
--export([validate_unlock/3]).
+-export([confirm_unlock/3]).
 -export([cancel_unlock/1]).
 -export([lock/1]).
 -export([start_rotate/1]).
--export([validate_rotate/3]).
+-export([confirm_rotate/3]).
 -export([cancel_rotate/1]).
 -export([start_rekey/2]).
 -export([confirm_rekey/3]).
@@ -43,9 +43,9 @@ cancel_init(RootUrl) ->
 start_unlock(RootUrl) ->
     cds_woody_client:call(keyring, 'StartUnlock', [], RootUrl).
 
--spec validate_unlock(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-validate_unlock(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ValidateUnlock', [ShareholderId, Share], RootUrl).
+-spec confirm_unlock(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
+confirm_unlock(ShareholderId, Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'ConfirmUnlock', [ShareholderId, Share], RootUrl).
 
 -spec cancel_unlock(woody:url()) -> result().
 cancel_unlock(RootUrl) ->
@@ -59,9 +59,9 @@ lock(RootUrl) ->
 start_rotate(RootUrl) ->
     cds_woody_client:call(keyring, 'StartRotate', [], RootUrl).
 
--spec validate_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-validate_rotate(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ValidateRotate', [ShareholderId, Share], RootUrl).
+-spec confirm_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
+confirm_rotate(ShareholderId, Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'ConfirmRotate', [ShareholderId, Share], RootUrl).
 
 -spec cancel_rotate(woody:url()) -> result().
 cancel_rotate(RootUrl) ->

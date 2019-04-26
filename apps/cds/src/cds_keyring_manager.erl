@@ -10,11 +10,11 @@
 -export([get_current_key/0]).
 -export([get_outdated_keys/0]).
 -export([start_unlock/0]).
--export([validate_unlock/2]).
+-export([confirm_unlock/2]).
 -export([cancel_unlock/0]).
 -export([lock/0]).
 -export([start_rotate/0]).
--export([validate_rotate/2]).
+-export([confirm_rotate/2]).
 -export([cancel_rotate/0]).
 -export([initialize/1]).
 -export([validate_init/2]).
@@ -86,10 +86,10 @@ get_outdated_keys() ->
 start_unlock() ->
     sync_send_event(start_unlock).
 
--spec validate_unlock(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+-spec confirm_unlock(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
     {more, non_neg_integer()} | ok.
-validate_unlock(ShareholderId, Share) ->
-    sync_send_event({validate_unlock, ShareholderId, Share}).
+confirm_unlock(ShareholderId, Share) ->
+    sync_send_event({confirm_unlock, ShareholderId, Share}).
 
 -spec cancel_unlock() -> ok.
 cancel_unlock() ->
@@ -103,10 +103,10 @@ lock() ->
 start_rotate() ->
     sync_send_event(start_rotate).
 
--spec validate_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
+-spec confirm_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()) ->
     {more, non_neg_integer()} | ok.
-validate_rotate(ShareholderId, Share) ->
-    sync_send_event({validate_rotate, ShareholderId, Share}).
+confirm_rotate(ShareholderId, Share) ->
+    sync_send_event({confirm_rotate, ShareholderId, Share}).
 
 -spec cancel_rotate() -> ok.
 cancel_rotate() ->
@@ -236,8 +236,8 @@ locked(start_unlock, _From, StateData) ->
     LockedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_unlocker:initialize(LockedKeyring),
     {reply, Result, locked, StateData};
-locked({validate_unlock, ShareholderId, Share}, _From, StateData) ->
-    case cds_keyring_unlocker:validate(ShareholderId, Share) of
+locked({confirm_unlock, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_unlocker:confirm(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, locked, StateData};
         {ok, {done, UnlockedKeyring}} ->
@@ -266,8 +266,8 @@ unlocked(start_rotate, _From, #state{keyring = OldKeyring} = StateData) ->
     EncryptedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_rotator:initialize(OldKeyring, EncryptedKeyring),
     {reply, Result, unlocked, StateData};
-unlocked({validate_rotate, ShareholderId, Share}, _From, StateData) ->
-    case cds_keyring_rotator:validate(ShareholderId, Share) of
+unlocked({confirm_rotate, ShareholderId, Share}, _From, StateData) ->
+    case cds_keyring_rotator:confirm(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {reply, Result, unlocked, StateData};
         {ok, {done, {EncryptedNewKeyring, NewKeyring}}} ->

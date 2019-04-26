@@ -70,9 +70,9 @@ handle_function_('StartUnlock', [], _Context, _Opts) ->
         {invalid_activity, Activity} ->
             cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity})
     end;
-handle_function_('ValidateUnlock', [ShareholderId, Share], _Context, _Opts) ->
+handle_function_('ConfirmUnlock', [ShareholderId, Share], _Context, _Opts) ->
     VerifiedShare = verify_signed_share(ShareholderId, Share),
-    try cds_keyring_manager:validate_unlock(ShareholderId, VerifiedShare) of
+    try cds_keyring_manager:confirm_unlock(ShareholderId, VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -97,9 +97,9 @@ handle_function_('StartRotate', [], _Context, _Opts) ->
         {invalid_activity, Activity} ->
             cds_thrift_handler_utils:raise(#'InvalidActivity'{activity = Activity})
     end;
-handle_function_('ValidateRotate', [ShareholderId, Share], _Context, _Opts) ->
+handle_function_('ConfirmRotate', [ShareholderId, Share], _Context, _Opts) ->
     VerifiedShare = verify_signed_share(ShareholderId, Share),
-    try cds_keyring_manager:validate_rotate(ShareholderId, VerifiedShare) of
+    try cds_keyring_manager:confirm_rotate(ShareholderId, VerifiedShare) of
         {more, More} ->
             {ok, {more_keys_needed, More}};
         ok ->
@@ -245,12 +245,12 @@ encode_state(#{
         rotation := #{
             phase := RotatePhase,
             lifetime := RotateLifetime,
-            validation_shares := RotateValShares
+            confirmation_shares := RotateConShares
         },
         unlock := #{
             phase := UnlockPhase,
             lifetime := UnlockLifetime,
-            validation_shares := UnlockValShares
+            confirmation_shares := UnlockConShares
         },
         rekeying := #{
             phase := RekeyPhase,
@@ -271,12 +271,12 @@ encode_state(#{
             rotation = #'RotationState'{
                 phase = RotatePhase,
                 lifetime = RotateLifetime,
-                validation_shares = RotateValShares
+                confirmation_shares = RotateConShares
             },
             unlock = #'UnlockState'{
                 phase = UnlockPhase,
                 lifetime = UnlockLifetime,
-                validation_shares = UnlockValShares
+                confirmation_shares = UnlockConShares
             },
             rekeying = #'RekeyingState'{
                 phase = RekeyPhase,
