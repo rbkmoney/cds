@@ -19,33 +19,6 @@ handle_function(OperationID, Args, Context, Opts) ->
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
-handle_function_('GetCardData', [Token], _Context, _Opts) ->
-    try
-        {ok, encode_cardholder_data(
-            get_cardholder_data(
-                cds_utils:decode_token(Token)
-            )
-        )}
-    catch
-        not_found ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
-    end;
-handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    try
-        {ok, encode_card_data(
-            get_card_data(
-                cds_utils:decode_token(Token),
-                cds_utils:decode_session(Session)
-            )
-        )}
-    catch
-        not_found ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
-    end;
 handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
     OwnSessionData = decode_session_data(
@@ -74,13 +47,72 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end;
-handle_function_('GetSessionData', [Session], _Context, _Opts) ->
+
+handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
-        {ok, encode_session_data(
-            get_session_data(
-                cds_utils:decode_session(Session)
+        CardData = get_cardholder_data(cds_utils:decode_token(Token)),
+        SessionData = try_get_session_data(Session),
+        {ok, encode_card_data(CardData, SessionData)}
+    catch
+        not_found ->
+            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+    end;
+
+handle_function_('PutCard', [CardData], _Context, _Opts) ->
+    OwnCardData = decode_card_data(CardData),
+    try
+        case cds_card_data:validate(OwnCardData) of
+            {ok, CardInfo} ->
+                Token = put_card(OwnCardData),
+                BankCard = #'domain_BankCard'{
+                    token          = cds_utils:encode_token(Token),
+                    payment_system = maps:get(payment_system, CardInfo),
+                    bin            = maps:get(iin           , CardInfo),
+                    masked_pan     = maps:get(last_digits   , CardInfo)
+                },
+                {ok, #'PutCardResult'{
+                    bank_card = BankCard
+                }};
+            {error, ValidationError} ->
+                cds_thrift_handler_utils:raise(#'InvalidCardData'{
+                    reason = cds_thrift_handler_utils:map_validation_error(ValidationError)
+                })
+        end
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+    end;
+
+handle_function_('GetCardData', [Token], _Context, _Opts) ->
+    try
+        {ok, encode_cardholder_data(
+            get_cardholder_data(
+                cds_utils:decode_token(Token)
             )
         )}
+    catch
+        not_found ->
+            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
+        Reason when Reason == locked; Reason == not_initialized ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
+    end;
+
+handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
+    OwnSessionData = decode_session_data(SessionData),
+    try
+        ok = put_session(Session, OwnSessionData),
+        {ok, ok}
+    catch
+        Reason when Reason == locked; Reason == not_initialized ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
+    end;
+
+handle_function_('GetSessionData', [Session], _Context, _Opts) ->
+    try
+        SessionData = try_get_session_data(Session),
+        {ok, encode_session_data(SessionData)}
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#'SessionDataNotFound'{});
@@ -111,7 +143,7 @@ decode_auth_data({card_security_code, #'CardSecurityCode'{value = Value}}) ->
 decode_auth_data({auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
-encode_card_data({CardData, #{auth_data := AuthData}}) ->
+encode_card_data(CardData, #{auth_data := AuthData}) ->
     V = encode_cardholder_data(CardData),
     case maps:get(type, AuthData) of
         cvv ->
@@ -147,19 +179,32 @@ get_cardholder_data(Token) ->
     CardholderData = cds:get_cardholder_data(Token),
     cds_card_data:unmarshal_cardholder_data(CardholderData).
 
-get_card_data(Token, Session) ->
-    {CardholderData, SessionData} = cds:get_card_data(Token, Session),
-    {cds_card_data:unmarshal_cardholder_data(CardholderData), cds_card_data:unmarshal_session_data(SessionData)}.
-
 put_card_data(CardholderData, SessionData) ->
     cds:put_card_data({
         cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
     }).
 
+put_card(CardholderData) ->
+    cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).
+
+put_session(Session, SessionData) ->
+    cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).
+
 get_session_data(Session) ->
     SessionData = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
+
+try_get_session_data(Session0) ->
+    try
+        Session = cds_utils:decode_session(Session0),
+        get_session_data(Session)
+    catch
+        error:badarg -> % could not decode SessionID, let's try new scheme
+            get_session_data(Session0);
+        not_found -> % same as before but for false positive decoding case
+            get_session_data(Session0)
+    end.
 
 define_session_data(undefined, #'CardData'{cvv = CVV}) ->
     #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};

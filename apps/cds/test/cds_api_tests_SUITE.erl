@@ -22,6 +22,8 @@
 -export([put_card_data/1]).
 -export([get_card_data/1]).
 -export([get_session_data/1]).
+-export([put_card/1]).
+-export([put_session/1]).
 -export([put_card_data_3ds/1]).
 -export([get_card_data_3ds/1]).
 -export([get_session_data_3ds/1]).
@@ -129,6 +131,8 @@ groups() ->
             get_card_data,
             rotate_with_timeout,
             get_session_data,
+            put_card,
+            put_session,
             rotate,
             put_card_data_3ds,
             rotate_with_timeout,
@@ -629,6 +633,32 @@ get_session_data(C) ->
         cds_ct_utils:lookup(session, C),
         root_url(C)
     ).
+
+-spec put_card(config()) -> _.
+
+put_card(C) ->
+    CardData = #'CardData'{
+        pan = <<"4242424242424648">>,
+        exp_date = #'ExpDate'{
+            month = 11,
+            year = 3000
+        }
+    },
+    #'PutCardResult'{
+        bank_card = #domain_BankCard{
+            token = Token
+        }
+    } = cds_card_client:put_card(CardData, root_url(C)),
+    CardData2 = CardData#'CardData'{cvv = <<>>},
+    CardData2 = cds_card_client:get_card_data(Token, root_url(C)).
+
+-spec put_session(config()) -> _.
+
+put_session(C) ->
+    SessionID = crypto:strong_rand_bytes(16),
+    SessionData = ?SESSION_DATA(?CARD_SEC_CODE(?CVV)),
+    ok = cds_card_client:put_session(SessionID, SessionData, root_url(C)),
+    SessionData = cds_card_client:get_session_data(SessionID, root_url(C)).
 
 -spec put_card_data_3ds(config()) -> _.
 

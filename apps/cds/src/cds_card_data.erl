@@ -4,6 +4,7 @@
 
 -module(cds_card_data).
 
+-export([validate/1]).
 -export([validate/2]).
 -export([validate/3]).
 
@@ -59,20 +60,26 @@
     unrecognized |
     {invalid, cardnumber | cvv | exp_date, check()}.
 
--spec validate(cardholder_data(), session_data()) ->
+-spec validate(cardholder_data()) ->
+    {ok, card_info()} | {error, reason()}.
+
+validate(CardData) ->
+    validate(CardData, undefined, #{now => calendar:universal_time()}).
+
+-spec validate(cardholder_data(), session_data() | undefined) ->
     {ok, card_info()} | {error, reason()}.
 
 validate(CardData, SessionData) ->
     validate(CardData, SessionData, #{now => calendar:universal_time()}).
 
--spec validate(cardholder_data(), session_data(), Env :: #{now := calendar:datetime()}) ->
+-spec validate(cardholder_data(), session_data() | undefined, Env :: #{now := calendar:datetime()}) ->
     {ok, card_info()} | {error, reason()}.
 
-validate(CardData = #{cardnumber := CardNumber}, #{auth_data := AuthData}, Env) ->
+validate(CardData = #{cardnumber := CardNumber}, SessionData, Env) ->
     case detect_payment_system(CardNumber) of
         {ok, PaymentSystem} ->
             #{PaymentSystem := Ruleset} = get_payment_system_map(),
-            case validate_card_data(maps:merge(CardData, AuthData), Ruleset, Env) of
+            case validate_card_data(merge_data(CardData, SessionData), Ruleset, Env) of
                 ok ->
                     {ok, get_card_info(CardData, PaymentSystem, Ruleset)};
                 {error, Reason} ->
@@ -81,6 +88,11 @@ validate(CardData = #{cardnumber := CardNumber}, #{auth_data := AuthData}, Env) 
         {error, Reason} ->
             {error, Reason}
     end.
+
+merge_data(CardData, undefined) ->
+    CardData;
+merge_data(CardData, #{auth_data := AuthData}) ->
+    maps:merge(CardData, AuthData).
 
 get_card_info(CardData, PaymentSystem, Ruleset) ->
     #{
