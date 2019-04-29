@@ -68,8 +68,8 @@ init_per_group(Group, C) when
 ->
     C;
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_clear(C),
-    C1 ++ C.
+    C1 = cds_ct_utils:start_stash(C),
+    cds_ct_utils:start_clear(C1).
 
 -spec end_per_group(atom(), config()) -> _.
 end_per_group(Group, C) when

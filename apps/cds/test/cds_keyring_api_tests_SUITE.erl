@@ -120,12 +120,12 @@ init_per_group(keyring_errors, C) ->
     StorageConfig = [
         {storage, cds_storage_ets}
     ],
-    C1 = cds_ct_utils:start_clear([{storage_config, StorageConfig} | C]),
-    C1 ++ C;
+    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfig} | C]),
+    cds_ct_utils:start_clear(C1);
 
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_clear(C),
-    C1 ++ C.
+    C1 = cds_ct_utils:start_stash(C),
+    cds_ct_utils:start_clear(C1).
 
 -spec end_per_group(atom(), config()) -> _.
 

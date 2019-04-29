@@ -178,16 +178,14 @@ init_per_group(ets_storage_backend, C) ->
 init_per_group(general_flow, C) ->
     C;
 init_per_group(hash_collision_check, C) ->
-    Stash = config(stash, C),
-    C1 = cds_ct_utils:start_clear(C, Stash),
-    C1 ++ C;
+    cds_ct_utils:start_clear(C);
 
 init_per_group(keyring_errors, C) ->
     StorageConfig = [
         {storage, cds_storage_ets}
     ],
-    C1 = cds_ct_utils:start_clear([{storage_config, StorageConfig} | C]),
-    C1 ++ C;
+    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfig} | C]),
+    cds_ct_utils:start_clear(C1);
 
 init_per_group(session_management, C) ->
     CleanerConfig = [
@@ -206,8 +204,8 @@ init_per_group(session_management, C) ->
         }}
     ],
     C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanerConfig} | C],
-    C2 = cds_ct_utils:start_clear(C1),
-    C1 ++ C2;
+    C2 = cds_ct_utils:start_stash(C1),
+    cds_ct_utils:start_clear(C2);
 
 init_per_group(error_map, C) ->
     StorageConfig = config(storage_config, C),
@@ -222,13 +220,14 @@ init_per_group(error_map, C) ->
     },
 
     StorageConfigNew = update_config(cds_storage_riak, StorageConfig, RiakConfigNew),
-    cds_ct_utils:start_clear([{storage_config, StorageConfigNew} | C]);
+    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfigNew} | C]),
+    cds_ct_utils:start_clear(C1);
 init_per_group(error_map_ddos, C) ->
     C;
 
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_clear(C),
-    C1 ++ C.
+    C1 = cds_ct_utils:start_stash(C),
+    cds_ct_utils:start_clear(C1).
 
 -spec end_per_group(atom(), config()) -> _.
 

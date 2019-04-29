@@ -1,7 +1,6 @@
 -module(cds_ct_utils).
 
 -export([start_clear/1]).
--export([start_clear/2]).
 -export([stop_clear/1]).
 
 -export([set_riak_storage/1]).
@@ -10,6 +9,8 @@
 -export([store/2]).
 -export([store/3]).
 -export([lookup/2]).
+
+-export([start_stash/1]).
 
 %%
 %% Types
@@ -25,10 +26,6 @@
 
 -spec start_clear(config()) -> config().
 start_clear(Config) ->
-    start_clear(Config, start_stash()).
-
--spec start_clear(config(), pid()) -> config().
-start_clear(Config, Stash) ->
     IP = "127.0.0.1",
     Port = 8022,
     RootUrl = "http://" ++ IP ++ ":" ++ integer_to_list(Port),
@@ -168,12 +165,11 @@ start_clear(Config, Stash) ->
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
     ,
     [
-        {stash, Stash},
         {apps, lists:reverse(Apps)},
         {root_url, genlib:to_binary(RootUrl)},
         {enc_private_keys, EncPrivateKeys},
         {sig_private_keys, SigPrivateKeys}
-    ].
+    ] ++ Config.
 
 -spec stop_clear(config()) -> ok.
 stop_clear(C) ->
@@ -219,6 +215,12 @@ store(Key, Value, C) ->
 lookup(Key, C) ->
     cds_ct_stash:get(config(stash, C), Key).
 
+-spec start_stash(config()) -> config().
+start_stash(C) ->
+    [
+        {stash, cds_ct_stash:start()}
+    ] ++ C.
+
 %%
 %% Internals
 %%
@@ -262,9 +264,6 @@ clean_riak_storage(CdsEnv) ->
         Buckets
     ),
     ok.
-
-start_stash() ->
-    cds_ct_stash:start().
 
 stop_stash(C) ->
     cds_ct_stash:stop(config(stash, C)).
