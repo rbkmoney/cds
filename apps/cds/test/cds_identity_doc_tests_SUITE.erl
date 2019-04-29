@@ -32,13 +32,19 @@
 -spec all() -> [{group, atom()}].
 all() ->
     [
-        {group, riak_storage_backend},
-        {group, ets_storage_backend}
+        {group, cds_client_v1}%,
+%%        {group, cds_client_v2}
     ].
 
 -spec groups() -> [{atom(), list(), [atom()]}].
 groups() ->
     [
+        {cds_client_v1, [], [{group, all_groups}]},
+        {cds_client_v2, [], [{group, all_groups}]},
+        {all_groups, [], [
+            {group, riak_storage_backend},
+            {group, ets_storage_backend}
+        ]},
         {riak_storage_backend, [], [{group, general_flow}]},
         {ets_storage_backend, [], [{group, general_flow}]},
         {general_flow, [], [
@@ -58,13 +64,24 @@ groups() ->
     ].
 
 -spec init_per_group(atom(), config()) -> config().
+init_per_group(cds_client_v1, C) ->
+    [
+        {cds_keyring_client, cds_keyring_client},
+        {cds_storage_client, cds_card_client}
+    ] ++ C;
+init_per_group(cds_client_v2, C) ->
+    [
+        {cds_keyring_client, cds_keyring_client_v2},
+        {cds_storage_client, cds_card_client_v2}
+    ] ++ C;
 init_per_group(riak_storage_backend, C) ->
     cds_ct_utils:set_riak_storage(C);
 init_per_group(ets_storage_backend, C) ->
     cds_ct_utils:set_ets_storage(C);
 init_per_group(Group, C) when
     Group =:= all;
-    Group =:= general_flow
+    Group =:= general_flow;
+    Group =:= all_groups
 ->
     C;
 init_per_group(_, C) ->
@@ -76,7 +93,10 @@ end_per_group(Group, C) when
     Group =:= all;
     Group =:= ets_storage_backend;
     Group =:= riak_storage_backend;
-    Group =:= general_flow
+    Group =:= general_flow;
+    Group =:= cds_client_v1;
+    Group =:= cds_client_v2;
+    Group =:= all_groups
  ->
     C;
 end_per_group(_, C) ->
@@ -89,15 +109,7 @@ end_per_group(_, C) ->
 
 -spec init(config()) -> any() | no_return().
 init(C) ->
-    UMEncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C)),
-    EncryptedMasterKeyShares =
-        cds_keyring_thrift_handler:decode_encrypted_shares(UMEncryptedMasterKeyShares),
-    _ = ?assertEqual(length(EncryptedMasterKeyShares), length(cds_shareholder:get_all())),
-    EncPrivateKeys = enc_private_keys(C),
-    SigPrivateKeys = sig_private_keys(C),
-    DecryptedMasterKeyShares =
-        cds_keyring_api_tests_SUITE:decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys),
-    ok = cds_keyring_api_tests_SUITE:validate_init(DecryptedMasterKeyShares, C).
+    cds_keyring_api_tests_SUITE:init(C).
 
 -spec put_passport(config()) -> any() | no_return().
 put_passport(C) ->
@@ -125,12 +137,6 @@ assert_doc_stored(C) ->
 
 root_url(C) ->
     config(root_url, C).
-
-enc_private_keys(C) ->
-    config(enc_private_keys, C).
-
-sig_private_keys(C) ->
-    config(sig_private_keys, C).
 
 config(Key, Config) ->
     config(Key, Config, undefined).

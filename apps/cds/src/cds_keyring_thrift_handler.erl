@@ -5,7 +5,6 @@
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
--export([decode_encrypted_shares/1]).
 
 -type encrypted_masterkey_share() :: #'EncryptedMasterKeyShare' {}.
 
@@ -197,26 +196,6 @@ encode_encrypted_share(#{
       owner = Owner,
       encrypted_share = EncryptedShare
   }.
-
--spec decode_encrypted_shares([encrypted_masterkey_share()]) ->
-    [cds_keysharing:encrypted_master_key_share()].
-
-decode_encrypted_shares(EncryptedMasterKeyShares) ->
-    lists:map(fun decode_encrypted_share/1, EncryptedMasterKeyShares).
-
--spec decode_encrypted_share(encrypted_masterkey_share()) ->
-    cds_keysharing:encrypted_master_key_share().
-
-decode_encrypted_share(#'EncryptedMasterKeyShare' {
-    id = Id,
-    owner = Owner,
-    encrypted_share = EncryptedShare
-}) ->
-    #{
-        id => Id,
-        owner => Owner,
-        encrypted_share => EncryptedShare
-    }.
 
 -spec verify_signed_share(cds_shareholder:shareholder_id(),
     cds_keysharing:signed_masterkey_share()) -> cds_keysharing:masterkey_share().
