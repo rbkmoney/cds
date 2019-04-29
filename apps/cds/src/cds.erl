@@ -66,7 +66,9 @@ init([]) ->
         #{
             handlers => [
                 cds_thrift_services:handler_spec(card),
+                cds_thrift_services:handler_spec(card_v2),
                 cds_thrift_services:handler_spec(keyring),
+                cds_thrift_services:handler_spec(keyring_v2),
                 cds_thrift_services:handler_spec(ident_doc)
             ],
             event_handler     => scoper_woody_event_handler,

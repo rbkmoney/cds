@@ -53,8 +53,8 @@
 
 all() ->
     [
-        {group, cds_client_v1}%,
-%%        {group, cds_client_v2}
+        {group, cds_client_v1},
+        {group, cds_client_v2}
     ].
 
 -spec groups() -> [{atom(), list(), [atom()]}].
@@ -123,8 +123,8 @@ init_per_group(cds_client_v1, C) ->
 
 init_per_group(cds_client_v2, C) ->
     [
-        {cds_keyring_client, cds_keyring_client_v2},
-        {cds_storage_client, cds_card_client_v2}
+        {cds_keyring_client, cds_keyring_v2_client},
+        {cds_storage_client, cds_card_v2_client}
     ] ++ C;
 
 init_per_group(all_groups, C) ->
