@@ -1,4 +1,4 @@
--module(cds_card_client).
+-module(cds_card_v1_client).
 
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
 -include_lib("dmsl/include/dmsl_domain_thrift.hrl").
@@ -15,15 +15,52 @@
 %% Internal types
 %%
 
--type result() :: cds_woody_client:result().
 -type card_data() :: dmsl_cds_thrift:'CardData'().
 -type session_data() :: dmsl_cds_thrift:'SessionData'() | undefined.
+
+-type decoded_card_data() :: #{
+    pan := binary(),
+    exp_date := #{
+        month := integer(),
+        year := integer()
+    },
+    cardholder_name => binary() | undefined,
+    cvv => binary() | undefined
+}.
+
+-type decoded_session_data() :: #{
+    auth_data := {auth_3ds, #{
+        cryptogram => binary(),
+        eci => binary() | undefined
+    }} |
+    {card_security_code, #{
+        value => binary()
+    }}
+}.
+
+-type bank_card() :: #{
+    token := dmsl_domain_thrift:'Token'(),
+    payment_system := atom(),
+    bin := binary(),
+    masked_pan := binary(),
+    token_provider => atom() | undefined,
+    issuer_country => atom() | undefined,
+    bank_name => binary() | undefined,
+    metadata => #{binary() => dmsl_msgpack_thrift:'Value'()} | undefined,
+    is_cvv_empty => boolean() | undefined
+}.
+
+-type put_card_data_result() :: #{
+    bank_card := bank_card(),
+    session_id := dmsl_domain_thrift:'PaymentSessionID'()
+}.
 
 %%
 %% API
 %%
 
--spec get_card_data(cds:token(), woody:url()) -> result().
+-spec get_card_data(cds:token(), woody:url()) ->
+    decoded_card_data() | {error, card_data_not_found}.
 get_card_data(Token, RootUrl) ->
     try cds_woody_client:call(card, 'GetCardData', [Token], RootUrl) of
         EncodedCardData ->
@@ -33,21 +70,24 @@ get_card_data(Token, RootUrl) ->
             {error, card_data_not_found}
     end.
 
--spec get_session_card_data(cds:token(), cds:session(), woody:url()) -> result().
+-spec get_session_card_data(cds:token(), cds:session(), woody:url()) ->
+    decoded_card_data() | {error, session_data_not_found}.
 get_session_card_data(Token, Session, RootUrl) ->
     try cds_woody_client:call(card, 'GetSessionCardData', [Token, Session], RootUrl) of
         EncodedCardData ->
             decode_card_data(EncodedCardData)
     catch
         #'CardDataNotFound'{} ->
-            {error, card_data_not_found}
+            {error, session_data_not_found}
     end.
 
--spec put_card_data(card_data(), woody:url()) -> result().
+-spec put_card_data(card_data(), woody:url()) ->
+    put_card_data_result() | {error, {invalid_cart_data, binary()}}.
 put_card_data(CardData, RootUrl) ->
     put_card_data(CardData, undefined, RootUrl).
 
--spec put_card_data(card_data(), session_data(), woody:url()) -> result().
+-spec put_card_data(card_data(), session_data(), woody:url()) ->
+    put_card_data_result() | {error, {invalid_cart_data, binary()}}.
 put_card_data(CardData, SessionData, RootUrl) ->
     try cds_woody_client:call(card, 'PutCardData',
         [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
@@ -58,10 +98,11 @@ put_card_data(CardData, SessionData, RootUrl) ->
             }
     catch
         #'InvalidCardData'{reason = Reason} ->
-            {error, {invalid_catd_data, Reason}}
+            {error, {invalid_card_data, Reason}}
     end.
 
--spec get_session_data(cds:session(), woody:url()) -> result().
+-spec get_session_data(cds:session(), woody:url()) ->
+    decoded_session_data() | {error, session_data_not_found}.
 get_session_data(Session, RootUrl) ->
     try cds_woody_client:call(card, 'GetSessionData', [Session], RootUrl) of
         SessionData ->
@@ -71,7 +112,8 @@ get_session_data(Session, RootUrl) ->
             {error, session_data_not_found}
     end.
 
--spec put_card(card_data(), woody:url()) -> result().
+-spec put_card(card_data(), woody:url()) ->
+    #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try cds_woody_client:call(card, 'PutCard', [encode_card_data(CardData)], RootUrl) of
         #'PutCardResult'{bank_card = BankCard} ->
@@ -80,10 +122,11 @@ put_card(CardData, RootUrl) ->
             }
     catch
         #'InvalidCardData'{reason = Reason} ->
-            {error, {invalid_catd_data, Reason}}
+            {error, {invalid_card_data, Reason}}
     end.
 
--spec put_session(cds:session(), session_data(), woody:url()) -> result().
+-spec put_session(cds:session(), session_data(), woody:url()) ->
+    ok.
 put_session(SessionID, SessionData, RootUrl) ->
     cds_woody_client:call(card, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
 
@@ -93,36 +136,20 @@ encode_card_data(
         exp_date := #{
             month := ExpDateMonth,
             year := ExpDateYear
-        },
-        cardholder_name := CardHolderName,
-        cvv := CVV
-    }) ->
+        }
+    } = CardData) ->
     #'CardData'{
         pan = Pan,
         exp_date = #'ExpDate'{
             month = ExpDateMonth,
             year = ExpDateYear
         },
-        cardholder_name = CardHolderName,
-        cvv = CVV
-    };
-encode_card_data(
-    #{
-        pan := Pan,
-        exp_date := #{
-            month := ExpDateMonth,
-            year := ExpDateYear
-        }
-    }) ->
-    #'CardData'{
-        pan = Pan,
-        exp_date = #'ExpDate'{
-            month = ExpDateMonth,
-            year = ExpDateYear
-        }
+        cardholder_name = maps:get(cardholder_name, CardData, undefined),
+        cvv = maps:get(cvv, CardData, undefined)
     }.
 
-encode_session_data(undefined) -> undefined;
+encode_session_data(undefined) ->
+    undefined;
 encode_session_data(
     #{
         auth_data := {auth_3ds, #{

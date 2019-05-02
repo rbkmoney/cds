@@ -66,8 +66,8 @@ groups() ->
 -spec init_per_group(atom(), config()) -> config().
 init_per_group(cds_client_v1, C) ->
     [
-        {cds_keyring_client, cds_keyring_client},
-        {cds_storage_client, cds_card_client}
+        {cds_keyring_client, cds_keyring_v1_client},
+        {cds_storage_client, cds_card_v1_client}
     ] ++ C;
 init_per_group(cds_client_v2, C) ->
     [

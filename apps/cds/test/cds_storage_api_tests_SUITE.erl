@@ -199,8 +199,8 @@ groups() ->
 
 init_per_group(cds_client_v1, C) ->
     [
-        {cds_keyring_client, cds_keyring_client},
-        {cds_storage_client, cds_card_client}
+        {cds_keyring_client, cds_keyring_v1_client},
+        {cds_storage_client, cds_card_v1_client}
     ] ++ C;
 
 init_per_group(cds_client_v2, C) ->
@@ -517,7 +517,7 @@ session_cleaning(C) ->
     }}] = config(session_cleaning_config, C),
 
     ok = timer:sleep(Lifetime * 1000 + Interval * 2),
-    _ = ?assertEqual({error, card_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
+    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
     _ = ?assertMatch(?CREDIT_CARD_MATCH(<<>>), CDSCardClient:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
@@ -547,7 +547,7 @@ refresh_sessions(C) ->
     _ = ?assertMatch(?CREDIT_CARD_MATCH(_), CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
     ok = timer:sleep(Lifetime * 1000 + Interval),
 
-    _ = ?assertEqual({error, card_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
+    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
     _ = ?assertMatch(?CREDIT_CARD_MATCH(<<>>), CDSCardClient:get_card_data(Token, root_url(C))).
 
 
