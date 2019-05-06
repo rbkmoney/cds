@@ -98,10 +98,10 @@ start_clear(Config) ->
             {ip, IP},
             {port, Port},
             {keyring_storage, cds_keyring_storage_env},
-            {net_opts, [
+            {net_opts, #{
                 % Bump keepalive timeout up to a minute
-                {timeout, 60000}
-            ]},
+                timeout => 60000
+            }},
             {keyring_rotation_lifetime, 1000},
             {keyring_unlock_lifetime, 1000},
             {keyring_rekeying_lifetime, 3000},

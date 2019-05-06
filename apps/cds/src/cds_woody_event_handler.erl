@@ -21,7 +21,9 @@ handle_event(EventType, RpcID, EventMeta, _Opts) ->
 
 format_event(EventType, RpcID, _EventMeta, Msg) when
     EventType == ?EV_CALL_SERVICE;
+    EventType == ?EV_CLIENT_BEGIN;
     EventType == ?EV_CLIENT_SEND;
+    EventType == ?EV_CLIENT_END;
     EventType == ?EV_CLIENT_RECEIVE;
     EventType == ?EV_SERVICE_RESULT
 ->
