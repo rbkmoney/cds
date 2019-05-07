@@ -98,7 +98,7 @@ start_clear(Config) ->
             {ip, IP},
             {port, Port},
             {keyring_storage, cds_keyring_storage_env},
-            {net_opts, #{
+            {transport_opts, #{
                 % Bump keepalive timeout up to a minute
                 timeout => 60000
             }},

@@ -12,6 +12,7 @@
 -export([validate_share_combos/1]).
 
 -export_type([masterkey_share/0]).
+-export_type([masterkey_shares/0]).
 -export_type([signed_masterkey_share/0]).
 -export_type([encrypted_master_key_share/0]).
 -export_type([encrypted_master_key_shares/0]).

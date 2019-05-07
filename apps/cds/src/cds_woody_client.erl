@@ -20,7 +20,7 @@
 call(ServiceCode, Function, Args, RootUrl) ->
     Request = {cds_thrift_services:thrift_service(ServiceCode), Function, Args},
     Path = genlib:to_binary(cds_thrift_services:service_path(ServiceCode)),
-    TransportOpts = application:get_env(cds, net_opts, #{}),
+    TransportOpts = application:get_env(cds, transport_opts, #{}),
     CallOpts = #{
         url => <<RootUrl/binary, Path/binary>>,
         event_handler => cds_woody_event_handler,

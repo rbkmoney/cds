@@ -20,14 +20,15 @@
 -record(data, {
     encrypted_keyring :: encrypted_keyring() | undefined,
     keyring :: keyring() | undefined,
-    shares = #{} :: #{cds_keyring:share_id() => {shareholder_id(), masterkey_share()}},
+    shares = #{} :: #{cds_keysharing:share_id() => {shareholder_id(), masterkey_share()}},
     timer :: reference() | undefined
 }).
 
 -type data() :: #data{}.
+-type seconds() :: non_neg_integer().
 -type status() :: #{
     phase => state(),
-    lifetime => timer:seconds(),
+    lifetime => seconds() | undefined,
     confirmation_shares => #{cds_keysharing:share_id() => shareholder_id()}
 }.
 
@@ -147,7 +148,7 @@ handle_event({call, From}, _Event, validation, _Data) ->
 get_timeout() ->
     application:get_env(cds, keyring_rotation_lifetime, 60000).
 
--spec get_lifetime(reference() | undefined) -> timer:seconds().
+-spec get_lifetime(reference() | undefined) -> seconds() | undefined.
 
 get_lifetime(TimerRef) ->
     case TimerRef of

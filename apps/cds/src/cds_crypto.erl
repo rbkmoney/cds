@@ -22,6 +22,7 @@
 -type iv()  :: binary().
 -type tag() :: binary().
 -type aad() :: binary().
+-type jose_jwk() :: #jose_jwk{}.
 -type jwk_encoded() :: binary().
 -type jwk_map() :: map().
 -type jwe_compacted() :: binary().
@@ -157,7 +158,7 @@ marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher})
 unmarshall_cedf(<<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>) ->
     #cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher}.
 
--spec add_jwk_field(jose_jwk:jose_jwk(), json_object_key(), jsx:json_term()) -> jose_jwk:jose_jwk().
+-spec add_jwk_field(jose_jwk(), json_object_key(), jsx:json_term()) -> jose_jwk().
 add_jwk_field(JWK, Field, Content) ->
     Fields = JWK#jose_jwk.fields,
     JWK#jose_jwk{fields = Fields#{Field => Content}}.
