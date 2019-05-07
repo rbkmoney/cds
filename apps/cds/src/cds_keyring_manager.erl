@@ -157,9 +157,7 @@ call(Event) ->
         {ok, Reply} ->
             Reply;
         {error, Reason} ->
-            throw(Reason);
-        ignored ->
-            ok
+            throw(Reason)
     end.
 
 %% gen_fsm.
@@ -195,7 +193,7 @@ not_initialized({call, From}, cancel_init, _StateData) ->
     ok = cds_keyring_initializer:cancel(),
     {keep_state_and_data, {reply, From, ok}};
 not_initialized({call, From}, get_status, _StateData) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(not_initialized)}}};
+    {keep_state_and_data, {reply, From, {ok, generate_status(?FUNCTION_NAME)}}};
 not_initialized({call, From}, _Msg, _StateData) ->
     {keep_state_and_data, {reply, From, {error, {invalid_status, not_initialized}}}}.
 
@@ -219,7 +217,7 @@ locked({call, From}, cancel_unlock, _StateData) ->
     ok = cds_keyring_unlocker:cancel(),
     {keep_state_and_data, {reply, From, ok}};
 locked({call, From}, get_status, _StateData) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(locked)}}};
+    {keep_state_and_data, {reply, From, {ok, generate_status(?FUNCTION_NAME)}}};
 locked({call, From}, _Msg, _StateData) ->
     {keep_state_and_data, {reply, From, {error, {invalid_status, locked}}}}.
 
@@ -275,7 +273,7 @@ unlocked({call, From}, cancel_rekey, _StateData) ->
     ok = cds_keyring_rekeyer:cancel(),
     {keep_state_and_data, {reply, From, ok}};
 unlocked({call, From}, get_status, _StateData) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(unlocked)}}};
+    {keep_state_and_data, {reply, From, {ok, generate_status(?FUNCTION_NAME)}}};
 unlocked({call, From}, _Msg, _StateData) ->
     {keep_state_and_data, {reply, From, {error, {invalid_status, unlocked}}}}.
 
