@@ -72,7 +72,7 @@
   0},
  {<<"shamir">>,
   {git,"git@github.com:rbkmoney/shamir.git",
-       {ref,"5ac616232a489849be73f5f1c00b9ab9d1773d19"}},
+       {ref,"5ca10a87514d4a128f4c8d8cccfd68020697733b"}},
   0},
  {<<"snowflake">>,
   {git,"https://github.com/rbkmoney/snowflake.git",
