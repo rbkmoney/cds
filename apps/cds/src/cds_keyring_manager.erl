@@ -37,6 +37,8 @@
 -export_type([status/0]).
 
 -define(STATEM, ?MODULE).
+-define(HANDLE_COMMON,
+    ?FUNCTION_NAME(T, C, D) -> handle_common(T, C, ?FUNCTION_NAME, D)).
 
 -record(state, {
     keyring :: cds_keyring:keyring() | undefined
@@ -192,10 +194,7 @@ not_initialized({call, From}, {validate_init, ShareholderId, Share}, StateData) 
 not_initialized({call, From}, cancel_init, _StateData) ->
     ok = cds_keyring_initializer:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-not_initialized({call, From}, get_status, _StateData) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(?FUNCTION_NAME)}}};
-not_initialized({call, From}, _Msg, _StateData) ->
-    {keep_state_and_data, {reply, From, {error, {invalid_status, not_initialized}}}}.
+?HANDLE_COMMON.
 
 -spec locked(term(), term(), term()) -> term().
 
@@ -216,10 +215,7 @@ locked({call, From}, {confirm_unlock, ShareholderId, Share}, StateData) ->
 locked({call, From}, cancel_unlock, _StateData) ->
     ok = cds_keyring_unlocker:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-locked({call, From}, get_status, _StateData) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(?FUNCTION_NAME)}}};
-locked({call, From}, _Msg, _StateData) ->
-    {keep_state_and_data, {reply, From, {error, {invalid_status, locked}}}}.
+?HANDLE_COMMON.
 
 -spec unlocked(term(), term(), state()) -> term().
 
@@ -272,10 +268,14 @@ unlocked({call, From}, {validate_rekey, ShareholderId, Share}, _StateData) ->
 unlocked({call, From}, cancel_rekey, _StateData) ->
     ok = cds_keyring_rekeyer:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-unlocked({call, From}, get_status, _StateData) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(?FUNCTION_NAME)}}};
-unlocked({call, From}, _Msg, _StateData) ->
-    {keep_state_and_data, {reply, From, {error, {invalid_status, unlocked}}}}.
+?HANDLE_COMMON.
+
+-spec (handle_common(term(), term(), atom(), state()) -> term()).
+
+handle_common({call, From}, get_status, FunctionName, _Data) ->
+    {keep_state_and_data, {reply, From, {ok, generate_status(FunctionName)}}};
+handle_common({call, From}, _Msg, FunctionName, _Data) ->
+    {keep_state_and_data, {reply, From, {error, {invalid_status, FunctionName}}}}.
 
 -spec generate_status(atom()) -> status().
 
