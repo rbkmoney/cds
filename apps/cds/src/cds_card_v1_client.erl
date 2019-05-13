@@ -15,9 +15,6 @@
 %% Internal types
 %%
 
--type card_data() :: dmsl_cds_thrift:'CardData'().
--type session_data() :: dmsl_cds_thrift:'SessionData'() | undefined.
-
 -type decoded_card_data() :: #{
     pan := binary(),
     exp_date := #{
@@ -81,13 +78,13 @@ get_session_card_data(Token, Session, RootUrl) ->
             {error, session_data_not_found}
     end.
 
--spec put_card_data(card_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_cart_data, binary()}}.
+-spec put_card_data(decoded_card_data(), woody:url()) ->
+    put_card_data_result() | {error, {invalid_card_data, binary()}}.
 put_card_data(CardData, RootUrl) ->
     put_card_data(CardData, undefined, RootUrl).
 
--spec put_card_data(card_data(), session_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_cart_data, binary()}}.
+-spec put_card_data(decoded_card_data(), decoded_session_data(), woody:url()) ->
+    put_card_data_result() | {error, {invalid_card_data, binary()}}.
 put_card_data(CardData, SessionData, RootUrl) ->
     try cds_woody_client:call(card, 'PutCardData',
         [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
@@ -112,7 +109,7 @@ get_session_data(Session, RootUrl) ->
             {error, session_data_not_found}
     end.
 
--spec put_card(card_data(), woody:url()) ->
+-spec put_card(decoded_card_data(), woody:url()) ->
     #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try cds_woody_client:call(card, 'PutCard', [encode_card_data(CardData)], RootUrl) of
@@ -125,7 +122,7 @@ put_card(CardData, RootUrl) ->
             {error, {invalid_card_data, Reason}}
     end.
 
--spec put_session(cds:session(), session_data(), woody:url()) ->
+-spec put_session(cds:session(), decoded_session_data(), woody:url()) ->
     ok.
 put_session(SessionID, SessionData, RootUrl) ->
     cds_woody_client:call(card, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
@@ -187,7 +184,7 @@ decode_bank_card(
         metadata = Metadata,
         is_cvv_empty = IsCVVEmpty
     }) ->
-    #{
+    DecodedBankCard = #{
         token => Token,
         payment_system => PaymentSystem,
         bin => Bin,
@@ -197,7 +194,8 @@ decode_bank_card(
         bank_name => BankName,
         metadata => Metadata,
         is_cvv_empty => IsCVVEmpty
-    }.
+    },
+    genlib_map:compact(DecodedBankCard).
 
 decode_card_data(
     #'CardData'{
@@ -209,7 +207,7 @@ decode_card_data(
         cardholder_name = CardHolderName,
         cvv = CVV
     }) ->
-    #{
+    DecodedCardData = #{
         pan => Pan,
         exp_date => #{
             month => ExpDateMonth,
@@ -217,7 +215,8 @@ decode_card_data(
         },
         cardholder_name => CardHolderName,
         cvv => CVV
-    }.
+    },
+    genlib_map:compact(DecodedCardData).
 
 decode_session_data(
     #'SessionData'{

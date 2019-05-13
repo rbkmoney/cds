@@ -2,7 +2,7 @@
 [{<<"base64url">>,{pkg,<<"base64url">>,<<"0.0.1">>},1},
  {<<"cds_proto">>,
   {git,"git@github.com:rbkmoney/cds-proto.git",
-       {ref,"84e04e67e190aa178d14d16df2114504f6f56760"}},
+       {ref,"dc2dac8e82d6a941b7d9b8700b71534d9ff9b211"}},
   0},
  {<<"certifi">>,{pkg,<<"certifi">>,<<"0.7.0">>},2},
  {<<"cg_mon">>,

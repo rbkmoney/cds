@@ -30,17 +30,17 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
                 BankCard = #'BankCard'{
-                    token          = cds_utils:encode_token(Token),
-                    bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    token       = cds_utils:encode_token(Token),
+                    bin         = maps:get(iin           , CardInfo),
+                    last_digits = maps:get(last_digits   , CardInfo)
                 },
                 {ok, #'PutCardDataResult'{
-                    bank_card      = BankCard,
-                    session_id     = cds_utils:encode_session(Session)
+                    bank_card   = BankCard,
+                    session_id  = Session
                 }};
             {error, ValidationError} ->
                 cds_thrift_handler_utils:raise(#'InvalidCardData'{
-                    reason         = cds_thrift_handler_utils:map_validation_error(ValidationError)
+                    reason      = cds_thrift_handler_utils:map_validation_error(ValidationError)
                 })
         end
     catch
@@ -51,7 +51,7 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
 handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
         CardData = get_cardholder_data(cds_utils:decode_token(Token)),
-        SessionData = try_get_session_data(Session),
+        SessionData = get_session_data(Session),
         {ok, encode_card_data(CardData, SessionData)}
     catch
         not_found ->
@@ -69,7 +69,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
                 BankCard = #'BankCard'{
                     token          = cds_utils:encode_token(Token),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    last_digits    = maps:get(last_digits   , CardInfo)
                 },
                 {ok, #'PutCardResult'{
                     bank_card = BankCard
@@ -110,7 +110,7 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
 
 handle_function_('GetSessionData', [Session], _Context, _Opts) ->
     try
-        SessionData = try_get_session_data(Session),
+        SessionData = get_session_data(Session),
         {ok, encode_session_data(SessionData)}
     catch
         not_found ->
@@ -193,17 +193,6 @@ put_session(Session, SessionData) ->
 get_session_data(Session) ->
     SessionData = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
-
-try_get_session_data(Session0) ->
-    try
-        Session = cds_utils:decode_session(Session0),
-        get_session_data(Session)
-    catch
-        error:badarg -> % could not decode SessionID, let's try new scheme
-            get_session_data(Session0);
-        not_found -> % same as before but for false positive decoding case
-            get_session_data(Session0)
-    end.
 
 define_session_data(undefined, #'CardData'{cvv = CVV}) ->
     #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};

@@ -4,7 +4,6 @@
 -include_lib("cds_proto/include/cds_proto_base_thrift.hrl").
 
 -export([get_card_data/2]).
--export([get_session_card_data/3]).
 -export([put_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
@@ -14,9 +13,6 @@
 %%
 %% Internal types
 %%
-
--type card_data() :: cds_proto_storage_thrift:'CardData'().
--type session_data() :: cds_proto_storage_thrift:'SessionData'() | undefined.
 
 -type decoded_card_data() :: #{
     pan := binary(),
@@ -41,7 +37,7 @@
 -type bank_card() :: #{
     token := cds_proto_base_thrift:'Token'(),
     bin := binary(),
-    masked_pan := binary()
+    last_digits := binary()
 }.
 
 -type put_card_data_result() :: #{
@@ -64,24 +60,13 @@ get_card_data(Token, RootUrl) ->
             {error, card_data_not_found}
     end.
 
--spec get_session_card_data(cds:token(), cds:session(), woody:url()) ->
-    decoded_card_data() | {error, session_data_not_found}.
-get_session_card_data(Token, Session, RootUrl) ->
-    try cds_woody_client:call(card_v2, 'GetSessionCardData', [Token, Session], RootUrl) of
-        EncodedCardData ->
-            decode_card_data(EncodedCardData)
-    catch
-        #'CardDataNotFound'{} ->
-            {error, session_data_not_found}
-    end.
-
--spec put_card_data(card_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_cart_data, binary()}}.
+-spec put_card_data(decoded_card_data(), woody:url()) ->
+    put_card_data_result() | {error, {invalid_card_data, binary()}}.
 put_card_data(CardData, RootUrl) ->
     put_card_data(CardData, undefined, RootUrl).
 
--spec put_card_data(card_data(), session_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_cart_data, binary()}}.
+-spec put_card_data(decoded_card_data(), decoded_session_data(), woody:url()) ->
+    put_card_data_result() | {error, {invalid_card_data, binary()}}.
 put_card_data(CardData, SessionData, RootUrl) ->
     try cds_woody_client:call(card_v2, 'PutCardData',
         [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
@@ -106,7 +91,7 @@ get_session_data(Session, RootUrl) ->
             {error, session_data_not_found}
     end.
 
--spec put_card(card_data(), woody:url()) ->
+-spec put_card(decoded_card_data(), woody:url()) ->
     #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try cds_woody_client:call(card_v2, 'PutCard', [encode_card_data(CardData)], RootUrl) of
@@ -119,7 +104,7 @@ put_card(CardData, RootUrl) ->
             {error, {invalid_card_data, Reason}}
     end.
 
--spec put_session(cds:session(), session_data(), woody:url()) ->
+-spec put_session(cds:session(), decoded_session_data(), woody:url()) ->
     ok.
 put_session(SessionID, SessionData, RootUrl) ->
     cds_woody_client:call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
@@ -173,12 +158,12 @@ decode_bank_card(
     #'BankCard'{
         token = Token,
         bin = Bin,
-        masked_pan = MaskedPan
+        last_digits = LastDigits
     }) ->
     #{
         token => Token,
         bin => Bin,
-        masked_pan => MaskedPan
+        last_digits => LastDigits
     }.
 
 decode_card_data(
@@ -191,7 +176,7 @@ decode_card_data(
         cardholder_name = CardHolderName,
         cvv = CVV
     }) ->
-    #{
+    DecodedCardData = #{
         pan => Pan,
         exp_date => #{
             month => ExpDateMonth,
@@ -199,7 +184,8 @@ decode_card_data(
         },
         cardholder_name => CardHolderName,
         cvv => CVV
-    }.
+    },
+    genlib_map:compact(DecodedCardData).
 
 decode_session_data(
     #'SessionData'{

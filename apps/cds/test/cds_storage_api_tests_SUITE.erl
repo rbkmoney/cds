@@ -377,7 +377,7 @@ put_card(C) ->
             token := Token
         }
     } = CDSCardClient:put_card(CardData, root_url(C)),
-    CardData2 = CardData#{cvv => <<>>, cardholder_name => undefined},
+    CardData2 = CardData#{cvv => <<>>},
     CardData2 = CDSCardClient:get_card_data(Token, root_url(C)).
 
 -spec put_session(config()) -> _.
@@ -448,11 +448,16 @@ get_session_data_backward_compatibilty(C) ->
 
 get_session_card_data_backward_compatibilty(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(
-        cds_ct_utils:lookup(token, C),
-        cds_ct_utils:lookup(session, C),
-        root_url(C)
-    ).
+    case CDSCardClient of
+        cds_card_v1_client ->
+            ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(
+                cds_ct_utils:lookup(token, C),
+                cds_ct_utils:lookup(session, C),
+                root_url(C)
+            );
+        _OtherClient ->
+            true
+    end.
 
 -spec get_card_data_unavailable(config()) -> _.
 
@@ -466,8 +471,13 @@ get_card_data_unavailable(C) ->
 
 get_session_card_data_unavailable(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    try CDSCardClient:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
-        error:{woody_error, {external, resource_unavailable, _}} -> ok
+    case CDSCardClient of
+        cds_card_v1_client ->
+            try CDSCardClient:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
+                error:{woody_error, {external, resource_unavailable, _}} -> ok
+            end;
+        _OtherClient ->
+            true
     end.
 
 -spec put_card_data_unavailable(config()) -> _.
@@ -509,7 +519,13 @@ session_cleaning(C) ->
     } = CDSCardClient:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
 
     ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(Token, root_url(C)),
-    ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(Token, Session, root_url(C)),
+    _ = case CDSCardClient of
+        cds_card_v1_client ->
+            ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(Token, Session, root_url(C)),
+            true;
+        _OtherClient ->
+            true
+    end,
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
@@ -517,7 +533,12 @@ session_cleaning(C) ->
     }}] = config(session_cleaning_config, C),
 
     ok = timer:sleep(Lifetime * 1000 + Interval * 2),
-    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
+    _ = case CDSCardClient of
+        cds_card_v1_client ->
+            ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C)));
+        _OtherClient0 ->
+            true
+    end,
     _ = ?assertMatch(?CREDIT_CARD_MATCH(<<>>), CDSCardClient:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
@@ -544,10 +565,20 @@ refresh_sessions(C) ->
         || _ <- lists:seq(1, 6)],
 
     ok = timer:sleep(Interval),
-    _ = ?assertMatch(?CREDIT_CARD_MATCH(_), CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
+    _ = case CDSCardClient of
+            cds_card_v1_client ->
+                ?assertMatch(?CREDIT_CARD_MATCH(_), CDSCardClient:get_session_card_data(Token, Session, root_url(C)));
+            _OtherClient ->
+                true
+        end,
     ok = timer:sleep(Lifetime * 1000 + Interval),
 
-    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C))),
+    _ = case CDSCardClient of
+            cds_card_v1_client ->
+                ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C)));
+            _OtherClient0 ->
+                true
+        end,
     _ = ?assertMatch(?CREDIT_CARD_MATCH(<<>>), CDSCardClient:get_card_data(Token, root_url(C))).
 
 
