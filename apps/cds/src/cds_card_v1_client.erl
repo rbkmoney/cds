@@ -83,7 +83,7 @@ get_session_card_data(Token, Session, RootUrl) ->
 put_card_data(CardData, RootUrl) ->
     put_card_data(CardData, undefined, RootUrl).
 
--spec put_card_data(decoded_card_data(), decoded_session_data(), woody:url()) ->
+-spec put_card_data(decoded_card_data(), decoded_session_data() | undefined, woody:url()) ->
     put_card_data_result() | {error, {invalid_card_data, binary()}}.
 put_card_data(CardData, SessionData, RootUrl) ->
     try cds_woody_client:call(card, 'PutCardData',
