@@ -130,15 +130,6 @@ decode_auth_data({card_security_code, #'CardSecurityCode'{value = Value}}) ->
 decode_auth_data({auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
-encode_card_data(CardData, #{auth_data := AuthData}) ->
-    V = encode_cardholder_data(CardData),
-    case maps:get(type, AuthData) of
-        cvv ->
-            V#'CardData'{cvv = maps:get(value, AuthData)};
-        '3ds' ->
-            V
-    end.
-
 encode_cardholder_data(#{
     cardnumber := PAN,
     exp_date   := {Month, Year},
