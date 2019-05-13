@@ -199,13 +199,13 @@ groups() ->
 
 init_per_group(cds_client_v1, C) ->
     [
-        {cds_keyring_client, cds_keyring_v1_client},
+        {cds_keyring_service_code, keyring},
         {cds_storage_client, cds_card_v1_client}
     ] ++ C;
 
 init_per_group(cds_client_v2, C) ->
     [
-        {cds_keyring_client, cds_keyring_v2_client},
+        {cds_keyring_service_code, keyring_v2},
         {cds_storage_client, cds_card_v2_client}
     ] ++ C;
 

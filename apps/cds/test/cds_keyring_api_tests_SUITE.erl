@@ -117,13 +117,13 @@ groups() ->
 
 init_per_group(cds_client_v1, C) ->
     [
-        {cds_keyring_client, cds_keyring_v1_client},
+        {cds_keyring_service_code, keyring},
         {cds_storage_client, cds_card_v1_client}
     ] ++ C;
 
 init_per_group(cds_client_v2, C) ->
     [
-        {cds_keyring_client, cds_keyring_v2_client},
+        {cds_keyring_service_code, keyring_v2},
         {cds_storage_client, cds_card_v2_client}
     ] ++ C;
 
@@ -168,8 +168,8 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
-    EncryptedMasterKeyShares = CDSKeyringClient:start_init(2, root_url(C)),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
+    EncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C), CDSKeyringServiceCode),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
@@ -185,7 +185,7 @@ init(C) ->
                 }
             }
         },
-        CDSKeyringClient:get_state(root_url(C))
+        cds_keyring_client:get_state(root_url(C), CDSKeyringServiceCode)
     ),
     ok = validate_init(DecryptedMasterKeyShares, C),
     _ = ?assertMatch(
@@ -198,39 +198,39 @@ init(C) ->
                 }
             }
         },
-        CDSKeyringClient:get_state(root_url(C))
+        cds_keyring_client:get_state(root_url(C), CDSKeyringServiceCode)
     ),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares, C).
 
 -spec init_with_timeout(config()) -> _.
 
 init_with_timeout(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     {Id, DecryptedMasterKeyShare} = partial_init(C),
     Timeout = genlib_app:env(cds, keyring_rotation_lifetime, 4000),
     ok = timer:sleep(Timeout + 1500),
     _ = ?assertEqual(
         {error, {invalid_activity, {initialization, uninitialized}}},
-        CDSKeyringClient:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec init_with_cancel(config()) -> _.
 
 init_with_cancel(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     {Id, DecryptedMasterKeyShare} = partial_init(C),
-    ok = CDSKeyringClient:cancel_init(root_url(C)),
+    ok = cds_keyring_client:cancel_init(root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {invalid_activity, {initialization, uninitialized}}},
-        CDSKeyringClient:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ).
 
 partial_init(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
-    EncryptedMasterKeyShares = CDSKeyringClient:start_init(2, root_url(C)),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
+    EncryptedMasterKeyShares = cds_keyring_client:start_init(2, root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {invalid_activity, {initialization, validation}}},
-        CDSKeyringClient:start_init(2, root_url(C))
+        cds_keyring_client:start_init(2, root_url(C), CDSKeyringServiceCode)
     ),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
@@ -241,11 +241,11 @@ partial_init(C) ->
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
     _ = ?assertEqual(
         {more_keys_needed, DecryptedMasterKeySharesCount},
-        CDSKeyringClient:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {more_keys_needed, DecryptedMasterKeySharesCount},
-        CDSKeyringClient:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ),
     {Id, DecryptedMasterKeyShare}.
 
@@ -267,31 +267,31 @@ decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivate
 -spec validate_init([{cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()}], config()) -> ok.
 
 validate_init([{Id, DecryptedMasterKeyShare} | []], C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ),
     ok;
 validate_init([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
     _ = ?assertEqual(
         {more_keys_needed, DecryptedMasterKeySharesCount},
-        CDSKeyringClient:validate_init(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ),
     validate_init(DecryptedMasterKeyShares, C).
 
 -spec lock(config()) -> _.
 
 lock(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
-    ok = CDSKeyringClient:lock(root_url(C)).
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
+    ok = cds_keyring_client:lock(root_url(C), CDSKeyringServiceCode).
 
 -spec unlock(config()) -> _.
 
 unlock(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         #{
             status := locked,
@@ -301,11 +301,11 @@ unlock(C) ->
                 }
             }
         },
-        CDSKeyringClient:get_state(root_url(C))
+        cds_keyring_client:get_state(root_url(C), CDSKeyringServiceCode)
     ),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_unlock(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_unlock(Id1, MasterKey1, root_url(C))),
+    _ = ?assertEqual(ok, cds_keyring_client:start_unlock(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_unlock(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
     _ = ?assertMatch(
         #{
             status := locked,
@@ -316,55 +316,55 @@ unlock(C) ->
                 }
             }
         },
-        CDSKeyringClient:get_state(root_url(C))
+        cds_keyring_client:get_state(root_url(C), CDSKeyringServiceCode)
     ),
-    _ = ?assertEqual(ok, CDSKeyringClient:confirm_unlock(Id2, MasterKey2, root_url(C))).
+    _ = ?assertEqual(ok, cds_keyring_client:confirm_unlock(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)).
 
 -spec unlock_with_timeout(config()) -> _.
 
 unlock_with_timeout(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_unlock(root_url(C))),
+    _ = ?assertEqual(ok, cds_keyring_client:start_unlock(root_url(C), CDSKeyringServiceCode)),
     _ = ?assertEqual(
         {error, {invalid_activity, {unlock, validation}}},
-        CDSKeyringClient:start_unlock(root_url(C))
+        cds_keyring_client:start_unlock(root_url(C), CDSKeyringServiceCode)
     ),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_unlock(Id1, MasterKey1, root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_unlock(Id1, MasterKey1, root_url(C))),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_unlock(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_unlock(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
     Timeout = genlib_app:env(cds, keyring_unlock_lifetime, 1000),
     timer:sleep(Timeout + 500),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_unlock(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_unlock(Id1, MasterKey1, root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:confirm_unlock(Id2, MasterKey2, root_url(C))).
+    _ = ?assertEqual(ok, cds_keyring_client:start_unlock(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_unlock(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:confirm_unlock(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)).
 
 -spec rekey(config()) -> _.
 
 rekey(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rekey(2, root_url(C))),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)),
     _ = ?assertEqual(
         {error, {invalid_activity, {rekeying, confirmation}}},
-        CDSKeyringClient:start_rekey(2, root_url(C))
+        cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)
     ),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rekey(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rekey(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rekey(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rekey(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:confirm_rekey(Id2, MasterKey2, root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {error, {invalid_activity, {rekeying, postconfirmation}}},
-        CDSKeyringClient:confirm_rekey(Id2, MasterKey2, root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)
     ),
-    EncryptedMasterKeyShares = CDSKeyringClient:start_rekey_validation(root_url(C)),
+    EncryptedMasterKeyShares = cds_keyring_client:start_rekey_validation(root_url(C), CDSKeyringServiceCode),
     _ = ?assertMatch(
         #{
             status := unlocked,
@@ -376,7 +376,7 @@ rekey(C) ->
                 }
             }
         },
-        CDSKeyringClient:get_state(root_url(C))
+        cds_keyring_client:get_state(root_url(C), CDSKeyringServiceCode)
     ),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
@@ -389,29 +389,29 @@ rekey(C) ->
 -spec rekey_with_timeout(config()) -> _.
 
 rekey_with_timeout(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rekey(2, root_url(C))),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rekey(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rekey(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:confirm_rekey(Id2, MasterKey2, root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)
     ),
     Timeout = genlib_app:env(cds, keyring_rekeying_lifetime, 1000),
     timer:sleep(Timeout + 500),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rekey(2, root_url(C))),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rekey(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rekey(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:confirm_rekey(Id2, MasterKey2, root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)
     ),
-    EncryptedMasterKeyShares = CDSKeyringClient:start_rekey_validation(root_url(C)),
+    EncryptedMasterKeyShares = cds_keyring_client:start_rekey_validation(root_url(C), CDSKeyringServiceCode),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
@@ -423,20 +423,20 @@ rekey_with_timeout(C) ->
 -spec rekey_with_cancel(config()) -> _.
 
 rekey_with_cancel(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rekey(2, root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:cancel_rekey(root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rekey(2, root_url(C))),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:cancel_rekey(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rekey(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rekey(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:confirm_rekey(Id2, MasterKey2, root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)
     ),
-    EncryptedMasterKeyShares = CDSKeyringClient:start_rekey_validation(root_url(C)),
+    EncryptedMasterKeyShares = cds_keyring_client:start_rekey_validation(root_url(C), CDSKeyringServiceCode),
     Shareholders = cds_shareholder:get_all(),
     _ = ?assertEqual(length(EncryptedMasterKeyShares), length(Shareholders)),
     EncPrivateKeys = enc_private_keys(C),
@@ -448,81 +448,81 @@ rekey_with_cancel(C) ->
 -spec validate_rekey([{cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share()}], config()) -> ok.
 
 validate_rekey([{Id, DecryptedMasterKeyShare} | []], C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ),
     ok;
 validate_rekey([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     DecryptedMasterKeySharesCount = length(DecryptedMasterKeyShares),
     _ = ?assertEqual(
         {more_keys_needed, DecryptedMasterKeySharesCount},
-        CDSKeyringClient:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C))
+        cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C), CDSKeyringServiceCode)
     ),
     validate_rekey(DecryptedMasterKeyShares, C).
 
 -spec rotate(config()) -> _.
 
 rotate(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rotate(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_rotate(Id1, MasterKey1, root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:confirm_rotate(Id2, MasterKey2, root_url(C))).
+    _ = ?assertEqual(ok, cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_rotate(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:confirm_rotate(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)).
 
 -spec rotate_with_timeout(config()) -> _.
 
 rotate_with_timeout(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, {Id3, MasterKey3}] = cds_ct_utils:lookup(master_keys, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rotate(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_rotate(Id1, MasterKey1, root_url(C))),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_rotate(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
     Timeout = genlib_app:env(cds, keyring_rotation_lifetime, 1000),
     timer:sleep(Timeout + 500),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rotate(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_rotate(Id2, MasterKey2, root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:confirm_rotate(Id3, MasterKey3, root_url(C))).
+    _ = ?assertEqual(ok, cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_rotate(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:confirm_rotate(Id3, MasterKey3, root_url(C), CDSKeyringServiceCode)).
 
 -spec rotate_with_cancel(config()) -> _.
 
 rotate_with_cancel(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, MasterKey1}, {Id2, MasterKey2}, {Id3, MasterKey3}] = cds_ct_utils:lookup(master_keys, C),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rotate(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_rotate(Id1, MasterKey1, root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:cancel_rotate(root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:start_rotate(root_url(C))),
-    _ = ?assertEqual({more_keys_needed, 1}, CDSKeyringClient:confirm_rotate(Id2, MasterKey2, root_url(C))),
-    _ = ?assertEqual(ok, CDSKeyringClient:confirm_rotate(Id3, MasterKey3, root_url(C))).
+    _ = ?assertEqual(ok, cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_rotate(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:cancel_rotate(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual({more_keys_needed, 1}, cds_keyring_client:confirm_rotate(Id2, MasterKey2, root_url(C), CDSKeyringServiceCode)),
+    _ = ?assertEqual(ok, cds_keyring_client:confirm_rotate(Id3, MasterKey3, root_url(C), CDSKeyringServiceCode)).
 
 -spec init_invalid_status(config()) -> _.
 
 init_invalid_status(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         {error, {invalid_status, _SomeStatus}},
-        CDSKeyringClient:start_init(2, root_url(C))
+        cds_keyring_client:start_init(2, root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec init_invalid_args(config()) -> _.
 
 init_invalid_args(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         {error, {invalid_arguments, _Reason}},
-        CDSKeyringClient:start_init(4, root_url(C))
+        cds_keyring_client:start_init(4, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertMatch(
         {error, {invalid_arguments, _Reason}},
-        CDSKeyringClient:start_init(0, root_url(C))
+        cds_keyring_client:start_init(0, root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec init_operation_aborted_failed_to_recover(config()) -> _.
 
 init_operation_aborted_failed_to_recover(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     MasterKey = cds_crypto:key(),
     [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
     InvalidShare = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
@@ -530,36 +530,36 @@ init_operation_aborted_failed_to_recover(C) ->
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
 
-    _ = CDSKeyringClient:start_init(2, root_url(C)),
-    {more_keys_needed, 2} = CDSKeyringClient:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    _ = cds_keyring_client:start_init(2, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"failed_to_recover">>}},
-        CDSKeyringClient:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, InvalidShare), root_url(C))
+        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, InvalidShare), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec init_operation_aborted_failed_to_decrypt(config()) -> _.
 
 init_operation_aborted_failed_to_decrypt(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     MasterKey = cds_crypto:key(),
     [WrongShare1, WrongShare2, WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
 
-    _ = CDSKeyringClient:start_init(2, root_url(C)),
-    {more_keys_needed, 2} = CDSKeyringClient:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    _ = cds_keyring_client:start_init(2, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"failed_to_decrypt_keyring">>}},
-        CDSKeyringClient:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare3), root_url(C))
+        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare3), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec init_operation_aborted_non_matching_mk(config()) -> _.
 
 init_operation_aborted_non_matching_mk(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     MasterKey = cds_crypto:key(),
     [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 1, 3),
     MasterKey2 = cds_crypto:key(),
@@ -568,36 +568,36 @@ init_operation_aborted_non_matching_mk(C) ->
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
 
-    _ = CDSKeyringClient:start_init(1, root_url(C)),
-    {more_keys_needed, 2} = CDSKeyringClient:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    _ = cds_keyring_client:start_init(1, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 2} = cds_keyring_client:validate_init(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_init(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"non_matching_masterkey">>}},
-        CDSKeyringClient:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare6), root_url(C))
+        cds_keyring_client:validate_init(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare6), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rekey_operation_aborted_wrong_masterkey(config()) -> _.
 
 rekey_operation_aborted_wrong_masterkey(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     MasterKey = cds_crypto:key(),
     [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {_Id3, _SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
 
-    ok = CDSKeyringClient:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    ok = cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"wrong_masterkey">>}},
-        CDSKeyringClient:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rekey_operation_aborted_failed_to_recover_confirm(config()) -> _.
 
 rekey_operation_aborted_failed_to_recover_confirm(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     MasterKey = cds_crypto:key(),
     [WrongShare1, _WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
     InvalidShare = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
@@ -605,17 +605,17 @@ rekey_operation_aborted_failed_to_recover_confirm(C) ->
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {_Id3, _SigPrivateKey3}] =
         maps:to_list(SigPrivateKeys),
 
-    ok = CDSKeyringClient:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
+    ok = cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"failed_to_recover">>}},
-        CDSKeyringClient:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, InvalidShare), root_url(C))
+        cds_keyring_client:confirm_rekey(Id2, cds_crypto:sign(SigPrivateKey2, InvalidShare), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rekey_operation_aborted_failed_to_recover_validate(config()) -> _.
 
 rekey_operation_aborted_failed_to_recover_validate(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, TrueSignedShare1}, {Id2, TrueSignedShare2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
@@ -624,22 +624,22 @@ rekey_operation_aborted_failed_to_recover_validate(C) ->
     [WrongShare1, WrongShare2, _WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
     InvalidShare = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
 
-    ok = CDSKeyringClient:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:confirm_rekey(Id1, TrueSignedShare1, root_url(C)),
-    ok = CDSKeyringClient:confirm_rekey(Id2, TrueSignedShare2, root_url(C)),
-    _ = CDSKeyringClient:start_rekey_validation(root_url(C)),
-    {more_keys_needed, 2} = CDSKeyringClient:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    ok = cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueSignedShare1, root_url(C), CDSKeyringServiceCode),
+    ok = cds_keyring_client:confirm_rekey(Id2, TrueSignedShare2, root_url(C), CDSKeyringServiceCode),
+    _ = cds_keyring_client:start_rekey_validation(root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"failed_to_recover">>}},
-        CDSKeyringClient:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, InvalidShare), root_url(C))
+        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, InvalidShare), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rekey_operation_aborted_failed_to_decrypt_keyring(config()) -> _.
 
 rekey_operation_aborted_failed_to_decrypt_keyring(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, TrueSignedShare1}, {Id2, TrueSignedShare2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
@@ -647,22 +647,22 @@ rekey_operation_aborted_failed_to_decrypt_keyring(C) ->
     MasterKey = cds_crypto:key(),
     [WrongShare1, WrongShare2, WrongShare3] = cds_keysharing:share(MasterKey, 2, 3),
 
-    ok = CDSKeyringClient:start_rekey(2, root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:confirm_rekey(Id1, TrueSignedShare1, root_url(C)),
-    ok = CDSKeyringClient:confirm_rekey(Id2, TrueSignedShare2, root_url(C)),
-    _ = CDSKeyringClient:start_rekey_validation(root_url(C)),
-    {more_keys_needed, 2} = CDSKeyringClient:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    ok = cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueSignedShare1, root_url(C), CDSKeyringServiceCode),
+    ok = cds_keyring_client:confirm_rekey(Id2, TrueSignedShare2, root_url(C), CDSKeyringServiceCode),
+    _ = cds_keyring_client:start_rekey_validation(root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"failed_to_decrypt_keyring">>}},
-        CDSKeyringClient:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare3), root_url(C))
+        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare3), root_url(C), CDSKeyringServiceCode)
     ).
 
 
 -spec rekey_operation_aborted_non_matching_masterkey(config()) -> _.
 
 rekey_operation_aborted_non_matching_masterkey(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, TrueSignedShare1}, {Id2, TrueSignedShare2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, {Id3, SigPrivateKey3}] =
@@ -672,105 +672,105 @@ rekey_operation_aborted_non_matching_masterkey(C) ->
     MasterKey2 = cds_crypto:key(),
     [_WrongShare4, _WrongShare5, WrongShare6] = cds_keysharing:share(MasterKey2, 1, 3),
 
-    ok = CDSKeyringClient:start_rekey(1, root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:confirm_rekey(Id1, TrueSignedShare1, root_url(C)),
-    ok = CDSKeyringClient:confirm_rekey(Id2, TrueSignedShare2, root_url(C)),
-    _ = CDSKeyringClient:start_rekey_validation(root_url(C)),
-    {more_keys_needed, 2} = CDSKeyringClient:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C)),
-    {more_keys_needed, 1} = CDSKeyringClient:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C)),
+    ok = cds_keyring_client:start_rekey(1, root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:confirm_rekey(Id1, TrueSignedShare1, root_url(C), CDSKeyringServiceCode),
+    ok = cds_keyring_client:confirm_rekey(Id2, TrueSignedShare2, root_url(C), CDSKeyringServiceCode),
+    _ = cds_keyring_client:start_rekey_validation(root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 2} = cds_keyring_client:validate_rekey(Id1, cds_crypto:sign(SigPrivateKey1, WrongShare1), root_url(C), CDSKeyringServiceCode),
+    {more_keys_needed, 1} = cds_keyring_client:validate_rekey(Id2, cds_crypto:sign(SigPrivateKey2, WrongShare2), root_url(C), CDSKeyringServiceCode),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"non_matching_masterkey">>}},
-        CDSKeyringClient:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare6), root_url(C))
+        cds_keyring_client:validate_rekey(Id3, cds_crypto:sign(SigPrivateKey3, WrongShare6), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rekey_invalid_args(config()) -> _.
 
 rekey_invalid_args(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         {error, {invalid_arguments, _Reason}},
-        CDSKeyringClient:start_rekey(4, root_url(C))
+        cds_keyring_client:start_rekey(4, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertMatch(
         {error, {invalid_arguments, _Reason}},
-        CDSKeyringClient:start_rekey(0, root_url(C))
+        cds_keyring_client:start_rekey(0, root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rekey_invalid_status(config()) -> _.
 
 rekey_invalid_status(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         {error, {invalid_status, _SomeStatus}},
-        CDSKeyringClient:start_rekey(2, root_url(C))
+        cds_keyring_client:start_rekey(2, root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec lock_invalid_status(config()) -> _.
 
 lock_invalid_status(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         {error, {invalid_status, _SomeStatus}},
-        CDSKeyringClient:lock(root_url(C))
+        cds_keyring_client:lock(root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rotate_invalid_status(config()) -> _.
 
 rotate_invalid_status(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     _ = ?assertMatch(
         {error, {invalid_status, _SomeStatus}},
-        CDSKeyringClient:start_rotate(root_url(C))
+        cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rotate_failed_to_recover(config()) -> _.
 
 rotate_failed_to_recover(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     [{Id1, MasterKey1}, {Id2, _MasterKey2} | _MasterKeys] = cds_ct_utils:lookup(master_keys, C),
     MasterKey2 = cds_keysharing:convert(#share{threshold = 2, x = 4, y = <<23224>>}),
     SigPrivateKeys = sig_private_keys(C),
     [_SigPrivateKey1, SigPrivateKey2, _SigPrivateKey3] = maps:values(SigPrivateKeys),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:start_rotate(root_url(C))
+        cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {error, {invalid_activity, {rotation, validation}}},
-        CDSKeyringClient:start_rotate(root_url(C))
+        cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rotate(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rotate(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rotate(Id1, MasterKey1, root_url(C))
+        cds_keyring_client:confirm_rotate(Id1, MasterKey1, root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"failed_to_recover">>}},
-        CDSKeyringClient:confirm_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))
+        cds_keyring_client:confirm_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C), CDSKeyringServiceCode)
     ).
 
 -spec rotate_wrong_masterkey(config()) -> _.
 
 rotate_wrong_masterkey(C) ->
-    CDSKeyringClient = config(cds_keyring_client, C),
+    CDSKeyringServiceCode = config(cds_keyring_service_code, C),
     MasterKey = cds_crypto:key(),
     [MasterKey1, MasterKey2, _MasterKey3] = cds_keysharing:share(MasterKey, 2, 3),
     SigPrivateKeys = sig_private_keys(C),
     [{Id1, SigPrivateKey1}, {Id2, SigPrivateKey2}, _SigPrivateKey3] = maps:to_list(SigPrivateKeys),
     _ = ?assertEqual(
         ok,
-        CDSKeyringClient:start_rotate(root_url(C))
+        cds_keyring_client:start_rotate(root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {more_keys_needed, 1},
-        CDSKeyringClient:confirm_rotate(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C))
+        cds_keyring_client:confirm_rotate(Id1, cds_crypto:sign(SigPrivateKey1, MasterKey1), root_url(C), CDSKeyringServiceCode)
     ),
     _ = ?assertEqual(
         {error, {operation_aborted, <<"wrong_masterkey">>}},
-        CDSKeyringClient:confirm_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C))
+        cds_keyring_client:confirm_rotate(Id2, cds_crypto:sign(SigPrivateKey2, MasterKey2), root_url(C), CDSKeyringServiceCode)
     ).
 
 %%
