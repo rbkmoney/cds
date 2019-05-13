@@ -48,18 +48,6 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end;
 
-handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    try
-        CardData = get_cardholder_data(cds_utils:decode_token(Token)),
-        SessionData = get_session_data(Session),
-        {ok, encode_card_data(CardData, SessionData)}
-    catch
-        not_found ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
-    end;
-
 handle_function_('PutCard', [CardData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
     try
