@@ -85,7 +85,7 @@ format_mfa_md(Other) ->
 format_args([], FmtAcc, ArgsAcc) ->
     {string:join(lists:reverse(FmtAcc), ", "), lists:reverse(ArgsAcc)};
 format_args([H|T], FmtAcc, ArgsAcc) ->
-    {Str, _} = io_lib:print(H, 1, 100, -1),
+    Str = io_lib:print(H, 1, 100, -1),
     format_args(T, ["~s"|FmtAcc], [Str|ArgsAcc]).
 
 % test
