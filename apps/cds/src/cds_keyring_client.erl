@@ -1,21 +1,9 @@
 -module(cds_keyring_client).
 
--export([start_init/2]).
--export([validate_init/3]).
--export([cancel_init/1]).
--export([start_unlock/1]).
--export([confirm_unlock/3]).
--export([cancel_unlock/1]).
+-export([init/3]).
+-export([unlock/2]).
 -export([lock/1]).
--export([start_rotate/1]).
--export([confirm_rotate/3]).
--export([cancel_rotate/1]).
--export([start_rekey/2]).
--export([confirm_rekey/3]).
--export([start_rekey_validation/1]).
--export([validate_rekey/3]).
--export([cancel_rekey/1]).
--export([get_state/1]).
+-export([rotate/1]).
 
 %%
 %% Internal types
@@ -27,66 +15,18 @@
 %% API
 %%
 
--spec start_init(integer(), woody:url()) -> result().
-start_init(Threshold, RootUrl) ->
-    cds_woody_client:call(keyring, 'StartInit', [Threshold], RootUrl).
+-spec init(integer(), integer(), woody:url()) -> result().
+init(Threshold, Number, RootUrl) ->
+    cds_woody_client:call(keyring, 'Init', [Threshold, Number], RootUrl).
 
--spec validate_init(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-validate_init(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ValidateInit', [ShareholderId, Share], RootUrl).
-
--spec cancel_init(woody:url()) -> result().
-cancel_init(RootUrl) ->
-    cds_woody_client:call(keyring, 'CancelInit', [], RootUrl).
-
--spec start_unlock(woody:url()) -> result().
-start_unlock(RootUrl) ->
-    cds_woody_client:call(keyring, 'StartUnlock', [], RootUrl).
-
--spec confirm_unlock(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-confirm_unlock(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ConfirmUnlock', [ShareholderId, Share], RootUrl).
-
--spec cancel_unlock(woody:url()) -> result().
-cancel_unlock(RootUrl) ->
-    cds_woody_client:call(keyring, 'CancelUnlock', [], RootUrl).
+-spec unlock(cds_keysharing:masterkey_share(), woody:url()) -> result().
+unlock(Share, RootUrl) ->
+    cds_woody_client:call(keyring, 'Unlock', [Share], RootUrl).
 
 -spec lock(woody:url()) -> result().
 lock(RootUrl) ->
     cds_woody_client:call(keyring, 'Lock', [], RootUrl).
 
--spec start_rotate(woody:url()) -> result().
-start_rotate(RootUrl) ->
-    cds_woody_client:call(keyring, 'StartRotate', [], RootUrl).
-
--spec confirm_rotate(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-confirm_rotate(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ConfirmRotate', [ShareholderId, Share], RootUrl).
-
--spec cancel_rotate(woody:url()) -> result().
-cancel_rotate(RootUrl) ->
-    cds_woody_client:call(keyring, 'CancelRotate', [], RootUrl).
-
--spec start_rekey(integer(), woody:url()) -> result().
-start_rekey(Threshold, RootUrl) ->
-    cds_woody_client:call(keyring, 'StartRekey', [Threshold], RootUrl).
-
--spec confirm_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-confirm_rekey(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ConfirmRekey', [ShareholderId, Share], RootUrl).
-
--spec start_rekey_validation(woody:url()) -> result().
-start_rekey_validation(RootUrl) ->
-    cds_woody_client:call(keyring, 'StartRekeyValidation', [], RootUrl).
-
--spec validate_rekey(cds_shareholder:shareholder_id(), cds_keysharing:masterkey_share(), woody:url()) -> result().
-validate_rekey(ShareholderId, Share, RootUrl) ->
-    cds_woody_client:call(keyring, 'ValidateRekey', [ShareholderId, Share], RootUrl).
-
--spec cancel_rekey(woody:url()) -> result().
-cancel_rekey(RootUrl) ->
-    cds_woody_client:call(keyring, 'CancelRekey', [], RootUrl).
-
--spec get_state(woody:url()) -> result().
-get_state(RootUrl) ->
-    cds_woody_client:call(keyring, 'GetState', [], RootUrl).
+-spec rotate(woody:url()) -> result().
+rotate(RootUrl) ->
+    cds_woody_client:call(keyring, 'Rotate', [], RootUrl).

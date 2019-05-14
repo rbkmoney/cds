@@ -18,9 +18,7 @@
         dmsl,
         identdocstore_proto,
         erl_health,
-        msgpack,
-        lib_combin,
-        jose
+        msgpack
     ]},
     {env, []},
     {modules, []},
