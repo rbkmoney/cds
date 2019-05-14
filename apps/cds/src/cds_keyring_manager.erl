@@ -58,7 +58,6 @@
 %% API.
 
 -spec callback_mode() -> state_functions.
-
 callback_mode() -> state_functions.
 
 -spec start_link() -> {ok, pid()}.
@@ -165,7 +164,6 @@ call(Event) ->
 %% gen_fsm.
 
 -spec init(_) -> {ok, locked | not_initialized, state()}.
-
 init([]) ->
     try cds_keyring_storage:read() of
         _Keyring ->
@@ -176,7 +174,6 @@ init([]) ->
     end.
 
 -spec not_initialized(term(), term(), state()) -> term().
-
 not_initialized({call, From}, {initialize, Threshold}, _StateData) ->
     Result = cds_keyring_initializer:initialize(Threshold),
     {keep_state_and_data, {reply, From, Result}};
@@ -197,7 +194,6 @@ not_initialized({call, From}, cancel_init, _StateData) ->
 ?HANDLE_COMMON.
 
 -spec locked(term(), term(), term()) -> term().
-
 locked({call, From}, start_unlock, _StateData) ->
     LockedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_unlocker:initialize(LockedKeyring),
@@ -218,7 +214,6 @@ locked({call, From}, cancel_unlock, _StateData) ->
 ?HANDLE_COMMON.
 
 -spec unlocked(term(), term(), state()) -> term().
-
 unlocked({call, From}, lock, StateData) ->
     {next_state, locked, StateData#state{keyring = undefined}, {reply, From, ok}};
 unlocked({call, From}, get_keyring, #state{keyring = Keyring}) ->
@@ -271,14 +266,12 @@ unlocked({call, From}, cancel_rekey, _StateData) ->
 ?HANDLE_COMMON.
 
 -spec (handle_common(term(), term(), atom(), state()) -> term()).
-
 handle_common({call, From}, get_status, FunctionName, _Data) ->
     {keep_state_and_data, {reply, From, {ok, generate_status(FunctionName)}}};
 handle_common({call, From}, _Msg, FunctionName, _Data) ->
     {keep_state_and_data, {reply, From, {error, {invalid_status, FunctionName}}}}.
 
 -spec generate_status(atom()) -> status().
-
 generate_status(StateName) ->
     #{
         status => StateName,
@@ -291,11 +284,9 @@ generate_status(StateName) ->
     }.
 
 -spec terminate(term(), atom(), term()) -> ok.
-
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
 -spec code_change(term(), atom(), state(), term()) -> {ok, atom(), state()}.
-
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
