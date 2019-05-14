@@ -60,7 +60,7 @@ format_mfa(MFA) ->
 -spec format_mfa_md(any()) -> {[{atom(), any()}], list()}.
 format_mfa_md({M, F, A}) when is_list(A) ->
     {FmtStr, Args} = format_args(A, [], []),
-    {[{module, M}, {function, F}], io_lib:format("~w:~w("++FmtStr++")", [M, F | Args])};
+    {[{module, M}, {function, F}], io_lib:format("~w:~w(" ++ FmtStr ++ ")", [M, F | Args])};
 format_mfa_md({M, F, A}) when is_integer(A) ->
     {[{module, M}, {function, F}], io_lib:format("~w:~w/~w", [M, F, A])};
 format_mfa_md({M, F, A, Props}) when is_list(Props) ->
