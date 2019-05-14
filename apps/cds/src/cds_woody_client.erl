@@ -23,7 +23,7 @@ call(ServiceCode, Function, Args, RootUrl) ->
     TransportOpts = application:get_env(cds, transport_opts, #{}),
     CallOpts = #{
         url => <<RootUrl/binary, Path/binary>>,
-        event_handler => cds_woody_event_handler,
+        event_handler => scoper_woody_event_handler,
         transport_opts => TransportOpts
     },
     case woody_client:call(Request, CallOpts) of

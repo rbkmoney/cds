@@ -20,10 +20,10 @@ call(Key, Method, Args) ->
         {error, Error} ->
             throw(Error)
     catch Class:Reason:Stacktrace ->
-        _ = lager:error(
+        _ = logger:error(
             "~p (~p) ~p failed~nStacktrace:~s",
             [Key, Module, Method,
-                lager:pr_stacktrace(Stacktrace, {Class, Reason})]),
+                cds_utils:pr_stacktrace(Stacktrace, {Class, Reason})]),
         handle_error(Class, Reason)
     end.
 

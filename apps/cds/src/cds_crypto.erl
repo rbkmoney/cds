@@ -61,7 +61,7 @@ encrypt(Key, Plain) ->
         {Cipher, Tag} = crypto:block_encrypt(aes_gcm, Key, IV, {AAD, Plain}),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
     catch Class:Reason ->
-        _ = lager:error("encryption failed with ~p ~p", [Class, Reason]),
+        _ = logger:error("encryption failed with ~p ~p", [Class, Reason]),
         throw(encryption_failed)
     end.
 
@@ -91,7 +91,7 @@ decrypt(Key, MarshalledCEDF) ->
         Plain ->
             Plain
     catch Type:Error ->
-        _ = lager:error("decryption failed with ~p ~p", [Type, Error]),
+        _ = logger:error("decryption failed with ~p ~p", [Type, Error]),
         throw(decryption_failed)
     end.
 

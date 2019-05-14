@@ -51,7 +51,7 @@ share(Secret, Threshold, Count) ->
     try
         [convert(Share) || Share <- shamir:share(Secret, Threshold, Count)]
     catch Class:Reason ->
-        _ = lager:error("keysharing failed with ~p ~p", [Class, Reason]),
+        _ = logger:error("keysharing failed with ~p ~p", [Class, Reason]),
         throw(keysharing_failed)
     end.
 
@@ -65,7 +65,7 @@ recover(Shares) ->
     try
         {ok, shamir:recover([convert(Share) || Share <- Shares])}
     catch Class:Reason ->
-        _ = lager:error("keysharing recover failed ~p ~p", [Class, Reason]),
+        _ = logger:error("keysharing recover failed ~p ~p", [Class, Reason]),
         {error, failed_to_recover}
     end.
 

@@ -80,19 +80,8 @@ start_clear(Config) ->
                         }">>
     },
     Apps =
-        genlib_app:start_application_with(lager, [
-            {async_threshold, 1},
-            {async_threshold_window, 0},
-            {error_logger_hwm, 600},
-            {suppress_application_start_stop, true},
-            {crash_log, false},
-            {handlers, [
-                % {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
-                {lager_common_test_backend, warning}
-            ]}
-        ]) ++
         genlib_app:start_application_with(scoper, [
-            {storage, scoper_storage_lager}
+            {storage, scoper_storage_logger}
         ]) ++
         genlib_app:start_application_with(cds, [
             {ip, IP},
