@@ -26,8 +26,8 @@ handle_function_('Put', [IdentityDocument], _Context, _Opts) ->
         EToken = cds_utils:encode_token(Token),
         {ok, EToken}
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        Reason when Reason == locked; Reason == not_initialized ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end;
 handle_function_('Get', [IdentityDocumentToken], _Context, _Opts) ->
     try
@@ -37,8 +37,8 @@ handle_function_('Get', [IdentityDocumentToken], _Context, _Opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#identdocstore_IdentityDocumentNotFound{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        Reason when Reason == locked; Reason == not_initialized ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Reason)
     end.
 
 %%
