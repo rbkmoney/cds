@@ -73,6 +73,7 @@ init([]) ->
             ip                => IP,
             port              => genlib_app:env(?MODULE, port, 8022),
             transport_opts    => genlib_app:env(?MODULE, transport_opts, #{}),
+            protocol_opts     => genlib_app:env(?MODULE, protocol_opts, #{}),
             additional_routes => [erl_health_handle:get_route(HealthCheckers)]
         }
     ),
