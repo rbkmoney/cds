@@ -29,24 +29,21 @@
 %% gen_statem.
 -export([init/1]).
 -export([callback_mode/0]).
--export([locked/3]).
--export([unlocked/3]).
--export([not_initialized/3]).
+-export([handle_event/4]).
 -export([terminate/3]).
 -export([code_change/4]).
 -export_type([status/0]).
 
 -define(STATEM, ?MODULE).
--define(HANDLE_COMMON,
-    ?FUNCTION_NAME(T, C, D) -> handle_common(T, C, ?FUNCTION_NAME, D)).
 
--record(state, {
+-record(data, {
     keyring :: cds_keyring:keyring() | undefined
 }).
 
--type state() :: #state{}.
+-type data() :: #data{}.
+-type state() :: locked | unlocked | not_initialized.
 -type status() :: #{
-    status => locked | unlocked | not_initialized,
+    status => state(),
     activities => #{
         initialization => cds_keyring_initializer:status(),
         rotation => cds_keyring_rotator:status(),
@@ -57,8 +54,8 @@
 
 %% API.
 
--spec callback_mode() -> state_functions.
-callback_mode() -> state_functions.
+-spec callback_mode() -> handle_event_function.
+callback_mode() -> handle_event_function.
 
 -spec start_link() -> {ok, pid()}.
 start_link() ->
@@ -163,94 +160,98 @@ call(Event) ->
 
 %% gen_fsm.
 
--spec init(_) -> {ok, locked | not_initialized, state()}.
+-spec init(_) -> {ok, locked | not_initialized, data()}.
 init([]) ->
     try cds_keyring_storage:read() of
         _Keyring ->
-            {ok, locked, #state{keyring = undefined}}
+            {ok, locked, #data{keyring = undefined}}
     catch
         not_found ->
-            {ok, not_initialized, #state{}}
+            {ok, not_initialized, #data{}}
     end.
 
--spec not_initialized(term(), term(), state()) -> term().
-not_initialized({call, From}, {initialize, Threshold}, _StateData) ->
+-spec handle_event(gen_statem:event_type(), term(), state(), data()) ->
+    gen_statem:event_handler_result(state()).
+
+%% not_initialized events
+
+handle_event({call, From}, {initialize, Threshold}, not_initialized, _StateData) ->
     Result = cds_keyring_initializer:initialize(Threshold),
     {keep_state_and_data, {reply, From, Result}};
-not_initialized({call, From}, {validate_init, ShareholderId, Share}, StateData) ->
+handle_event({call, From}, {validate_init, ShareholderId, Share}, not_initialized, StateData) ->
     case cds_keyring_initializer:validate(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {keep_state_and_data, {reply, From, Result}};
         {ok, {done, {EncryptedKeyring, DecryptedKeyring}}} ->
             ok = cds_keyring_storage:create(EncryptedKeyring),
-            NewStateData = StateData#state{keyring = DecryptedKeyring},
+            NewStateData = StateData#data{keyring = DecryptedKeyring},
             {next_state, unlocked, NewStateData, {reply, From, ok}};
         {error, _Error} = Result ->
             {keep_state_and_data, {reply, From, Result}}
     end;
-not_initialized({call, From}, cancel_init, _StateData) ->
+handle_event({call, From}, cancel_init, not_initialized, _StateData) ->
     ok = cds_keyring_initializer:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-?HANDLE_COMMON.
 
--spec locked(term(), term(), term()) -> term().
-locked({call, From}, start_unlock, _StateData) ->
+%% locked events
+
+handle_event({call, From}, start_unlock, locked, _StateData) ->
     LockedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_unlocker:initialize(LockedKeyring),
     {keep_state_and_data, {reply, From, Result}};
-locked({call, From}, {confirm_unlock, ShareholderId, Share}, StateData) ->
+handle_event({call, From}, {confirm_unlock, ShareholderId, Share}, locked, StateData) ->
     case cds_keyring_unlocker:confirm(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {keep_state_and_data, {reply, From, Result}};
         {ok, {done, UnlockedKeyring}} ->
-            NewStateData = StateData#state{keyring = UnlockedKeyring},
+            NewStateData = StateData#data{keyring = UnlockedKeyring},
             {next_state, unlocked, NewStateData, {reply, From, ok}};
         {error, Error} ->
             {keep_state_and_data, {reply, From, {error, Error}}}
     end;
-locked({call, From}, cancel_unlock, _StateData) ->
+handle_event({call, From}, cancel_unlock, locked, _StateData) ->
     ok = cds_keyring_unlocker:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-?HANDLE_COMMON.
 
--spec unlocked(term(), term(), state()) -> term().
-unlocked({call, From}, lock, StateData) ->
-    {next_state, locked, StateData#state{keyring = undefined}, {reply, From, ok}};
-unlocked({call, From}, get_keyring, #state{keyring = Keyring}) ->
+%% unlocked events
+
+handle_event({call, From}, lock, unlocked, StateData) ->
+    {next_state, locked, StateData#data{keyring = undefined}, {reply, From, ok}};
+handle_event({call, From}, get_keyring, unlocked, #data{keyring = Keyring}) ->
     {keep_state_and_data, {reply, From, {ok, Keyring}}};
-unlocked({call, From}, {get_key, KeyId}, #state{keyring = Keyring}) ->
+handle_event({call, From}, {get_key, KeyId}, unlocked, #data{keyring = Keyring}) ->
     {keep_state_and_data, {reply, From, cds_keyring:get_key(KeyId, Keyring)}};
-unlocked({call, From}, get_current_key, #state{keyring = Keyring}) ->
+handle_event({call, From}, get_current_key, unlocked, #data{keyring = Keyring}) ->
     {keep_state_and_data, {reply, From, {ok, cds_keyring:get_current_key(Keyring)}}};
-unlocked({call, From}, start_rotate, #state{keyring = OldKeyring}) ->
+handle_event({call, From}, start_rotate, unlocked, #data{keyring = OldKeyring}) ->
     EncryptedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_rotator:initialize(OldKeyring, EncryptedKeyring),
     {keep_state_and_data, {reply, From, Result}};
-unlocked({call, From}, {confirm_rotate, ShareholderId, Share}, StateData) ->
+handle_event({call, From}, {confirm_rotate, ShareholderId, Share}, unlocked, StateData) ->
     case cds_keyring_rotator:confirm(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {keep_state_and_data, {reply, From, Result}};
         {ok, {done, {EncryptedNewKeyring, NewKeyring}}} ->
             ok = cds_keyring_storage:update(EncryptedNewKeyring),
-            NewStateData = StateData#state{keyring = NewKeyring},
+            NewStateData = StateData#data{keyring = NewKeyring},
             {keep_state, NewStateData, {reply, From, ok}};
         {error, Error} ->
             {keep_state_and_data, {reply, From, {error, Error}}}
     end;
-unlocked({call, From}, cancel_rotate, _StateData) ->
+handle_event({call, From}, cancel_rotate, unlocked, _StateData) ->
     ok = cds_keyring_rotator:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-unlocked({call, From}, {start_rekey, Threshold}, _StateData) ->
+handle_event({call, From}, {start_rekey, Threshold}, unlocked, _StateData) ->
     EncryptedKeyring = cds_keyring_storage:read(),
     Result = cds_keyring_rekeyer:initialize(Threshold, EncryptedKeyring),
     {keep_state_and_data, {reply, From, Result}};
-unlocked({call, From}, {confirm_rekey, ShareholderId, Share}, _StateData) ->
+handle_event({call, From}, {confirm_rekey, ShareholderId, Share}, unlocked, _StateData) ->
     Result =  cds_keyring_rekeyer:confirm(ShareholderId, Share),
     {keep_state_and_data, {reply, From, Result}};
-unlocked({call, From}, start_validate_rekey, _StateData) ->
+handle_event({call, From}, start_validate_rekey, unlocked, _StateData) ->
     Result = cds_keyring_rekeyer:start_validation(),
     {keep_state_and_data, {reply, From, Result}};
-unlocked({call, From}, {validate_rekey, ShareholderId, Share}, _StateData) ->
+handle_event({call, From}, {validate_rekey, ShareholderId, Share}, unlocked, _StateData) ->
     case cds_keyring_rekeyer:validate(ShareholderId, Share) of
         {ok, {more, _More}} = Result ->
             {keep_state_and_data, {reply, From, Result}};
@@ -260,16 +261,15 @@ unlocked({call, From}, {validate_rekey, ShareholderId, Share}, _StateData) ->
         {error, Error} ->
             {keep_state_and_data, {reply, From, {error, Error}}}
     end;
-unlocked({call, From}, cancel_rekey, _StateData) ->
+handle_event({call, From}, cancel_rekey, unlocked, _StateData) ->
     ok = cds_keyring_rekeyer:cancel(),
     {keep_state_and_data, {reply, From, ok}};
-?HANDLE_COMMON.
 
--spec (handle_common(term(), term(), atom(), state()) -> term()).
-handle_common({call, From}, get_status, FunctionName, _Data) ->
-    {keep_state_and_data, {reply, From, {ok, generate_status(FunctionName)}}};
-handle_common({call, From}, _Msg, FunctionName, _Data) ->
-    {keep_state_and_data, {reply, From, {error, {invalid_status, FunctionName}}}}.
+handle_event({call, From}, get_status, State, _Data) ->
+    {keep_state_and_data, {reply, From, {ok, generate_status(State)}}};
+handle_event({call, From}, _Event, State, _StateData) ->
+    {keep_state_and_data, {reply, From, {error, {invalid_status, State}}}}.
+
 
 -spec generate_status(atom()) -> status().
 generate_status(StateName) ->
@@ -287,6 +287,6 @@ generate_status(StateName) ->
 terminate(_Reason, _StateName, _StateData) ->
     ok.
 
--spec code_change(term(), atom(), state(), term()) -> {ok, atom(), state()}.
+-spec code_change(term(), atom(), data(), term()) -> {ok, atom(), data()}.
 code_change(_OldVsn, StateName, StateData, _Extra) ->
     {ok, StateName, StateData}.
