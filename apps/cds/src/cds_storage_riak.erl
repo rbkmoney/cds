@@ -244,6 +244,8 @@ get_client_status(ok) ->
     ok;
 get_client_status({ok, _}) ->
     ok;
+get_client_status({error, not_found}) ->
+    ok;
 get_client_status(_Error) ->
     fail.
 
