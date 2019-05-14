@@ -104,7 +104,10 @@ all() ->
 
 groups() ->
     [
-        {cds_client_v1, [], [{group, all_groups}]},
+        {cds_client_v1, [], [
+            {group, all_groups},
+            {group, backward_compatibility}
+        ]},
         {cds_client_v2, [], [{group, all_groups}]},
         {all_groups, [], [
             {group, riak_storage_backend},
@@ -116,6 +119,24 @@ groups() ->
             {group, error_map}
         ]},
         {ets_storage_backend, [], [{group, general_flow}]},
+        {backward_compatibility, [], [
+            {riak_storage_backend, [], [{group, backward_compatibility_basic_lifecycle}]},
+            {ets_storage_backend, [], [{group, backward_compatibility_basic_lifecycle}]},
+            {keyring_errors, [], [
+                init,
+                lock,
+                get_session_card_data_unavailable
+            ]}
+        ]},
+        {backward_compatibility_basic_lifecycle, [], [
+            {general_flow, [], [
+                {basic_lifecycle, [sequence], [
+                    init,
+                    put_card_data,
+                    get_session_card_data_backward_compatibilty
+                ]}
+            ]}
+        ]},
         {general_flow, [], [
             {group, basic_lifecycle},
             {group, session_management}
@@ -144,7 +165,6 @@ groups() ->
             rotate,
             get_card_data_backward_compatibilty,
             get_session_data_backward_compatibilty,
-            get_session_card_data_backward_compatibilty,
             {group, hash_collision_check}
         ]},
         {keyring_errors, [sequence], [
@@ -155,8 +175,7 @@ groups() ->
             lock,
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
-            get_card_data_unavailable,
-            get_session_card_data_unavailable
+            get_card_data_unavailable
         ]},
         {session_management, [sequence], [
             init,
@@ -216,6 +235,12 @@ init_per_group(ets_storage_backend, C) ->
     cds_ct_utils:set_ets_storage(C);
 
 init_per_group(all_groups, C) ->
+    C;
+
+init_per_group(backward_compatibility, C) ->
+    C;
+
+init_per_group(backward_compatibility_basic_lifecycle, C) ->
     C;
 
 init_per_group(general_flow, C) ->
@@ -281,7 +306,9 @@ end_per_group(Group, C) when
     Group =:= error_map_ddos;
     Group =:= all_groups;
     Group =:= cds_client_v1;
-    Group =:= cds_client_v2
+    Group =:= cds_client_v2;
+    Group =:= backward_compatibility;
+    Group =:= backward_compatibility_basic_lifecycle
     ->
     C;
 
@@ -448,16 +475,11 @@ get_session_data_backward_compatibilty(C) ->
 
 get_session_card_data_backward_compatibilty(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    case CDSCardClient of
-        cds_card_v1_client ->
-            ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(
-                cds_ct_utils:lookup(token, C),
-                cds_ct_utils:lookup(session, C),
-                root_url(C)
-            );
-        _OtherClient ->
-            true
-    end.
+    ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(
+        cds_ct_utils:lookup(token, C),
+        cds_ct_utils:lookup(session, C),
+        root_url(C)
+    ).
 
 -spec get_card_data_unavailable(config()) -> _.
 
@@ -471,13 +493,8 @@ get_card_data_unavailable(C) ->
 
 get_session_card_data_unavailable(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    case CDSCardClient of
-        cds_card_v1_client ->
-            try CDSCardClient:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
-                error:{woody_error, {external, resource_unavailable, _}} -> ok
-            end;
-        _OtherClient ->
-            true
+    try CDSCardClient:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
+        error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
 
 -spec put_card_data_unavailable(config()) -> _.
@@ -519,13 +536,7 @@ session_cleaning(C) ->
     } = CDSCardClient:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
 
     ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(Token, root_url(C)),
-    _ = case CDSCardClient of
-        cds_card_v1_client ->
-            ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(Token, Session, root_url(C)),
-            true;
-        _OtherClient ->
-            true
-    end,
+    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(Session, root_url(C)),
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
@@ -533,12 +544,7 @@ session_cleaning(C) ->
     }}] = config(session_cleaning_config, C),
 
     ok = timer:sleep(Lifetime * 1000 + Interval * 2),
-    _ = case CDSCardClient of
-        cds_card_v1_client ->
-            ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C)));
-        _OtherClient0 ->
-            true
-    end,
+    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_data(Session, root_url(C))),
     _ = ?assertMatch(?CREDIT_CARD_MATCH(<<>>), CDSCardClient:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
@@ -565,20 +571,10 @@ refresh_sessions(C) ->
         || _ <- lists:seq(1, 6)],
 
     ok = timer:sleep(Interval),
-    _ = case CDSCardClient of
-            cds_card_v1_client ->
-                ?assertMatch(?CREDIT_CARD_MATCH(_), CDSCardClient:get_session_card_data(Token, Session, root_url(C)));
-            _OtherClient ->
-                true
-        end,
+    _ = ?assertMatch(?SESSION_DATA_MATCH(_), CDSCardClient:get_session_data(Session, root_url(C))),
     ok = timer:sleep(Lifetime * 1000 + Interval),
 
-    _ = case CDSCardClient of
-            cds_card_v1_client ->
-                ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_card_data(Token, Session, root_url(C)));
-            _OtherClient0 ->
-                true
-        end,
+    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_data(Session, root_url(C))),
     _ = ?assertMatch(?CREDIT_CARD_MATCH(<<>>), CDSCardClient:get_card_data(Token, root_url(C))).
 
 
