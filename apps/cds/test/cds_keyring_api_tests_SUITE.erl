@@ -53,16 +53,13 @@
 
 all() ->
     [
-        {group, cds_client_v1},
-        {group, cds_client_v2}
+        {group, all_groups}
     ].
 
 -spec groups() -> [{atom(), list(), [atom()]}].
 
 groups() ->
     [
-        {cds_client_v1, [], [{group, all_groups}]},
-        {cds_client_v2, [], [{group, all_groups}]},
         {all_groups, [], [
             {group, riak_storage_backend},
             {group, ets_storage_backend},
@@ -114,18 +111,6 @@ groups() ->
 %%
 
 -spec init_per_group(atom(), config()) -> config().
-
-init_per_group(cds_client_v1, C) ->
-    [
-        {cds_keyring_service_code, keyring},
-        {cds_storage_client, cds_card_v1_client}
-    ] ++ C;
-
-init_per_group(cds_client_v2, C) ->
-    [
-        {cds_keyring_service_code, keyring_v2},
-        {cds_storage_client, cds_card_v2_client}
-    ] ++ C;
 
 init_per_group(all_groups, C) ->
     C;

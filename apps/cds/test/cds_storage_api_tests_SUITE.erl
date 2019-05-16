@@ -217,16 +217,10 @@ groups() ->
 -spec init_per_group(atom(), config()) -> config().
 
 init_per_group(cds_client_v1, C) ->
-    [
-        {cds_keyring_service_code, keyring},
-        {cds_storage_client, cds_card_v1_client}
-    ] ++ C;
+    [{cds_storage_client, cds_card_v1_client}] ++ C;
 
 init_per_group(cds_client_v2, C) ->
-    [
-        {cds_keyring_service_code, keyring_v2},
-        {cds_storage_client, cds_card_v2_client}
-    ] ++ C;
+    [{cds_storage_client, cds_card_v2_client}] ++ C;
 
 init_per_group(riak_storage_backend, C) ->
     cds_ct_utils:set_riak_storage(C);
