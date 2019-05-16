@@ -109,7 +109,7 @@ end_per_group(_, C) ->
 
 -spec init(config()) -> any() | no_return().
 init(C) ->
-    cds_keyring_api_tests_SUITE:init(C).
+    cds_ct_keyring:init(C).
 
 -spec put_passport(config()) -> any() | no_return().
 put_passport(C) ->

@@ -316,27 +316,27 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    cds_keyring_api_tests_SUITE:init(C).
+    cds_ct_keyring:init(C).
 
 -spec lock(config()) -> _.
 
 lock(C) ->
-    cds_keyring_api_tests_SUITE:lock(C).
+    cds_ct_keyring:lock(C).
 
 -spec unlock(config()) -> _.
 
 unlock(C) ->
-    cds_keyring_api_tests_SUITE:unlock(C).
+    cds_ct_keyring:unlock(C).
 
 -spec rekey(config()) -> _.
 
 rekey(C) ->
-    cds_keyring_api_tests_SUITE:rekey(C).
+    cds_ct_keyring:rekey(C).
 
 -spec rotate(config()) -> _.
 
 rotate(C) ->
-    cds_keyring_api_tests_SUITE:rotate(C).
+    cds_ct_keyring:rotate(C).
 
 -spec put_card_data(config()) -> _.
 
