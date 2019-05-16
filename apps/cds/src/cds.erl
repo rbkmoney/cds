@@ -74,6 +74,7 @@ init([]) ->
             port              => genlib_app:env(?MODULE, port, 8022),
             transport_opts    => genlib_app:env(?MODULE, transport_opts, #{}),
             protocol_opts     => genlib_app:env(?MODULE, protocol_opts, #{}),
+            shutdown_timeout  => genlib_app:env(?MODULE, shutdown_timeout, 0),
             additional_routes => [erl_health_handle:get_route(HealthCheckers)]
         }
     ),

@@ -91,6 +91,7 @@ start_clear(Config) ->
             {protocol_opts, #{
                 request_timeout => 60000
             }},
+            {shutdown_timeout, 0},
             {keyring_rotation_lifetime, 1000},
             {keyring_unlock_lifetime, 1000},
             {keyring_rekeying_lifetime, 3000},
