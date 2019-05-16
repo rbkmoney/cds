@@ -1,7 +1,9 @@
--module(cds_api_tests_SUITE).
+-module(cds_storage_api_tests_SUITE).
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("eunit/include/eunit.hrl").
+-include_lib("shamir/include/shamir.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -11,6 +13,8 @@
 -export([init/1]).
 -export([lock/1]).
 -export([unlock/1]).
+-export([rekey/1]).
+-export([rotate/1]).
 -export([put_card_data/1]).
 -export([get_card_data/1]).
 -export([get_session_data/1]).
@@ -23,13 +27,9 @@
 -export([get_card_data_backward_compatibilty/1]).
 -export([get_session_data_backward_compatibilty/1]).
 -export([get_session_card_data_backward_compatibilty/1]).
--export([rotate/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
 -export([refresh_sessions/1]).
--export([init_keyring_exists/1]).
--export([lock_no_keyring/1]).
--export([rotate_keyring_locked/1]).
 -export([put_card_data_unavailable/1]).
 -export([put_card_data_3ds_unavailable/1]).
 -export([get_card_data_unavailable/1]).
@@ -68,6 +68,8 @@
 
 -type config() :: term().
 
+-spec test() -> _.
+
 -spec all() -> [{group, atom()}].
 
 all() ->
@@ -80,7 +82,7 @@ all() ->
 -spec groups() -> [{atom(), list(), [atom()]}].
 
 groups() ->
- [
+    [
         {riak_storage_backend, [], [
             {group, general_flow},
             {group, error_map}
@@ -92,36 +94,37 @@ groups() ->
         ]},
         {basic_lifecycle, [sequence], [
             init,
+            put_card_data,
+            get_card_data,
             lock,
             unlock,
             put_card_data,
             get_card_data,
+            rekey,
+            put_card_data,
+            get_card_data,
+            rotate,
             get_session_data,
             put_card,
             put_session,
-            rotate,
             put_card_data_3ds,
+            rotate,
             get_card_data_3ds,
             get_session_data_3ds,
             rotate,
             put_card_data_backward_compatibilty,
+            rotate,
             get_card_data_backward_compatibilty,
             get_session_data_backward_compatibilty,
             get_session_card_data_backward_compatibilty,
-            rotate,
             {group, hash_collision_check}
         ]},
         {keyring_errors, [sequence], [
             get_card_data_unavailable,
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
-            lock_no_keyring,
             init,
-            init_keyring_exists,
             lock,
-            lock,
-            init_keyring_exists,
-            rotate_keyring_locked,
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
             get_card_data_unavailable,
@@ -174,22 +177,24 @@ init_per_group(ets_storage_backend, C) ->
 
 init_per_group(general_flow, C) ->
     C;
+init_per_group(hash_collision_check, C) ->
+    cds_ct_utils:start_clear(C);
 
 init_per_group(keyring_errors, C) ->
     StorageConfig = [
         {storage, cds_storage_ets}
     ],
-    C1 = cds_ct_utils:start_clear([{storage_config, StorageConfig} | C]),
-    C1 ++ C;
+    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfig} | C]),
+    cds_ct_utils:start_clear(C1);
 
 init_per_group(session_management, C) ->
     CleanerConfig = [
         {
             session_cleaning,
             #{
-                session_lifetime => 6,
+                session_lifetime => 4,
                 batch_size => 1000,
-                interval => 5000
+                interval => 1000
             }
         }
     ],
@@ -199,8 +204,8 @@ init_per_group(session_management, C) ->
         }}
     ],
     C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanerConfig} | C],
-    C2 = cds_ct_utils:start_clear(C1),
-    C1 ++ C2;
+    C2 = cds_ct_utils:start_stash(C1),
+    cds_ct_utils:start_clear(C2);
 
 init_per_group(error_map, C) ->
     StorageConfig = config(storage_config, C),
@@ -215,13 +220,14 @@ init_per_group(error_map, C) ->
     },
 
     StorageConfigNew = update_config(cds_storage_riak, StorageConfig, RiakConfigNew),
-    cds_ct_utils:start_clear([{storage_config, StorageConfigNew} | C]);
+    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfigNew} | C]),
+    cds_ct_utils:start_clear(C1);
 init_per_group(error_map_ddos, C) ->
     C;
 
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_clear(C),
-    C1 ++ C.
+    C1 = cds_ct_utils:start_stash(C),
+    cds_ct_utils:start_clear(C1).
 
 -spec end_per_group(atom(), config()) -> _.
 
@@ -230,7 +236,7 @@ end_per_group(Group, C) when
     Group =:= general_flow;
     Group =:= riak_storage_backend;
     Group =:= error_map_ddos
- ->
+    ->
     C;
 
 end_per_group(_, C) ->
@@ -243,21 +249,27 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    MasterKeys = cds_keyring_client:init(2, 3, root_url(C)),
-    3 = length(MasterKeys),
-    cds_ct_utils:store(master_keys, MasterKeys, C).
+    cds_keyring_api_tests_SUITE:init(C).
 
 -spec lock(config()) -> _.
 
 lock(C) ->
-    ok = cds_keyring_client:lock(root_url(C)).
+    cds_keyring_api_tests_SUITE:lock(C).
 
 -spec unlock(config()) -> _.
 
 unlock(C) ->
-    [MasterKey1, MasterKey2, _MasterKey3] = cds_ct_utils:lookup(master_keys, C),
-    {more_keys_needed, 1} = cds_keyring_client:unlock(MasterKey1, root_url(C)),
-    {unlocked, #'Unlocked'{}} = cds_keyring_client:unlock(MasterKey2, root_url(C)).
+    cds_keyring_api_tests_SUITE:unlock(C).
+
+-spec rekey(config()) -> _.
+
+rekey(C) ->
+    cds_keyring_api_tests_SUITE:rekey(C).
+
+-spec rotate(config()) -> _.
+
+rotate(C) ->
+    cds_keyring_api_tests_SUITE:rotate(C).
 
 -spec put_card_data(config()) -> _.
 
@@ -384,26 +396,6 @@ get_session_card_data_backward_compatibilty(C) ->
         root_url(C)
     ).
 
--spec rotate(config()) -> _.
-
-rotate(C) ->
-    ok = cds_keyring_client:rotate(root_url(C)).
-
--spec init_keyring_exists(config()) -> _.
-
-init_keyring_exists(C) ->
-    #'KeyringExists'{} = (catch cds_keyring_client:init(2, 3, root_url(C))).
-
--spec lock_no_keyring(config()) -> _.
-
-lock_no_keyring(C) ->
-    #'NoKeyring'{} = (catch cds_keyring_client:lock(root_url(C))).
-
--spec rotate_keyring_locked(config()) -> _.
-
-rotate_keyring_locked(C) ->
-    #'KeyringLocked'{} = (catch cds_keyring_client:rotate(root_url(C))).
-
 -spec get_card_data_unavailable(config()) -> _.
 
 get_card_data_unavailable(C) ->
@@ -459,15 +451,10 @@ session_cleaning(C) ->
         session_lifetime := Lifetime,
         interval := Interval
     }}] = config(session_cleaning_config, C),
-    timer:sleep(Lifetime*1000 + Interval*2),
-    ok = try
-        _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
-        error
-    catch
-        throw:#'CardDataNotFound'{} ->
-            ok
-    end,
-    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)).
+
+    ok = timer:sleep(Lifetime * 1000 + Interval * 2),
+    _ = ?assertThrow( #'CardDataNotFound'{}, cds_card_client:get_session_card_data(Token, Session, root_url(C))),
+    _ = ?assertMatch(?CREDIT_CARD(<<>>), cds_card_client:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
 
@@ -486,25 +473,17 @@ refresh_sessions(C) ->
 
     [
         begin
-            ok = cds_maintenance:refresh_sessions_created_at(),
-            timer:sleep(Lifetime * 100)
+            _ = ?assertEqual(ok, catch cds_maintenance:refresh_sessions_created_at()),
+            timer:sleep((Lifetime * 1000) div 4)
         end
-    || _ <- lists:seq(1, 25)],
+        || _ <- lists:seq(1, 6)],
 
-    timer:sleep(Interval),
+    ok = timer:sleep(Interval),
+    _ = ?assertMatch(?CREDIT_CARD(_), cds_card_client:get_session_card_data(Token, Session, root_url(C))),
+    ok = timer:sleep(Lifetime * 1000 + Interval),
 
-    _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
-
-    timer:sleep(Lifetime * 1000 + Interval),
-
-    ok = try
-        _ = cds_card_client:get_session_card_data(Token, Session, root_url(C)),
-        error
-    catch
-        throw:#'CardDataNotFound'{} ->
-            ok
-    end,
-    ?CREDIT_CARD(<<>>) = cds_card_client:get_card_data(Token, root_url(C)).
+    _ = ?assertThrow( #'CardDataNotFound'{}, cds_card_client:get_session_card_data(Token, Session, root_url(C))),
+    _ = ?assertMatch(?CREDIT_CARD(<<>>), cds_card_client:get_card_data(Token, root_url(C))).
 
 
 -spec recrypt(config()) -> _.
@@ -537,13 +516,14 @@ recrypt(C) ->
     <<KeyID0, _/binary>> = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
 
-    _ = cds_keyring_manager:rotate(),
+
+    rotate(C),
     [{recrypting, #{
         interval := Interval
     }}] = config(recrypting_config, C),
 
     % we should meet reencryption at least once _after_ rotation
-    _ = timer:sleep(Interval * 3),
+    _ = timer:sleep(Interval * 2),
     {KeyID, _} = cds_keyring_manager:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
@@ -580,4 +560,3 @@ update_config(Key, Config, NewVal) ->
 
 root_url(C) ->
     config(root_url, C).
-

@@ -13,13 +13,19 @@
 
 -export([get_key_id_config/0]).
 
+-export([validate_masterkey/3]).
+-export([validate_masterkey/2]).
+
 -export_type([key/0]).
 -export_type([key_id/0]).
 -export_type([keyring/0]).
+-export_type([encrypted_keyring/0]).
 -export_type([key_id_config/0]).
 
+-type masterkey() :: cds_keysharing:masterkey().
 -type key() :: binary().
 -type key_id() :: byte().
+-type encrypted_keyring() :: binary().
 
 -type keyring() :: #{
     current_key => key_id(),
@@ -70,13 +76,16 @@ get_current_key(#{current_key := CurrentKeyId, keys := Keys}) ->
 
 %%
 
--spec encrypt(key(), keyring()) -> binary().
+-spec encrypt(key(), keyring()) -> encrypted_keyring().
 encrypt(MasterKey, Keyring) ->
     cds_crypto:encrypt(MasterKey, marshall(Keyring)).
 
--spec decrypt(key(), binary()) -> keyring().
+-spec decrypt(key(), encrypted_keyring()) -> {ok, keyring()} | {error, decryption_failed}.
 decrypt(MasterKey, EncryptedKeyring) ->
-    unmarshall(cds_crypto:decrypt(MasterKey, EncryptedKeyring)).
+    try {ok, unmarshall(cds_crypto:decrypt(MasterKey, EncryptedKeyring))} catch
+        decryption_failed ->
+            {error, decryption_failed}
+    end.
 
 -spec marshall(keyring()) -> binary().
 marshall(#{current_key := CurrentKey, keys := Keys}) ->
@@ -102,3 +111,27 @@ get_key_id_config() ->
         min => 0,
         max => 255
     }.
+
+-spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
+    {ok, keyring()} | {error, wrong_masterkey}.
+
+validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
+    case decrypt(MasterKey, EncryptedOldKeyring) of
+        {ok, Keyring} ->
+            {ok, Keyring};
+        {ok, _NotMatchingKeyring} ->
+            {error, wrong_masterkey};
+        {error, decryption_failed} ->
+            {error, wrong_masterkey}
+    end.
+
+-spec validate_masterkey(masterkey(), encrypted_keyring()) ->
+    {ok, keyring()} | {error, wrong_masterkey}.
+
+validate_masterkey(MasterKey, EncryptedOldKeyring) ->
+    case decrypt(MasterKey, EncryptedOldKeyring) of
+        {ok, Keyring} ->
+            {ok, Keyring};
+        {error, decryption_failed} ->
+            {error, wrong_masterkey}
+    end.
