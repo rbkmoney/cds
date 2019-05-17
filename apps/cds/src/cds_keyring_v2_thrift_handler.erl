@@ -1,11 +1,10 @@
--module(cds_keyring_thrift_handler).
+-module(cds_keyring_v2_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
--export([decode_encrypted_shares/1]).
 
 -type encrypted_masterkey_share() :: #'EncryptedMasterKeyShare' {}.
 
@@ -18,7 +17,7 @@
 
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
-        keyring,
+        keyring_v2,
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
@@ -192,30 +191,10 @@ encode_encrypted_share(#{
     owner := Owner,
     encrypted_share := EncryptedShare
 }) ->
-  #'EncryptedMasterKeyShare' {
-      id = Id,
-      owner = Owner,
-      encrypted_share = EncryptedShare
-  }.
-
--spec decode_encrypted_shares([encrypted_masterkey_share()]) ->
-    [cds_keysharing:encrypted_master_key_share()].
-
-decode_encrypted_shares(EncryptedMasterKeyShares) ->
-    lists:map(fun decode_encrypted_share/1, EncryptedMasterKeyShares).
-
--spec decode_encrypted_share(encrypted_masterkey_share()) ->
-    cds_keysharing:encrypted_master_key_share().
-
-decode_encrypted_share(#'EncryptedMasterKeyShare' {
-    id = Id,
-    owner = Owner,
-    encrypted_share = EncryptedShare
-}) ->
-    #{
-        id => Id,
-        owner => Owner,
-        encrypted_share => EncryptedShare
+    #'EncryptedMasterKeyShare' {
+        id = Id,
+        owner = Owner,
+        encrypted_share = EncryptedShare
     }.
 
 -spec verify_signed_share(cds_shareholder:shareholder_id(),
