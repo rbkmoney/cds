@@ -16,6 +16,7 @@
 -export([cancel/0]).
 -export([handle_event/4]).
 -export_type([status/0]).
+-export_type([state/0]).
 
 -record(data, {
     locked_keyring,

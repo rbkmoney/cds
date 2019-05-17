@@ -16,6 +16,7 @@
 -export([handle_event/4]).
 -export_type([encrypted_master_key_shares/0]).
 -export_type([status/0]).
+-export_type([state/0]).
 
 -define(STATEM, ?MODULE).
 
