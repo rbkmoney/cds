@@ -19,7 +19,8 @@
         erl_health,
         msgpack,
         lib_combin,
-        jose
+        jose,
+        cds_proto
     ]},
     {env, []},
     {modules, []},
