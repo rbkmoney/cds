@@ -9,8 +9,9 @@
 %% Types
 %%
 
--type storage_code() :: keyring
+-type storage_code() :: keyring_v2
     | card
+    | card_v2
     | ident_doc.
 
 -export_type([storage_code/0]).
@@ -32,25 +33,31 @@ handler_spec(Code) ->
     {service_path(Code), {thrift_service(Code), handler_module(Code)}}.
 
 -spec service_path(storage_code()) -> path().
-service_path(keyring) ->
-    "/v1/keyring";
+service_path(keyring_v2) ->
+    "/v2/keyring";
 service_path(card) ->
     "/v1/storage";
+service_path(card_v2) ->
+    "/v2/storage";
 service_path(ident_doc) ->
     "/v1/identity_document_storage".
 
 -spec thrift_service(storage_code()) -> thrift_service().
-thrift_service(keyring) ->
-    {dmsl_cds_thrift, 'Keyring'};
+thrift_service(keyring_v2) ->
+    {cds_proto_keyring_thrift, 'Keyring'};
 thrift_service(card) ->
     {dmsl_cds_thrift, 'Storage'};
+thrift_service(card_v2) ->
+    {cds_proto_storage_thrift, 'Storage'};
 thrift_service(ident_doc) ->
     {identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'}.
 
 -spec handler_module(storage_code()) -> hadler_spec().
-handler_module(keyring) ->
-    {cds_keyring_thrift_handler, []};
+handler_module(keyring_v2) ->
+    {cds_keyring_v2_thrift_handler, []};
 handler_module(card) ->
-    {cds_card_thrift_handler, []};
+    {cds_card_v1_thrift_handler, []};
+handler_module(card_v2) ->
+    {cds_card_v2_thrift_handler, []};
 handler_module(ident_doc) ->
     {cds_ident_doc_thrift_handler, []}.

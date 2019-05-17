@@ -1,7 +1,8 @@
--module(cds_card_thrift_handler).
+-module(cds_card_v2_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("cds_proto/include/cds_proto_storage_thrift.hrl").
+-include_lib("cds_proto/include/cds_proto_base_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -15,7 +16,7 @@
 
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
-        card_data,
+        card_data_v2,
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
@@ -28,34 +29,21 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
-                BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token(Token),
-                    payment_system = maps:get(payment_system, CardInfo),
-                    bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                BankCard = #'BankCard'{
+                    token       = cds_utils:encode_token(Token),
+                    bin         = maps:get(iin           , CardInfo),
+                    last_digits = maps:get(last_digits   , CardInfo)
                 },
                 {ok, #'PutCardDataResult'{
-                    bank_card      = BankCard,
-                    session_id     = cds_utils:encode_session(Session)
+                    bank_card   = BankCard,
+                    session_id  = Session
                 }};
             {error, ValidationError} ->
                 cds_thrift_handler_utils:raise(#'InvalidCardData'{
-                    reason         = cds_thrift_handler_utils:map_validation_error(ValidationError)
+                    reason      = cds_thrift_handler_utils:map_validation_error(ValidationError)
                 })
         end
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
-    end;
-
-handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
-    try
-        CardData = get_cardholder_data(cds_utils:decode_token(Token)),
-        SessionData = try_get_session_data(Session),
-        {ok, encode_card_data(CardData, SessionData)}
-    catch
-        not_found ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end;
@@ -66,11 +54,10 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
-                BankCard = #'domain_BankCard'{
+                BankCard = #'BankCard'{
                     token          = cds_utils:encode_token(Token),
-                    payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    last_digits    = maps:get(last_digits   , CardInfo)
                 },
                 {ok, #'PutCardResult'{
                     bank_card = BankCard
@@ -111,7 +98,7 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
 
 handle_function_('GetSessionData', [Session], _Context, _Opts) ->
     try
-        SessionData = try_get_session_data(Session),
+        SessionData = get_session_data(Session),
         {ok, encode_session_data(SessionData)}
     catch
         not_found ->
@@ -142,15 +129,6 @@ decode_auth_data({card_security_code, #'CardSecurityCode'{value = Value}}) ->
     #{type => cvv, value => Value};
 decode_auth_data({auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
-
-encode_card_data(CardData, #{auth_data := AuthData}) ->
-    V = encode_cardholder_data(CardData),
-    case maps:get(type, AuthData) of
-        cvv ->
-            V#'CardData'{cvv = maps:get(value, AuthData)};
-        '3ds' ->
-            V
-    end.
 
 encode_cardholder_data(#{
     cardnumber := PAN,
@@ -194,17 +172,6 @@ put_session(Session, SessionData) ->
 get_session_data(Session) ->
     SessionData = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
-
-try_get_session_data(Session0) ->
-    try
-        Session = cds_utils:decode_session(Session0),
-        get_session_data(Session)
-    catch
-        error:badarg -> % could not decode SessionID, let's try new scheme
-            get_session_data(Session0);
-        not_found -> % same as before but for false positive decoding case
-            get_session_data(Session0)
-    end.
 
 define_session_data(undefined, #'CardData'{cvv = CVV}) ->
     #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
