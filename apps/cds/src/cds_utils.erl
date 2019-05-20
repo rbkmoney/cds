@@ -14,7 +14,7 @@ current_time() ->
 
 -spec logtag_process(atom(), any()) -> ok.
 logtag_process(Key, Value) when is_atom(Key) ->
-    logger:update_process_metadata(#{Key => Value}).
+    lager:md(orddict:store(Key, Value, lager:md())).
 
 -spec decode_token(binary()) -> cds:token().
 decode_token(Token) ->

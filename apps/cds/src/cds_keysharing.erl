@@ -12,7 +12,6 @@
 -export([validate_share_combos/1]).
 
 -export_type([masterkey_share/0]).
--export_type([masterkey_shares/0]).
 -export_type([signed_masterkey_share/0]).
 -export_type([encrypted_master_key_share/0]).
 -export_type([encrypted_master_key_shares/0]).
@@ -51,7 +50,7 @@ share(Secret, Threshold, Count) ->
     try
         [convert(Share) || Share <- shamir:share(Secret, Threshold, Count)]
     catch Class:Reason ->
-        _ = logger:error("keysharing failed with ~p ~p", [Class, Reason]),
+        _ = lager:error("keysharing failed with ~p ~p", [Class, Reason]),
         throw(keysharing_failed)
     end.
 
@@ -65,7 +64,7 @@ recover(Shares) ->
     try
         {ok, shamir:recover([convert(Share) || Share <- Shares])}
     catch Class:Reason ->
-        _ = logger:error("keysharing recover failed ~p ~p", [Class, Reason]),
+        _ = lager:error("keysharing recover failed ~p ~p", [Class, Reason]),
         {error, failed_to_recover}
     end.
 

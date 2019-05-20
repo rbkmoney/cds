@@ -30,23 +30,23 @@ init([#{subject := Subject}]) when
     Subject =:= session;
     Subject =:= carddata
 ->
-    _ = logger:info("Starting recrypter for ~s ...", [Subject]),
+    _ = lager:info("Starting recrypter for ~s ...", [Subject]),
     _ = cds_utils:logtag_process(subject, Subject),
     {ok, get_interval(), #{subject => Subject, continuation => undefined}}.
 
 -spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
 
 handle_timeout(State = #{subject := Subject, continuation := Continuation0}) ->
-    _ = logger:info("Starting recrypting", []),
+    _ = lager:info("Starting recrypting", []),
     case process_recrypting(Subject, get_batch_size(), Continuation0) of
         {ok, done} ->
-            _ = logger:info("Recrypted all"),
+            _ = lager:info("Recrypted all"),
             {ok, done, State#{continuation => undefined}};
         {ok, more, Continuation} ->
-            _ = logger:info("Recrypted some items. Need to repeat"),
+            _ = lager:info("Recrypted some items. Need to repeat"),
             {ok, more, State#{continuation => Continuation}};
         {error, Error} ->
-            _ = logger:error("Recrypting error: ~p", [Error]),
+            _ = lager:error("Recrypting error: ~p", [Error]),
             {error, Error, State#{continuation => undefined}}
     end.
 
@@ -72,7 +72,7 @@ process_recrypting(_, _, Left, Continuation) when
 process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0) ->
     {Items, Continuation} = get_data_by_key_id_between(Subject, Interval, BatchSize, Continuation0),
     Count = length(Items),
-    _ = logger:info("Got ~p ~s items to recrypt", [Count, Subject]),
+    _ = lager:info("Got ~p ~s items to recrypt", [Count, Subject]),
     _ = [recrypt_item(Subject, ItemID) || ItemID <- Items],
     process_recrypting(Subject, Rest, BatchSize - Count, Continuation).
 
@@ -85,7 +85,7 @@ get_data_by_key_id_between(carddata, {From, To}, BatchSize, Continuation) ->
 recrypt_item(Subject, ItemID) ->
     try
         _ = recrypt(Subject, ItemID),
-        _ = logger:debug("Recrypted ~s with id = ~s", [Subject, encode(Subject, ItemID)]),
+        _ = lager:debug("Recrypted ~s with id = ~s", [Subject, encode(Subject, ItemID)]),
         ok
     catch
         throw:not_found ->

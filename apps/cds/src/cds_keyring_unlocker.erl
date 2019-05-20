@@ -16,7 +16,6 @@
 -export([cancel/0]).
 -export([handle_event/4]).
 -export_type([status/0]).
--export_type([state/0]).
 
 -record(data, {
     locked_keyring,
@@ -25,10 +24,9 @@
 }).
 
 -type data() :: #data{}.
--type seconds() :: non_neg_integer().
 -type status() :: #{
     phase => state(),
-    lifetime => seconds() | undefined,
+    lifetime => timer:seconds(),
     confirmation_shares => #{cds_keysharing:share_id() => shareholder_id()}
 }.
 
@@ -148,7 +146,7 @@ handle_event({call, From}, _Event, validation, _Data) ->
 get_timeout() ->
     application:get_env(cds, keyring_unlock_lifetime, 60000).
 
--spec get_lifetime(reference() | undefined) -> seconds() | undefined.
+-spec get_lifetime(reference() | undefined) -> timer:seconds().
 
 get_lifetime(TimerRef) ->
     case TimerRef of

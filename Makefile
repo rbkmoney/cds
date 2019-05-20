@@ -13,10 +13,10 @@ SERVICE_IMAGE_TAG ?= $(shell git rev-parse HEAD)
 SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
 
 # Base image for the service
-BASE_IMAGE_NAME := service-erlang
-BASE_IMAGE_TAG := bdb3e60ddc70044bae1aa581d260d3a9803a2477
+BASE_IMAGE_NAME := service_erlang
+BASE_IMAGE_TAG := 16e2b3ef17e5fdefac8554ced9c2c74e5c6e9e11
 
-BUILD_IMAGE_TAG := fcf116dd775cc2e91bffb6a36835754e3f2d5321
+BUILD_IMAGE_TAG := 903ec30497023cef050d8f281ac0bfad668dc5f4
 
 CALL_W_CONTAINER := all submodules rebar-update compile xref lint dialyze test start devrel release clean distclean
 

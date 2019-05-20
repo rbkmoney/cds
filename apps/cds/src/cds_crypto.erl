@@ -22,7 +22,6 @@
 -type iv()  :: binary().
 -type tag() :: binary().
 -type aad() :: binary().
--type jose_jwk() :: #jose_jwk{}.
 -type jwk_encoded() :: binary().
 -type jwk_map() :: map().
 -type jwe_compacted() :: binary().
@@ -61,7 +60,7 @@ encrypt(Key, Plain) ->
         {Cipher, Tag} = crypto:block_encrypt(aes_gcm, Key, IV, {AAD, Plain}),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
     catch Class:Reason ->
-        _ = logger:error("encryption failed with ~p ~p", [Class, Reason]),
+        _ = lager:error("encryption failed with ~p ~p", [Class, Reason]),
         throw(encryption_failed)
     end.
 
@@ -91,7 +90,7 @@ decrypt(Key, MarshalledCEDF) ->
         Plain ->
             Plain
     catch Type:Error ->
-        _ = logger:error("decryption failed with ~p ~p", [Type, Error]),
+        _ = lager:error("decryption failed with ~p ~p", [Type, Error]),
         throw(decryption_failed)
     end.
 
@@ -158,7 +157,7 @@ marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher})
 unmarshall_cedf(<<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>) ->
     #cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher}.
 
--spec add_jwk_field(jose_jwk(), json_object_key(), jsx:json_term()) -> jose_jwk().
+-spec add_jwk_field(jose_jwk:jose_jwk(), json_object_key(), jsx:json_term()) -> jose_jwk:jose_jwk().
 add_jwk_field(JWK, Field, Content) ->
     Fields = JWK#jose_jwk.fields,
     JWK#jose_jwk{fields = Fields#{Field => Content}}.
