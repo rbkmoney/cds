@@ -19,11 +19,11 @@ call(Key, Method, Args) ->
             Return;
         {error, Error} ->
             throw(Error)
-    catch Class:Reason ->
-        _ = lager:error(
-            "~p (~p) ~p failed~nStacktrace:~s",
-            [Key, Module, Method,
-                lager:pr_stacktrace(erlang:get_stacktrace(), {Class, Reason})]),
+    catch Class:Reason:Stacktrace ->
+        _ = logger:error(
+            "~p (~p) ~p failed~nClass~s~nReason~s~nStacktrace:~s",
+            [Key, Module, Method, Class, Reason,
+                genlib_format:format_stacktrace(Stacktrace)]),
         handle_error(Class, Reason)
     end.
 
