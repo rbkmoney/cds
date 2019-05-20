@@ -12,15 +12,15 @@
         riakc,
         woody,
         shamir,
-        lager,
-        lager_logstash_formatter,
+        logger_logstash_formatter,
         scoper,
         dmsl,
         identdocstore_proto,
         erl_health,
         msgpack,
         lib_combin,
-        jose
+        jose,
+        cds_proto
     ]},
     {env, []},
     {modules, []},

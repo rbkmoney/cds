@@ -29,24 +29,24 @@ start_link() ->
 -spec init(_) -> {ok, non_neg_integer(), state()}.
 
 init(_Args) ->
-    _ = lager:info("Starting session cleaner...", []),
+    _ = logger:info("Starting session cleaner...", []),
     {ok, get_interval(), #{continuation => undefined}}.
 
 -spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
 
 handle_timeout(State = #{continuation := Continuation0}) ->
-    _ = lager:info("Starting session cleaning", []),
+    _ = logger:info("Starting session cleaning", []),
 
     To = genlib_time:unow() - get_session_lifetime(),
     case clean_sessions(0, To, get_batch_size(), Continuation0) of
         {ok, done} ->
-            _ = lager:info("Cleaned all the sessions"),
+            _ = logger:info("Cleaned all the sessions"),
             {ok, done, State#{continuation => undefined}};
         {ok, more, Continuation} ->
-            _ = lager:info("Cleaned some sessions. Need to repeat"),
+            _ = logger:info("Cleaned some sessions. Need to repeat"),
             {ok, more, State#{continuation => Continuation}};
         {error, Error} ->
-            _ = lager:error("Cleaning error: ~p", [Error]),
+            _ = logger:error("Cleaning error: ~p", [Error]),
             {error, Error, State#{continuation => undefined}}
     end.
 
@@ -59,11 +59,11 @@ clean_sessions(From, To, BatchSize, Continuation0) ->
     try
         {Sessions, Continuation} = cds_card_storage:get_sessions_created_between(From, To, BatchSize, Continuation0),
         SessionsSize = length(Sessions),
-        _ = lager:info("Got ~p sessions to clean", [SessionsSize]),
+        _ = logger:info("Got ~p sessions to clean", [SessionsSize]),
         _ = [
             begin
             _ = cds_card_storage:delete_session(ID),
-            lager:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
+            logger:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
             end
         || ID <- Sessions],
         case BatchSize of
