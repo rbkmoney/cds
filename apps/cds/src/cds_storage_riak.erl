@@ -235,9 +235,9 @@ batch_request(Method, Args, Acc) ->
         Result = batch_request(Method, Client, Args, Acc),
         _ = pooler:return_member(riak, Client, get_client_status(Result)),
         Result
-    catch Class:Exception:Stacktrace ->
+    catch Class:Exception ->
         _ = pooler:return_member(riak, Client, fail),
-        erlang:raise(Class, Exception, Stacktrace)
+        erlang:raise(Class, Exception, erlang:get_stacktrace())
     end.
 
 get_client_status(ok) ->

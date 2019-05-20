@@ -42,7 +42,7 @@
 
 -type put_card_data_result() :: #{
     bank_card := bank_card(),
-    session_id := cds_proto_base_thrift:'PaymentSessionID'()
+    session_id := dmsl_domain_thrift:'PaymentSessionID'()
 }.
 
 %%

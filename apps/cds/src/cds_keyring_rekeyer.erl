@@ -16,7 +16,6 @@
 -export([handle_event/4]).
 -export_type([encrypted_master_key_shares/0]).
 -export_type([status/0]).
--export_type([state/0]).
 
 -define(STATEM, ?MODULE).
 
@@ -36,10 +35,9 @@
 -type encrypted_master_key_shares() :: cds_keysharing:encrypted_master_key_shares().
 
 -type data() :: #data{}.
--type seconds() :: non_neg_integer().
 -type status() :: #{
     phase => state(),
-    lifetime => seconds() | undefined,
+    lifetime => timer:seconds(),
     confirmation_shares => #{cds_keysharing:share_id() => shareholder_id()},
     validation_shares => #{cds_keysharing:share_id() => shareholder_id()}
 }.
@@ -247,7 +245,7 @@ handle_event({call, From}, _Event, validation, _Data) ->
 get_timeout() ->
     genlib_app:env(cds, keyring_rekeying_lifetime, 3 * 60 * 1000).
 
--spec get_lifetime(reference() | undefined) -> seconds() | undefined.
+-spec get_lifetime(reference() | undefined) -> timer:seconds().
 
 get_lifetime(TimerRef) ->
     case TimerRef of
@@ -258,7 +256,7 @@ get_lifetime(TimerRef) ->
     end.
 
 -spec confirm_operation(encrypted_keyring(), masterkey_shares()) ->
-    {ok, cds_keyring:keyring()} | {error, confirm_errors()}.
+    ok | {error, confirm_errors()}.
 
 confirm_operation(EncryptedOldKeyring, AllShares) ->
     case cds_keysharing:recover(AllShares) of

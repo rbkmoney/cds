@@ -52,13 +52,13 @@ init([Callback, Args]) ->
 -spec handle_call(term(), {pid(), term()}, state()) -> {noreply, state()}.
 
 handle_call(Request, From, State) ->
-    _ = logger:error("Got unrecognized call from ~p: ~p", [From, Request]),
+    _ = lager:error("Got unrecognized call from ~p: ~p", [From, Request]),
     {noreply, State}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
 
 handle_cast(Msg, State) ->
-    _ = logger:error("Got unrecognized cast: ~p", [Msg]),
+    _ = lager:error("Got unrecognized cast: ~p", [Msg]),
     {noreply, State}.
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
@@ -78,7 +78,7 @@ handle_info(
     {noreply, NewState};
 
 handle_info(Msg, State) ->
-    _ = logger:debug("Got unrecognized info: ", [Msg]),
+    _ = lager:debug("Got unrecognized info: ", [Msg]),
     {noreply, State}.
 
 -spec terminate(term(), state()) -> ok.

@@ -73,9 +73,7 @@ init([]) ->
             event_handler     => scoper_woody_event_handler,
             ip                => IP,
             port              => genlib_app:env(?MODULE, port, 8022),
-            transport_opts    => genlib_app:env(?MODULE, transport_opts, #{}),
-            protocol_opts     => genlib_app:env(?MODULE, protocol_opts, #{}),
-            shutdown_timeout  => genlib_app:env(?MODULE, shutdown_timeout, 0),
+            net_opts          => genlib_app:env(?MODULE, net_opts, []),
             additional_routes => [erl_health_handle:get_route(HealthCheckers)]
         }
     ),

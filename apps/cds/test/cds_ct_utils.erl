@@ -80,18 +80,28 @@ start_clear(Config) ->
                         }">>
     },
     Apps =
+        genlib_app:start_application_with(lager, [
+            {async_threshold, 1},
+            {async_threshold_window, 0},
+            {error_logger_hwm, 600},
+            {suppress_application_start_stop, true},
+            {crash_log, false},
+            {handlers, [
+                % {lager_common_test_backend, [debug, {lager_logstash_formatter, []}]}
+                {lager_common_test_backend, warning}
+            ]}
+        ]) ++
         genlib_app:start_application_with(scoper, [
-            {storage, scoper_storage_logger}
+            {storage, scoper_storage_lager}
         ]) ++
         genlib_app:start_application_with(cds, [
             {ip, IP},
             {port, Port},
             {keyring_storage, cds_keyring_storage_env},
-            {transport_opts, #{}},
-            {protocol_opts, #{
-                request_timeout => 60000
-            }},
-            {shutdown_timeout, 0},
+            {net_opts, [
+                % Bump keepalive timeout up to a minute
+                {timeout, 60000}
+            ]},
             {keyring_rotation_lifetime, 1000},
             {keyring_unlock_lifetime, 1000},
             {keyring_rekeying_lifetime, 3000},
