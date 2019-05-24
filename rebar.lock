@@ -53,7 +53,7 @@
   0},
  {<<"logger_logstash_formatter">>,
   {git,"git@github.com:rbkmoney/logger_logstash_formatter.git",
-       {ref,"17eaad7940c8df5a8c511388c6063bb049bab3d2"}},
+       {ref,"4348f24487c400da0579032422d93acd89c6e121"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},2},
  {<<"mimerl">>,{pkg,<<"mimerl">>,<<"1.2.0">>},2},
