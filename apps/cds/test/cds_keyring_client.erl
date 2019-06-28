@@ -22,17 +22,19 @@
 -type shareholder_id() :: binary().
 -export_type([shareholder_id/0]).
 
-%%
-%% Internal types
-%%
-
 -type encrypted_master_key_share() :: #{
     id := binary(),
     owner := binary(),
     encrypted_share := binary()
 }.
+-export_type([encrypted_master_key_share/0]).
 
 -type masterkey_share() :: binary().
+-export_type([masterkey_share/0]).
+
+%%
+%% Internal types
+%%
 
 -type manager_state() :: locked | unlocked | not_initialized.
 -type initializer_state() :: uninitialized | validation.

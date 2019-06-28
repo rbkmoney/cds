@@ -44,8 +44,8 @@ init(C) ->
     ok = validate_init(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares).
 
--spec decrypt_and_sign_masterkeys(cds_keysharing:encrypted_master_key_shares(), map(), map()) ->
-    [{cds_keyring_client:shareholder_id(), cds_keysharing:masterkey_share()}].
+-spec decrypt_and_sign_masterkeys([cds_keyring_client:encrypted_master_key_share()], map(), map()) ->
+    [{cds_keyring_client:shareholder_id(), cds_keyring_client:masterkey_share()}].
 
 decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys) ->
     lists:map(
@@ -58,7 +58,7 @@ decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivate
         EncryptedMasterKeyShares
     ).
 
--spec validate_init([{cds_keyring_client:shareholder_id(), cds_keysharing:masterkey_share()}], config()) -> ok.
+-spec validate_init([{cds_keyring_client:shareholder_id(), cds_keyring_client:masterkey_share()}], config()) -> ok.
 
 validate_init([{Id, DecryptedMasterKeyShare} | []], C) ->
     cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C));
@@ -81,7 +81,7 @@ rekey(C) ->
     ok = validate_rekey(DecryptedMasterKeyShares, C),
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares).
 
--spec validate_rekey([{cds_keyring_client:shareholder_id(), cds_keysharing:masterkey_share()}], config()) -> ok.
+-spec validate_rekey([{cds_keyring_client:shareholder_id(), cds_keyring_client:masterkey_share()}], config()) -> ok.
 
 validate_rekey([{Id, DecryptedMasterKeyShare} | []], C) ->
     cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C));
