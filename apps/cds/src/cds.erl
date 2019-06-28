@@ -2,10 +2,6 @@
 -behaviour(supervisor).
 -behaviour(application).
 
-%% API
--export([start/0]).
--export([stop /0]).
-
 %% Supervisor callbacks
 -export([init/1]).
 
@@ -15,7 +11,6 @@
 
 %% Storage operations
 -export([get_cardholder_data/1]).
--export([get_card_data/2]).
 -export([put_card_data/1]).
 -export([put_card/1]).
 -export([put_session/2]).
@@ -40,20 +35,6 @@
 -type ciphertext() :: binary() | {binary(), ciphermeta()}. % <<KeyID/byte, EncryptedData/binary>>
 
 %%
-%% API
-%%
--spec start() ->
-    {ok, _}.
-start() ->
-    application:ensure_all_started(cds).
-
--spec stop() ->
-    ok.
-stop() ->
-    application:stop(cds).
-
-
-%%
 %% Supervisor callbacks
 %%
 
@@ -67,7 +48,6 @@ init([]) ->
             handlers => [
                 cds_thrift_services:handler_spec(card),
                 cds_thrift_services:handler_spec(card_v2),
-                cds_thrift_services:handler_spec(keyring_v2),
                 cds_thrift_services:handler_spec(ident_doc)
             ],
             event_handler     => scoper_woody_event_handler,
@@ -94,10 +74,10 @@ init([]) ->
         type => supervisor
     },
     Procs = [
-        Service,
         KeyringSupervisor,
+        HashSup,
         Maintenance,
-        HashSup
+        Service
     ],
     {ok, {{one_for_one, 1, 5}, Procs}}.
 
@@ -131,20 +111,13 @@ stop(_State) ->
 
 -spec get_cardholder_data(token()) -> plaintext().
 get_cardholder_data(Token) ->
-    Keyring = cds_keyring_manager:get_keyring(),
     Encrypted = cds_card_storage:get_cardholder_data(Token),
-    decrypt(Encrypted, Keyring).
-
--spec get_card_data(token(), session()) -> {plaintext(), plaintext()}.
-get_card_data(Token, Session) ->
-    Keyring = cds_keyring_manager:get_keyring(),
-    {EncryptedCardData, EncryptedSessionData} = cds_card_storage:get_session_card_data(Token, Session),
-    {decrypt(EncryptedCardData, Keyring), decrypt(EncryptedSessionData, Keyring)}.
+    decrypt(Encrypted).
 
 -spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
 put_card_data({MarshalledCardData, MarshalledSessionData}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
-    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {KeyID, _} = CurrentKey = cds_keyring:get_current_key(),
     {Token, Hash} = find_or_create_token(CurrentKey, UniqueCardData),
     Session = session(),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
@@ -163,7 +136,7 @@ put_card_data({MarshalledCardData, MarshalledSessionData}) ->
 -spec put_card(plaintext()) -> token().
 put_card(MarshalledCardData) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
-    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {KeyID, _} = CurrentKey = cds_keyring:get_current_key(),
     {Token, Hash} = find_or_create_token(CurrentKey, UniqueCardData),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
@@ -176,7 +149,7 @@ put_card(MarshalledCardData) ->
 
 -spec put_session(session(), plaintext()) -> ok.
 put_session(Session, MarshalledSessionData) ->
-    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {KeyID, _} = CurrentKey = cds_keyring:get_current_key(),
     EncryptedSessionData = encrypt(MarshalledSessionData, CurrentKey),
     ok = cds_card_storage:put_session(
         Session,
@@ -187,20 +160,19 @@ put_session(Session, MarshalledSessionData) ->
 
 -spec get_session_data(session()) -> plaintext().
 get_session_data(Session) ->
-    Keyring = cds_keyring_manager:get_keyring(),
     Encrypted = cds_card_storage:get_session_data(Session),
-    decrypt(Encrypted, Keyring).
+    decrypt(Encrypted).
 
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
-    {KeyID, Key} = cds_keyring_manager:get_current_key(),
+    {KeyID, Key} = cds_keyring:get_current_key(),
     Hash = cds_hash:hash(cds_card_data:unique(CardData), Key),
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
 -spec update_session_data(session(), plaintext()) -> ok.
 update_session_data(Session, SessionData) ->
-    {KeyID, _} = CurrentKey = cds_keyring_manager:get_current_key(),
+    {KeyID, _} = CurrentKey = cds_keyring:get_current_key(),
     EncryptedSessionData = encrypt(SessionData, CurrentKey),
     cds_card_storage:update_session_data(Session, EncryptedSessionData, KeyID).
 
@@ -209,24 +181,23 @@ update_session_data(Session, SessionData) ->
 %%
 
 -spec encrypt(plaintext(), {cds_keyring:key_id(), cds_keyring:key()}) -> ciphertext().
-encrypt({Data, Metadata}, Keyring) ->
-    {encrypt(Data, Keyring), encrypt(msgpack:pack(Metadata), Keyring)};
+encrypt({Data, Metadata}, Key) ->
+    {encrypt(Data, Key), encrypt(msgpack:pack(Metadata), Key)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
     <<KeyID, Cipher/binary>>.
 
--spec decrypt(ciphertext(), cds_keyring:keyring()) -> plaintext().
-decrypt({Data, Metadata}, Keyring) ->
-    {ok, DecryptedMetadata} = msgpack:unpack(decrypt(Metadata, Keyring)),
-    {decrypt(Data, Keyring), DecryptedMetadata};
-decrypt(<<KeyID, Cipher/binary>>, Keyring) ->
-    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID, Keyring),
+-spec decrypt(ciphertext()) -> plaintext().
+decrypt({Data, Metadata}) ->
+    {ok, DecryptedMetadata} = msgpack:unpack(decrypt(Metadata)),
+    {decrypt(Data), DecryptedMetadata};
+decrypt(<<KeyID, Cipher/binary>>) ->
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     cds_crypto:decrypt(Key, Cipher).
 
 -spec find_or_create_token({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> {token(), hash()}.
 find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
-    Keyring = cds_keyring_manager:get_keyring(),
-    OtherKeys = [Key || {KeyID, Key} <- cds_keyring:get_keys(Keyring), KeyID =/= CurrentKeyID],
+    OtherKeys = cds_keyring:get_keys_except(CurrentKeyID),
     CurrentHash = cds_hash:hash(UniqueCardData, CurrentKey),
     % let's check current key first
     FindResult = find_tokens(UniqueCardData, CurrentHash, OtherKeys),

@@ -54,7 +54,7 @@ handle_timeout(State = #{subject := Subject, continuation := Continuation0}) ->
 
 process_recrypting(Subject, BatchSize, Continuation) ->
     try
-        Intervals = cds_keyring_manager:get_outdated_keys(),
+        Intervals = cds_keyring:get_outdated_keys(),
         process_recrypting(Subject, Intervals, BatchSize, Continuation)
     catch
         throw:Reason ->

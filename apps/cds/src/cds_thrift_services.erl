@@ -3,13 +3,13 @@
 -export([handler_spec/1]).
 -export([service_path/1]).
 -export([thrift_service/1]).
--export([handler_module/1]).
 
 %%
 %% Types
 %%
 
 -type storage_code() :: keyring_v2
+    | keyring_storage
     | card
     | card_v2
     | ident_doc.
@@ -35,6 +35,8 @@ handler_spec(Code) ->
 -spec service_path(storage_code()) -> path().
 service_path(keyring_v2) ->
     "/v2/keyring";
+service_path(keyring_storage) ->
+    "/v2/keyring_storage";
 service_path(card) ->
     "/v1/storage";
 service_path(card_v2) ->
@@ -44,7 +46,9 @@ service_path(ident_doc) ->
 
 -spec thrift_service(storage_code()) -> thrift_service().
 thrift_service(keyring_v2) ->
-    {cds_proto_keyring_thrift, 'Keyring'};
+    {cds_proto_keyring_thrift, 'KeyringManagement'};
+thrift_service(keyring_storage) ->
+    {cds_proto_keyring_thrift, 'KeyringStorage'};
 thrift_service(card) ->
     {dmsl_cds_thrift, 'Storage'};
 thrift_service(card_v2) ->

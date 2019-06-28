@@ -125,7 +125,8 @@ groups() ->
             {keyring_errors, [], [
                 init,
                 lock,
-                get_session_card_data_unavailable
+                get_session_card_data_unavailable,
+                unlock
             ]}
         ]},
         {backward_compatibility_basic_lifecycle, [], [
@@ -175,7 +176,8 @@ groups() ->
             lock,
             put_card_data_unavailable,
             put_card_data_3ds_unavailable,
-            get_card_data_unavailable
+            get_card_data_unavailable,
+            unlock
         ]},
         {session_management, [sequence], [
             init,
@@ -246,15 +248,15 @@ init_per_group(keyring_errors, C) ->
     StorageConfig = [
         {storage, cds_storage_ets}
     ],
-    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfig} | C]),
-    cds_ct_utils:start_clear(C1);
+    ok = cds_ct_utils:start_stash(),
+    cds_ct_utils:start_clear([{storage_config, StorageConfig} | C]);
 
 init_per_group(session_management, C) ->
     CleanerConfig = [
         {
             session_cleaning,
             #{
-                session_lifetime => 4,
+                session_lifetime => 5,
                 batch_size => 1000,
                 interval => 1000
             }
@@ -266,8 +268,8 @@ init_per_group(session_management, C) ->
         }}
     ],
     C1 = [{recrypting_config, Recrypting}, {session_cleaning_config, CleanerConfig} | C],
-    C2 = cds_ct_utils:start_stash(C1),
-    cds_ct_utils:start_clear(C2);
+    ok = cds_ct_utils:start_stash(),
+    cds_ct_utils:start_clear(C1);
 
 init_per_group(error_map, C) ->
     StorageConfig = config(storage_config, C),
@@ -282,14 +284,14 @@ init_per_group(error_map, C) ->
     },
 
     StorageConfigNew = update_config(cds_storage_riak, StorageConfig, RiakConfigNew),
-    C1 = cds_ct_utils:start_stash([{storage_config, StorageConfigNew} | C]),
-    cds_ct_utils:start_clear(C1);
+    ok = cds_ct_utils:start_stash(),
+    cds_ct_utils:start_clear([{storage_config, StorageConfigNew} | C]);
 init_per_group(error_map_ddos, C) ->
     C;
 
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_stash(C),
-    cds_ct_utils:start_clear(C1).
+    ok = cds_ct_utils:start_stash(),
+    cds_ct_utils:start_clear(C).
 
 -spec end_per_group(atom(), config()) -> _.
 
@@ -316,7 +318,7 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    cds_ct_keyring:init(C).
+    cds_ct_keyring:ensure_init(C).
 
 -spec lock(config()) -> _.
 
@@ -362,14 +364,14 @@ put_card_data(C) ->
         },
         session_id := Session
     } = CDSCardClient:put_card_data(?CREDIT_CARD(undefined), ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)),
-    cds_ct_utils:store([{token, Token}, {session, Session}], C).
+    cds_ct_utils:store([{token, Token}, {session, Session}]).
 
 -spec get_card_data(config()) -> _.
 
 get_card_data(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(
-        cds_ct_utils:lookup(token, C),
+        cds_ct_utils:lookup(token),
         root_url(C)
     ).
 
@@ -378,7 +380,7 @@ get_card_data(C) ->
 get_session_data(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(
-        cds_ct_utils:lookup(session, C),
+        cds_ct_utils:lookup(session),
         root_url(C)
     ).
 
@@ -424,19 +426,19 @@ put_card_data_3ds(C) ->
         ?SESSION_DATA(?AUTH_3DS),
         root_url(C)
     ),
-    cds_ct_utils:store([{token, Token}, {session, Session}], C).
+    cds_ct_utils:store([{token, Token}, {session, Session}]).
 
 -spec get_card_data_3ds(config()) -> _.
 
 get_card_data_3ds(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(cds_ct_utils:lookup(token, C), root_url(C)).
+    ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(cds_ct_utils:lookup(token), root_url(C)).
 
 -spec get_session_data_3ds(config()) -> _.
 
 get_session_data_3ds(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    ?SESSION_DATA_MATCH(?AUTH_3DS_MATCH) = CDSCardClient:get_session_data(cds_ct_utils:lookup(session, C), root_url(C)).
+    ?SESSION_DATA_MATCH(?AUTH_3DS_MATCH) = CDSCardClient:get_session_data(cds_ct_utils:lookup(session), root_url(C)).
 
 -spec put_card_data_backward_compatibilty(config()) -> _.
 
@@ -448,20 +450,20 @@ put_card_data_backward_compatibilty(C) ->
         },
         session_id := Session
     } = CDSCardClient:put_card_data(?CREDIT_CARD(?CVV), root_url(C)),
-    cds_ct_utils:store([{token, Token}, {session, Session}], C).
+    cds_ct_utils:store([{token, Token}, {session, Session}]).
 
 -spec get_card_data_backward_compatibilty(config()) -> _.
 
 get_card_data_backward_compatibilty(C) ->
     CDSCardClient = config(cds_storage_client, C),
-    ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(cds_ct_utils:lookup(token, C), root_url(C)).
+    ?CREDIT_CARD_MATCH(<<>>) = CDSCardClient:get_card_data(cds_ct_utils:lookup(token), root_url(C)).
 
 -spec get_session_data_backward_compatibilty(config()) -> _.
 
 get_session_data_backward_compatibilty(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(
-        cds_ct_utils:lookup(session, C),
+        cds_ct_utils:lookup(session),
         root_url(C)
     ).
 
@@ -470,8 +472,8 @@ get_session_data_backward_compatibilty(C) ->
 get_session_card_data_backward_compatibilty(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?CREDIT_CARD_MATCH(?CVV) = CDSCardClient:get_session_card_data(
-        cds_ct_utils:lookup(token, C),
-        cds_ct_utils:lookup(session, C),
+        cds_ct_utils:lookup(token),
+        cds_ct_utils:lookup(session),
         root_url(C)
     ).
 
@@ -576,7 +578,7 @@ refresh_sessions(C) ->
 
 %% dishonest test which uses external functions
 recrypt(C) ->
-    {KeyID0, _} = cds_keyring_manager:get_current_key(),
+    {KeyID0, _} = cds_keyring:get_current_key(),
     CardholderData = #{
         cardnumber => <<"5321301234567892">>,
         exp_date => {12, 3000},
@@ -609,8 +611,9 @@ recrypt(C) ->
     }}] = config(recrypting_config, C),
 
     % we should meet reencryption at least once _after_ rotation
-    _ = timer:sleep(Interval * 2),
-    {KeyID, _} = cds_keyring_manager:get_current_key(),
+    {ok, KeyringFetchInterval} = application:get_env(cds, keyring_fetch_interval),
+    _ = timer:sleep(Interval * 2 + KeyringFetchInterval * 2),
+    {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
     <<KeyID, _/binary>> = EncryptedCardDataCVV,

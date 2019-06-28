@@ -1,9 +1,10 @@
 -module(cds_ct_stash).
+-behaviour(gen_server).
 
 -export([start/0]).
--export([stop/1]).
--export([put/3]).
--export([get/2]).
+-export([stop/0]).
+-export([put/2]).
+-export([get/1]).
 
 -export([
     init/1,
@@ -14,28 +15,32 @@
     code_change/3
 ]).
 
--spec start() -> pid().
+-define(server_name, ?MODULE).
+-define(call_timeout, 10000).
+
+%%% API
+
+-spec start() -> {ok, pid()} | {error, {already_started, pid()}}.
 
 start() ->
-    {ok, Pid} = gen_server:start(?MODULE, [], []),
-    Pid.
+    gen_server:start({local, ?server_name}, ?MODULE, [], []).
 
--spec stop(pid()) -> _.
+-spec stop() -> _.
 
-stop(Pid) ->
-    erlang:exit(Pid, normal).
+stop() ->
+    erlang:exit(erlang:whereis(?server_name), normal).
 
--spec put(pid(), term(), term()) -> ok.
+-spec put(term(), term()) -> ok.
 
-put(Pid, Key, Value) ->
-    gen_server:call(Pid, {put, Key, Value}, 5000).
+put(Key, Value) ->
+    call({put, Key, Value}).
 
--spec get(pid(), term()) -> term().
+-spec get(term()) -> term().
 
-get(Pid, Key) ->
-    gen_server:call(Pid, {get, Key}, 5000).
+get(Key) ->
+    call({get, Key}).
 
-%%
+%%% gen_server callbacks
 
 -spec init(term()) -> {ok, atom()}.
 
@@ -69,3 +74,8 @@ terminate(_Reason, _State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+%%% Internal functions
+
+call(Msg) ->
+    gen_server:call(?server_name, Msg, ?call_timeout).

@@ -16,7 +16,7 @@ get_namespaces() ->
 -spec put_identity_document(cds_ident_doc:identity_document()) -> cds:token().
 put_identity_document(Doc) ->
     Token = token(),
-    {KeyID, Key} = cds_keyring_manager:get_current_key(),
+    {KeyID, Key} = cds_keyring:get_current_key(),
     Data = encode_document(Doc, {KeyID, Key}),
     ok = cds_storage:put(
         ?IDENTITY_DOCUMENT_NS,
@@ -42,6 +42,6 @@ encode_document(Doc, {KeyID, Key}) ->
     <<KeyID, Cipher/binary>>.
 
 decode_document(<<KeyID, Cipher/binary>>) ->
-    {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     Bin = cds_crypto:decrypt(Key, Cipher),
     cds_ident_doc:unmarshal(Bin).

@@ -44,8 +44,8 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                 })
         end
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('PutCard', [CardData], _Context, _Opts) ->
@@ -68,8 +68,8 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
                 })
         end
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
@@ -82,8 +82,8 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
@@ -92,8 +92,8 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
         ok = put_session(Session, OwnSessionData),
         {ok, ok}
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('GetSessionData', [Session], _Context, _Opts) ->
@@ -103,8 +103,8 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#'SessionDataNotFound'{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end.
 
 %%

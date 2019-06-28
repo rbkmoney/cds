@@ -6,7 +6,6 @@
 
 -export([validate/1]).
 -export([validate/2]).
--export([validate/3]).
 
 -export([marshal_cardholder_data/1]).
 -export([marshal_session_data/1]).

@@ -1,137 +1,301 @@
 -module(cds_keyring).
+-behaviour(gen_server).
 
--export([new/0]).
--export([rotate/1]).
--export([get_key/2]).
--export([get_keys/1]).
--export([get_current_key/1]).
+-compile(no_auto_import).
 
--export([encrypt/2]).
--export([decrypt/2]).
--export([marshall/1]).
--export([unmarshall/1]).
+-include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
--export([get_key_id_config/0]).
+%% API
+-export([is_available/0]).
+-export([get_key/1]).
+-export([get_keys_except/1]).
+-export([get_current_key/0]).
+-export([get_outdated_keys/0]).
+-export([start_link/0]).
 
--export([validate_masterkey/3]).
--export([validate_masterkey/2]).
+%% gen_server callbacks
+-export([init/1,
+         handle_call/3,
+         handle_cast/2,
+         handle_info/2,
+         terminate/2,
+         code_change/3]).
 
 -export_type([key/0]).
 -export_type([key_id/0]).
--export_type([keyring/0]).
--export_type([encrypted_keyring/0]).
--export_type([key_id_config/0]).
 
--type masterkey() :: cds_keysharing:masterkey().
--type key() :: binary().
--type key_id() :: byte().
--type encrypted_keyring() :: binary().
-
--type keyring() :: #{
-    current_key => key_id(),
-    keys => #{key_id() => key()}
+-type key()     :: cds_proto_keyring_thrift:'KeyData'().
+-type key_id()  :: cds_proto_keyring_thrift:'KeyId'().
+-type meta()    :: cds_proto_keyring_thrift:'KeyMeta'().
+-type keyring() :: cds_proto_keyring_thrift:'Keyring'().
+-type version() :: integer().
+-type keys()    :: #{
+    key_id() => cds_proto_keyring_thrift:'Key'()
 }.
 
--type key_id_config() :: #{
-    min := non_neg_integer(),
-    max := non_neg_integer()
-}.
+-type state() :: #{}.
 
--define(KEY_BYTESIZE, 32).
+-define(DEFAULT_FETCH_INTERVAL, 60 * 1000).
 
-%%
+-define(KEYRING_TAB, ?MODULE).
+-define(KEYRING_TAB_CONFIG, [
+    public,
+    ordered_set,
+    named_table,
+    {read_concurrency, true},
+    {write_concurrency, false}
+]).
+-define(KEYRING_VERSION_KEY, version).
+-define(KEYRING_CURRENT_KEY, current_key_id).
+-define(KEYRING_META_KEY(ID), {meta, ID}).
 
--spec new() -> keyring().
-new() ->
-    #{current_key => 0, keys => #{0 => cds_crypto:key()}}.
+-define(KEYRING_KEY(ID), {?MODULE, key, ID}).
 
+%%% API
 
--spec rotate(keyring()) -> keyring().
-rotate(#{current_key := CurrentKeyId, keys := Keys}) ->
-    <<NewCurrentKeyId>> = <<(CurrentKeyId + 1)>>,
-    case maps:is_key(NewCurrentKeyId, Keys) of
-        false ->
-            #{current_key => NewCurrentKeyId, keys => Keys#{NewCurrentKeyId => cds_crypto:key()}};
-        true ->
-            throw(keyring_full)
+-spec is_available() ->
+    boolean().
+
+is_available() ->
+    try
+        _ = get_current_key_id(),
+        true
+    catch
+        throw:no_keyring ->
+            false
     end.
 
--spec get_key(key_id(), keyring()) -> {ok, {key_id(), key()}} | {error, not_found}.
-get_key(KeyId, #{keys := Keys}) ->
-    case maps:find(KeyId, Keys) of
-        {ok, Key} ->
-            {ok, {KeyId, Key}};
-        error ->
+-spec get_key(key_id()) ->
+    {ok, {key_id(), key()}} | {error, not_found}.
+
+get_key(KeyID) ->
+    try
+        Key = persistent_term:get(?KEYRING_KEY(KeyID)),
+        {ok, {KeyID, Key}}
+    catch
+        error:badarg ->
             {error, not_found}
     end.
 
--spec get_keys(keyring()) -> [{key_id(), key()}].
-get_keys(#{keys := Keys}) ->
-    maps:to_list(Keys).
+-spec get_keys_except(key_id()) ->
+    [key()].
 
--spec get_current_key(keyring()) -> {key_id(), key()}.
-get_current_key(#{current_key := CurrentKeyId, keys := Keys}) ->
-    CurrentKey = maps:get(CurrentKeyId, Keys),
-    {CurrentKeyId, CurrentKey}.
+get_keys_except(ExceptId) ->
+    ets:foldl(
+        fun({?KEYRING_META_KEY(KeyID), #'KeyMeta'{retired = false}}, Acc) when KeyID /= ExceptId ->
+                Key = persistent_term:get(?KEYRING_KEY(KeyID)),
+                [Key | Acc];
+           (_, Acc) ->
+               Acc
+        end,
+        [],
+        ?KEYRING_TAB
+    ).
 
-%%
+-spec get_current_key() ->
+    {key_id(), key()}.
 
--spec encrypt(key(), keyring()) -> encrypted_keyring().
-encrypt(MasterKey, Keyring) ->
-    cds_crypto:encrypt(MasterKey, marshall(Keyring)).
+get_current_key() ->
+    CurrentKeyID = get_current_key_id(),
+    CurrentKey   = persistent_term:get(?KEYRING_KEY(CurrentKeyID)),
+    {CurrentKeyID, CurrentKey}.
 
--spec decrypt(key(), encrypted_keyring()) -> {ok, keyring()} | {error, decryption_failed}.
-decrypt(MasterKey, EncryptedKeyring) ->
-    try {ok, unmarshall(cds_crypto:decrypt(MasterKey, EncryptedKeyring))} catch
-        decryption_failed ->
-            {error, decryption_failed}
+-spec get_outdated_keys() ->
+    [{key_id(), key_id()}].
+
+get_outdated_keys() ->
+    CurrentKeyID = get_current_key_id(),
+    ets:foldl(
+        fun({?KEYRING_META_KEY(KeyID), #'KeyMeta'{retired = false}}, Acc) when KeyID < CurrentKeyID ->
+                case Acc of
+                    [] ->
+                        [{KeyID, KeyID}];
+                    [{KeyID1, KeyID2}] ->
+                        [{erlang:min(KeyID1, KeyID), erlang:max(KeyID2, KeyID)}]
+                end;
+           (_, Acc) ->
+               Acc
+        end,
+        [],
+        ?KEYRING_TAB
+    ).
+
+-spec start_link() ->
+    {ok, pid()} | {error, {already_started, pid()}}.
+
+start_link() ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
+%%% gen_server callbacks
+
+-spec init(any()) ->
+    {ok, state(), timeout()}.
+
+init(_) ->
+    ok = create_table(),
+    _ = fetch_keyring(),
+    {ok, #{}, fetch_interval()}.
+
+-spec handle_call(term(), term(), state()) ->
+    {reply, {error, undefined}, state()}.
+
+handle_call(_Msg, _From, State) ->
+    {reply, {error, undefined}, State}.
+
+-spec handle_cast(term(), state()) ->
+    {noreply, state()}.
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+-spec handle_info(timeout | any(), state()) ->
+    {noreply, state, timeout()} | {noreply, state()}.
+
+handle_info(timeout, State) ->
+    _ = fetch_keyring(),
+    {noreply, State, fetch_interval()};
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+-spec terminate(term(), state()) ->
+    ok.
+
+terminate(_Reason, _State) ->
+    ok.
+
+-spec code_change(term(), state(), term()) ->
+    {ok, state()}.
+
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%%% Internal functions
+
+-spec create_table() ->
+    ok.
+
+create_table() ->
+    ?KEYRING_TAB = ets:new(?KEYRING_TAB, ?KEYRING_TAB_CONFIG),
+    ok.
+
+-spec get_version() ->
+    version() | undefined.
+
+get_version() ->
+    case ets:lookup(?KEYRING_TAB, ?KEYRING_VERSION_KEY) of
+        [{_, Version}] ->
+            Version;
+        [] ->
+            undefined
     end.
 
--spec marshall(keyring()) -> binary().
-marshall(#{current_key := CurrentKey, keys := Keys}) ->
-    <<CurrentKey, (maps:fold(fun marshall_keys/3, <<>>, Keys))/binary>>.
+-spec set_version(version()) ->
+    ok.
 
--spec unmarshall(binary()) -> keyring().
-unmarshall(<<CurrentKey, Keys/binary>>) ->
-    #{current_key => CurrentKey, keys => unmarshall_keys(Keys, #{})}.
+set_version(Version) ->
+    true = ets:insert(?KEYRING_TAB, {?KEYRING_VERSION_KEY, Version}),
+    ok.
 
--spec marshall_keys(key_id(), key(), binary()) -> binary().
-marshall_keys(KeyId, Key, Acc) ->
-    <<Acc/binary, KeyId, Key:?KEY_BYTESIZE/binary>>.
+-spec get_current_key_id() ->
+    key_id() | no_return().
 
--spec unmarshall_keys(binary(), map()) -> map().
-unmarshall_keys(<<>>, Acc) ->
-    Acc;
-unmarshall_keys(<<KeyId, Key:?KEY_BYTESIZE/binary, Rest/binary>>, Acc) ->
-    unmarshall_keys(Rest, Acc#{KeyId => Key}).
-
--spec get_key_id_config() -> key_id_config().
-get_key_id_config() ->
-    #{
-        min => 0,
-        max => 255
-    }.
-
--spec validate_masterkey(masterkey(), keyring(), encrypted_keyring()) ->
-    {ok, keyring()} | {error, wrong_masterkey}.
-
-validate_masterkey(MasterKey, Keyring, EncryptedOldKeyring) ->
-    case decrypt(MasterKey, EncryptedOldKeyring) of
-        {ok, Keyring} ->
-            {ok, Keyring};
-        {ok, _NotMatchingKeyring} ->
-            {error, wrong_masterkey};
-        {error, decryption_failed} ->
-            {error, wrong_masterkey}
+get_current_key_id() ->
+    case ets:lookup(?KEYRING_TAB, ?KEYRING_CURRENT_KEY) of
+        [{_, CurrentKeyID}] ->
+            CurrentKeyID;
+        [] ->
+            erlang:throw(no_keyring)
     end.
 
--spec validate_masterkey(masterkey(), encrypted_keyring()) ->
-    {ok, keyring()} | {error, wrong_masterkey}.
+-spec set_current_key_id(key_id()) ->
+    ok.
 
-validate_masterkey(MasterKey, EncryptedOldKeyring) ->
-    case decrypt(MasterKey, EncryptedOldKeyring) of
-        {ok, Keyring} ->
-            {ok, Keyring};
-        {error, decryption_failed} ->
-            {error, wrong_masterkey}
+set_current_key_id(KeyID) ->
+    true = ets:insert(?KEYRING_TAB, {?KEYRING_CURRENT_KEY, KeyID}),
+    ok.
+
+-spec fetch_keyring() ->
+    ok | {error, {invalid_status, not_initialized} | tuple()}.
+
+fetch_keyring() ->
+    CurrentVersion = get_version(),
+    try get_keyring() of
+        #'Keyring'{version = CurrentVersion} ->
+            ok; % no changes
+        Keyring ->
+            ok = store_keyring(Keyring)
+    catch
+        #'InvalidStatus'{status = Status} ->
+            _ = logger:error("Could not fetch keyring: ~p: ~p", [invalid_status, Status]),
+            {error, {invalid_status, Status}};
+        Class:Error ->
+            _ = logger:error("Could not fetch keyring: ~p: ~p", [Class, Error]),
+            {error, {Class, Error}}
     end.
+
+-spec store_keyring(keyring()) ->
+    ok.
+
+store_keyring(#'Keyring'{version = Version, keys = Keys, current_key_id = CurrentKeyID}) ->
+    ok = store_keys(Keys),
+    ok = set_current_key_id(CurrentKeyID),
+    ok = set_version(Version).
+
+-spec store_keys(keys()) ->
+    ok.
+
+store_keys(Keys) ->
+    maps:fold(
+        fun(KeyID, #'Key'{data = Key, meta = Meta}, _) ->
+            ok = store_key(KeyID, Key),
+            ok = store_meta(KeyID, Meta)
+        end,
+        ok,
+        Keys
+    ).
+
+-spec store_key(key_id(), key()) ->
+    ok.
+
+store_key(KeyID, Key) ->
+    try
+        _ = persistent_term:get(?KEYRING_KEY(KeyID)),
+        ok
+    catch
+        error:badarg ->
+            ok = persistent_term:put(?KEYRING_KEY(KeyID), Key)
+    end.
+
+-spec store_meta(key_id(), meta()) ->
+    ok.
+
+store_meta(KeyID, Meta) ->
+    true = ets:insert(?KEYRING_TAB, {?KEYRING_META_KEY(KeyID), Meta}),
+    ok.
+
+-spec get_keyring() ->
+    keyring() | no_return().
+
+get_keyring() ->
+    {ok, Opts} = application:get_env(cds, keyring),
+    RootUrl    = maps:get(url, Opts),
+    ServerCN   = maps:get(server_cn, Opts),
+    CACert     = maps:get(cacertfile, Opts),
+    ClientCert = maps:get(certfile, Opts),
+    ExtraOpts  = #{
+        transport_opts => #{
+            ssl_options => [
+                {server_name_indication, ServerCN},
+                {verify,                 verify_peer},
+                {cacertfile,             CACert},
+                {certfile,               ClientCert}
+            ]
+        }
+    },
+    cds_woody_client:call(keyring_storage, 'GetKeyring', [], RootUrl, ExtraOpts).
+
+-spec fetch_interval() ->
+    timeout().
+
+fetch_interval() ->
+    application:get_env(cds, keyring_fetch_interval, ?DEFAULT_FETCH_INTERVAL).
