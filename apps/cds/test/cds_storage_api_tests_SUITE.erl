@@ -318,7 +318,8 @@ end_per_group(_, C) ->
 -spec init(config()) -> _.
 
 init(C) ->
-    cds_ct_keyring:ensure_init(C).
+    ok = cds_ct_keyring:ensure_init(C),
+    ok = cds_ct_utils:wait_for_keyring(C).
 
 -spec lock(config()) -> _.
 

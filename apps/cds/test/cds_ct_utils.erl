@@ -13,6 +13,7 @@
 -export([start_stash/0]).
 
 -export([call/4]).
+-export([wait_for_keyring/1]).
 
 %%
 %% Types
@@ -60,7 +61,13 @@ start_clear(Config) ->
                 cacertfile => ?file_path(Config, "ca.crt"),
                 certfile => ?file_path(Config, "client.pem")
             }},
-            {keyring_fetch_interval, 1000}
+            {keyring_fetch_interval, 1000},
+            {health_checkers, [
+                {erl_health,  disk,      ["/", 99]  },
+                {erl_health,  cg_memory, [99]       },
+                {erl_health,  service,   [<<"cds">>]},
+                {cds_keyring, check,     []}
+            ]}
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
     ,
     [
@@ -128,6 +135,10 @@ call(Service, Method, Args, RootUrl) ->
     Strategy = genlib_retry:linear(3, 1000),
     call(Service, Method, Args, RootUrl, Strategy).
 
+-spec wait_for_keyring(config()) -> ok.
+wait_for_keyring(C) ->
+    ok = health_check(2, C).
+
 %%
 %% Internals
 %%
@@ -189,4 +200,20 @@ call(Service, Method, Args, RootUrl, Strategy) ->
                 finish ->
                     erlang:error(Error)
             end
+    end.
+
+health_check(0, _C) ->
+    {error, timeout};
+health_check(Count, C) ->
+    RootUrl = config(root_url, C),
+    case hackney:request(<<RootUrl/binary, "/health">>) of
+        {ok, 200, _Headers, Ref} ->
+            {ok, Body} = hackney:body(Ref),
+            #{<<"keyring_version">> := Version} = jsx:decode(Body, [return_maps]),
+            true = erlang:is_integer(Version),
+            ok;
+        _Error ->
+            Timeout = application:get_env(cds, keyring_fetch_interval, 1000),
+            timer:sleep(Timeout),
+            health_check(Count - 1, C)
     end.

@@ -6,6 +6,7 @@
 -include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
 %% API
+-export([check/0]).
 -export([is_available/0]).
 -export([get_key/1]).
 -export([get_keys_except/1]).
@@ -52,6 +53,17 @@
 -define(KEYRING_KEY(ID), {?MODULE, key, ID}).
 
 %%% API
+
+-spec check() ->
+    {ok, map()} | {error, 503, binary()}.
+
+check() ->
+    case get_version() of
+        undefined ->
+            {error, 503, <<"Keyring is unavailable">>};
+        Version ->
+            {ok, #{<<"keyring_version">> => Version}}
+    end.
 
 -spec is_available() ->
     boolean().
