@@ -255,6 +255,7 @@ init_per_group(session_management, C) ->
         {
             session_cleaning,
             #{
+                enabled => true,
                 session_lifetime => 5,
                 batch_size => 1000,
                 interval => 1000
@@ -263,6 +264,7 @@ init_per_group(session_management, C) ->
     ],
     Recrypting = [
         {recrypting, #{
+            enabled => true,
             interval => 1000
         }}
     ],
