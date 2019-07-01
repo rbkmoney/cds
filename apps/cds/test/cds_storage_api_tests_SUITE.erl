@@ -2,7 +2,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
--include_lib("shamir/include/shamir.hrl").
 
 -export([all/0]).
 -export([groups/0]).
