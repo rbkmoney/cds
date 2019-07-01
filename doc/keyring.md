@@ -79,8 +79,8 @@ EC ключ для криптоподписи:
 Начинаем процесс инициализации:
 
 ```bash
-$ woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+$ woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring StartInit '<insert threshold here>'
 ```
 
@@ -109,14 +109,14 @@ $ woorl -s damsel/proto/cds.thrift \
 $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jwe decrypt --key rsa-enc.json | \
   step crypto jws sign - --key ec.json | \
-  woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+  woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring ValidateInit '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
 
-`http://cds:8022/v1/keyring` - пример пути до `cds`
+`http://cds:8022/v2/keyring` - пример пути до `cds`
 
 ## Разблокировка
 
@@ -140,28 +140,28 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 Начинаем процесс разблокировки:
 
 ```bash
-$ woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+$ woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring StartUnlock
 ```
 
-### Валидация
+### Подтверждение
 
 `Threshold` владельцев фрагментов ключа расшифровывают свою часть, подписывают и отдают
- на валидацию:
+ на подтверждение:
  
 ```bash
 $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jwe decrypt --key rsa-enc.json | \
   step crypto jws sign - --key ec.json | \
-  woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
-   Keyring ValidateUnlock '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+  woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
+   Keyring ConfirmUnlock '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
 
-`http://cds:8022/v1/keyring` - пример пути до `cds`
+`http://cds:8022/v2/keyring` - пример пути до `cds`
 
 ## Ротация ключа шифрования карточных данных
 
@@ -184,28 +184,28 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 Начинаем процесс ротации:
 
 ```bash
-$ woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+$ woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring StartRotate
 ```
 
-### Валидация
+### Подтверждение
 
 `Threshold` владельцев фрагментов ключа расшифровывают свою часть, подписывают и отдают
- на валидацию:
+ на подтверждение:
  
 ```bash
 $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jwe decrypt --key rsa-enc.json | \
   step crypto jws sign - --key ec.json | \
-  woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
-   Keyring ValidateRotate '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+  woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
+   Keyring ConfirmRotate '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
 
-`http://cds:8022/v1/keyring` - пример пути до `cds`
+`http://cds:8022/v2/keyring` - пример пути до `cds`
 
 ## Замена ключа шифрования `Keyring`
 
@@ -239,8 +239,8 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 Начинаем процесс замены ключа:
 
 ```bash
-$ woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+$ woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring StartRekey '<insert threshold here>'
 ```
 
@@ -255,22 +255,22 @@ $ woorl -s damsel/proto/cds.thrift \
 $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jwe decrypt --key rsa-enc.json | \
   step crypto jws sign - --key ec.json | \
-  woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+  woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring ConfirmRekey '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
 
-`http://cds:8022/v1/keyring` - пример пути до `cds`
+`http://cds:8022/v2/keyring` - пример пути до `cds`
 
 ### Постподтверждение
 
 Получаем зашифрованные фрагменты мастер-ключа.
 
 ```bash
-$ woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+$ woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring StartRekeyValidation
 ```
 
@@ -295,11 +295,11 @@ $ woorl -s damsel/proto/cds.thrift \
 $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jwe decrypt --key rsa-enc.json | \
   step crypto jws sign - --key ec.json | \
-  woorl -s damsel/proto/cds.thrift \
-   'http://cds:8022/v1/keyring' \
+  woorl -s cds_proto/proto/keyring.thrift \
+   'http://cds:8022/v2/keyring' \
    Keyring ValidateRekey '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
 
-`http://cds:8022/v1/keyring` - пример пути до `cds`
+`http://cds:8022/v2/keyring` - пример пути до `cds`
