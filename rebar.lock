@@ -52,7 +52,7 @@
   0},
  {<<"logger_logstash_formatter">>,
   {git,"git@github.com:rbkmoney/logger_logstash_formatter.git",
-       {ref,"4348f24487c400da0579032422d93acd89c6e121"}},
+       {ref,"54c371215e3d73b2a868bc6375e523f95e826fe3"}},
   0},
  {<<"metrics">>,{pkg,<<"metrics">>,<<"1.0.1">>},2},
  {<<"mimerl">>,{pkg,<<"mimerl">>,<<"1.2.0">>},2},
@@ -91,12 +91,12 @@
  {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.4">>},2},
  {<<"thrift">>,
   {git,"https://github.com/rbkmoney/thrift_erlang.git",
-       {ref,"7843146f22a9d9d63be4ae1276b5fa03938f2e9c"}},
+       {ref,"d393ef9cdb10f3d761ba3a603df2b2929dc19a10"}},
   1},
  {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.4.1">>},3},
  {<<"woody">>,
   {git,"git@github.com:rbkmoney/woody_erlang.git",
-       {ref,"f9f15cb36e33f8608fc1ba7c0e798a3700eeb5e3"}},
+       {ref,"5ee89dd0b2d52ff955a4107a8d9dc0f8fdd365a0"}},
   0}]}.
 [
 {pkg_hash,[
