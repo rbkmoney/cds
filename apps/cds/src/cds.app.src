@@ -20,7 +20,8 @@
         msgpack,
         lib_combin,
         jose,
-        cds_proto
+        cds_proto,
+        tds_proto
     ]},
     {env, []},
     {modules, []},
