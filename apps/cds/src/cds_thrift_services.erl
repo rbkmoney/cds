@@ -47,7 +47,7 @@ service_path(ident_doc) ->
 
 -spec thrift_service(storage_code()) -> thrift_service().
 % thrift_service(token) ->
-%     {tds_proto_keyring_thrift, 'TokenStorage'};
+%     {tds_proto_storage_thrift, 'TokenStorage'};
 thrift_service(keyring_v2) ->
     {cds_proto_keyring_thrift, 'Keyring'};
 thrift_service(card) ->
