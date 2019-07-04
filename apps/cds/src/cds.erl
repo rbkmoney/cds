@@ -65,8 +65,6 @@ init([]) ->
         cds_thrift_service_sup,
         #{
             handlers => [
-                % possible naming collision with cds:token.
-                % maybe rename to oauth_token?
                 cds_thrift_services:handler_spec(token),
                 cds_thrift_services:handler_spec(card),
                 cds_thrift_services:handler_spec(card_v2),
