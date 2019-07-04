@@ -6,7 +6,6 @@
 
 -define(TOKEN_NS, <<"token">>).
 
--define(CREATED_AT_INDEX, {integer_index, "created_at"}).
 -define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
 
 -spec get_namespaces() -> [cds_storage:namespace()].
