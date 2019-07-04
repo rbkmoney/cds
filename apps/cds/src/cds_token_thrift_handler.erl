@@ -14,13 +14,27 @@
     {ok, woody:result()} | no_return().
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
-        ident_doc,
+        token,
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
-% TODO: implementation
-handle_function_('GetToken', [_TokenId], _Context, _opts) ->
-    Token = #tds_Token{content = <<"kek">>},
-    {ok, Token};
-handle_function_('PutToken', [_TokenId, _Token], _Context, _opts) ->
-    {ok, ok}.
+handle_function_('GetToken', [TokenId], _Context, _opts) ->
+    try
+        TokenContent = cds_token_storage:get_token(TokenId),
+        Token = #tds_Token{content = TokenContent},
+        {ok, Token}
+    catch
+        not_found ->
+            cds_thrift_handler_utils:raise(#tds_TokenNotFound{});
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+    end;
+handle_function_('PutToken', [TokenId, Token], _Context, _opts) ->
+    try
+        TokenContent = Token#tds_Token.content,
+        ok = cds_token_storage:put_token(TokenId, TokenContent),
+        {ok, ok}
+    catch
+        {invalid_status, Status} ->
+            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+    end.
