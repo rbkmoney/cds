@@ -3,6 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("tds_proto/include/tds_proto_storage_thrift.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("stdlib/include/assert.hrl").
 
 -define(TOKEN_ID, <<"some_id">>).
 -define(TOKEN, #tds_Token{content = <<"some_content">>}).
@@ -19,7 +20,6 @@
 -export([token_unavailable/1]).
 -export([put_token/1]).
 -export([get_token/1]).
-% -export([assert_doc_stored/1]).
 
 -spec test() -> _.
 
@@ -96,7 +96,11 @@ init(C) ->
 
 -spec token_unavailable(config()) -> any() | no_return().
 token_unavailable(C) ->
-    fail = cds_token_client:get_token(?TOKEN_ID, root_url(C)).
+    ?assertException(
+        throw,
+        {tds_TokenNotFound},
+        cds_token_client:get_token(?TOKEN_ID, root_url(C))
+    ).
 
 -spec put_token(config()) -> any() | no_return().
 put_token(C) ->
