@@ -25,7 +25,7 @@ put_token(TokenId, TokenContent) ->
         TokenId,
         TokenData,
         undefined,
-        [{?CREATED_AT_INDEX, cds_utils:current_time()}, {?KEY_ID_INDEX, KeyID}]
+        [{?KEY_ID_INDEX, KeyID}]
     ).
 
 -spec get_token(token_id()) -> token_content() | no_return().
