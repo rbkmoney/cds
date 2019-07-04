@@ -114,6 +114,7 @@ start(normal, _StartArgs) ->
     case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
         {ok, Sup} ->
             NSlist = lists:flatten([
+                cds_token_storage:get_namespaces(),
                 cds_card_storage:get_namespaces(),
                 cds_ident_doc_storage:get_namespaces()
             ]),
