@@ -94,11 +94,11 @@ end_per_group(_, C) ->
 init(C) ->
     cds_ct_keyring:init(C).
 
--spec token_unavailable(config()) -> any() | no_return().
+-spec token_not_found(config()) -> any() | no_return().
 token_not_found(C) ->
     ?assertException(
         throw,
-        {tds_TokenNotFound},
+        #tds_TokenNotFound{},
         cds_token_client:get_token(?TOKEN_ID, root_url(C))
     ).
 
