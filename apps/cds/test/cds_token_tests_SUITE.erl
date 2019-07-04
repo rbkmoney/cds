@@ -17,7 +17,7 @@
 %% Tests
 
 -export([init/1]).
--export([token_unavailable/1]).
+-export([token_not_found/1]).
 -export([put_token/1]).
 -export([get_token/1]).
 
@@ -53,7 +53,7 @@ groups() ->
         ]},
         {basic_token_lifecycle, [sequence], [
             init,
-            token_unavailable,
+            token_not_found,
             put_token,
             get_token
         ]}
@@ -95,7 +95,7 @@ init(C) ->
     cds_ct_keyring:init(C).
 
 -spec token_unavailable(config()) -> any() | no_return().
-token_unavailable(C) ->
+token_not_found(C) ->
     ?assertException(
         throw,
         {tds_TokenNotFound},
