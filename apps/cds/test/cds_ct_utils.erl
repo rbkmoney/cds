@@ -197,7 +197,7 @@ call(Service, Method, Args, RootUrl, Strategy) ->
         },
         cds_woody_client:call(Service, Method, Args, RootUrl, ExtraOpts)
     catch
-        error:{woody_error, {external, resource_unavailable, <<"Keyring is unavailable">>}} = Error ->
+        error:{woody_error, {_, Class, _}} = Error when Class == resource_unavailable; Class == result_unknown ->
             case genlib_retry:next_step(Strategy) of
                 {wait, Timeout, NewStrategy} ->
                     ok = timer:sleep(Timeout),
