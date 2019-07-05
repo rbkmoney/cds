@@ -65,6 +65,7 @@ init([]) ->
         cds_thrift_service_sup,
         #{
             handlers => [
+                cds_thrift_services:handler_spec(token),
                 cds_thrift_services:handler_spec(card),
                 cds_thrift_services:handler_spec(card_v2),
                 cds_thrift_services:handler_spec(keyring_v2),
@@ -111,6 +112,7 @@ start(normal, _StartArgs) ->
     case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
         {ok, Sup} ->
             NSlist = lists:flatten([
+                cds_token_storage:get_namespaces(),
                 cds_card_storage:get_namespaces(),
                 cds_ident_doc_storage:get_namespaces()
             ]),
