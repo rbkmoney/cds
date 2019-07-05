@@ -59,14 +59,19 @@ start_clear(Config) ->
                 url => <<"https://kds:8023">>,
                 server_cn => "Test Server",
                 cacertfile => ?file_path(Config, "ca.crt"),
-                certfile => ?file_path(Config, "client.pem")
+                certfile => ?file_path(Config, "client.pem"),
+                transport_opts => #{
+                    recv_timeout => 10000,
+                    connect_timeout => 1000
+                },
+                timeout => 10000
             }},
             {keyring_fetch_interval, 1000},
             {health_checkers, [
-                {erl_health,  disk,      ["/", 99]  },
-                {erl_health,  cg_memory, [99]       },
-                {erl_health,  service,   [<<"cds">>]},
-                {cds_keyring, check,     []}
+                {erl_health, disk,      ["/", 99]  },
+                {erl_health, cg_memory, [99]       },
+                {erl_health, service,   [<<"cds">>]},
+                {cds_health, keyring,   []}
             ]}
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
     ,
@@ -132,7 +137,7 @@ start_stash() ->
 
 -spec call(atom(), atom(), list(), woody:url()) -> cds_woody_client:result().
 call(Service, Method, Args, RootUrl) ->
-    Strategy = genlib_retry:linear(3, 1000),
+    Strategy = genlib_retry:linear(10, 1000),
     call(Service, Method, Args, RootUrl, Strategy).
 
 -spec wait_for_keyring(config()) -> ok.

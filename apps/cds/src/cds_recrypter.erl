@@ -58,6 +58,8 @@ process_recrypting(Subject, BatchSize, Continuation) ->
         process_recrypting(Subject, Intervals, BatchSize, Continuation)
     catch
         throw:Reason ->
+            {error, Reason};
+        error:{woody_error, {internal, resource_unavailable, <<"{pool_error,no_members}">>}} = Reason ->
             {error, Reason}
     end.
 

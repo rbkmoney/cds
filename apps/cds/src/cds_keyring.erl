@@ -1,29 +1,28 @@
 -module(cds_keyring).
 -behaviour(gen_server).
 
--compile(no_auto_import).
-
 -include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
 %% API
--export([check/0]).
--export([is_available/0]).
 -export([get_key/1]).
 -export([get_keys_except/1]).
 -export([get_current_key/0]).
 -export([get_outdated_keys/0]).
+-export([get_version/0]).
 -export([start_link/0]).
 
 %% gen_server callbacks
 -export([init/1,
          handle_call/3,
          handle_cast/2,
+         handle_continue/2,
          handle_info/2,
          terminate/2,
          code_change/3]).
 
 -export_type([key/0]).
 -export_type([key_id/0]).
+-export_type([version/0]).
 
 -type key()     :: cds_proto_keyring_thrift:'KeyData'().
 -type key_id()  :: cds_proto_keyring_thrift:'KeyId'().
@@ -37,10 +36,11 @@
 -type state() :: #{}.
 
 -define(DEFAULT_FETCH_INTERVAL, 60 * 1000).
+-define(DEFAULT_TIMEOUT, 10 * 1000).
 
 -define(KEYRING_TAB, ?MODULE).
 -define(KEYRING_TAB_CONFIG, [
-    public,
+    protected,
     ordered_set,
     named_table,
     {read_concurrency, true},
@@ -53,29 +53,6 @@
 -define(KEYRING_KEY(ID), {?MODULE, key, ID}).
 
 %%% API
-
--spec check() ->
-    {ok, map()} | {error, 503, binary()}.
-
-check() ->
-    case get_version() of
-        undefined ->
-            {error, 503, <<"Keyring is unavailable">>};
-        Version ->
-            {ok, #{<<"keyring_version">> => Version}}
-    end.
-
--spec is_available() ->
-    boolean().
-
-is_available() ->
-    try
-        _ = get_current_key_id(),
-        true
-    catch
-        throw:no_keyring ->
-            false
-    end.
 
 -spec get_key(key_id()) ->
     {ok, {key_id(), key()}} | {error, not_found}.
@@ -132,6 +109,20 @@ get_outdated_keys() ->
         ?KEYRING_TAB
     ).
 
+-spec get_version() ->
+    version() | undefined.
+
+get_version() ->
+    try ets:lookup(?KEYRING_TAB, ?KEYRING_VERSION_KEY) of
+        [{_, Version}] ->
+            Version;
+        [] ->
+            undefined
+    catch
+        error:badarg ->
+            undefined
+    end.
+
 -spec start_link() ->
     {ok, pid()} | {error, {already_started, pid()}}.
 
@@ -141,12 +132,11 @@ start_link() ->
 %%% gen_server callbacks
 
 -spec init(any()) ->
-    {ok, state(), timeout()}.
+    {ok, state(), {continue, init}}.
 
 init(_) ->
     ok = create_table(),
-    _ = fetch_keyring(),
-    {ok, #{}, fetch_interval()}.
+    {ok, #{}, {continue, init}}.
 
 -spec handle_call(term(), term(), state()) ->
     {reply, {error, undefined}, state()}.
@@ -160,12 +150,21 @@ handle_call(_Msg, _From, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+-spec handle_continue(init, state()) ->
+    {noreply, state()}.
+
+handle_continue(init, State) ->
+    _ = fetch_keyring(),
+    _ = start_timer(),
+    {noreply, State}.
+
 -spec handle_info(timeout | any(), state()) ->
-    {noreply, state, timeout()} | {noreply, state()}.
+    {noreply, state()}.
 
 handle_info(timeout, State) ->
     _ = fetch_keyring(),
-    {noreply, State, fetch_interval()};
+    _ = start_timer(),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -190,17 +189,6 @@ create_table() ->
     ?KEYRING_TAB = ets:new(?KEYRING_TAB, ?KEYRING_TAB_CONFIG),
     ok.
 
--spec get_version() ->
-    version() | undefined.
-
-get_version() ->
-    case ets:lookup(?KEYRING_TAB, ?KEYRING_VERSION_KEY) of
-        [{_, Version}] ->
-            Version;
-        [] ->
-            undefined
-    end.
-
 -spec set_version(version()) ->
     ok.
 
@@ -212,10 +200,13 @@ set_version(Version) ->
     key_id() | no_return().
 
 get_current_key_id() ->
-    case ets:lookup(?KEYRING_TAB, ?KEYRING_CURRENT_KEY) of
+    try ets:lookup(?KEYRING_TAB, ?KEYRING_CURRENT_KEY) of
         [{_, CurrentKeyID}] ->
             CurrentKeyID;
         [] ->
+            erlang:throw(no_keyring)
+    catch
+        error:badarg ->
             erlang:throw(no_keyring)
     end.
 
@@ -235,7 +226,9 @@ fetch_keyring() ->
         #'Keyring'{version = CurrentVersion} ->
             ok; % no changes
         Keyring ->
-            ok = store_keyring(Keyring)
+            ok = store_keyring(Keyring),
+            _ = logger:info("New keyring version received: ~p", [get_version()]),
+            ok
     catch
         #'InvalidStatus'{status = Status} ->
             _ = logger:error("Could not fetch keyring: ~p: ~p", [invalid_status, Status]),
@@ -294,17 +287,27 @@ get_keyring() ->
     ServerCN   = maps:get(server_cn, Opts),
     CACert     = maps:get(cacertfile, Opts),
     ClientCert = maps:get(certfile, Opts),
+    TransOpts  = maps:get(transport_opts, Opts, #{}),
     ExtraOpts  = #{
-        transport_opts => #{
+        transport_opts => maps:merge(TransOpts, #{
             ssl_options => [
                 {server_name_indication, ServerCN},
                 {verify,                 verify_peer},
                 {cacertfile,             CACert},
                 {certfile,               ClientCert}
             ]
-        }
+        })
     },
-    cds_woody_client:call(keyring_storage, 'GetKeyring', [], RootUrl, ExtraOpts).
+    WoodyContext1 = woody_context:new(),
+    Deadline      = woody_deadline:from_timeout(maps:get(timeout, Opts, ?DEFAULT_TIMEOUT)),
+    WoodyContext2 = woody_context:set_deadline(Deadline, WoodyContext1),
+    cds_woody_client:call(keyring_storage, 'GetKeyring', [], RootUrl, ExtraOpts, WoodyContext2).
+
+-spec start_timer() ->
+    reference().
+
+start_timer() ->
+    erlang:send_after(fetch_interval(), self(), timeout).
 
 -spec fetch_interval() ->
     timeout().

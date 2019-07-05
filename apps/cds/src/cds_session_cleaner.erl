@@ -76,6 +76,8 @@ clean_sessions(From, To, BatchSize, Continuation0) ->
         end
     catch
         throw:Reason ->
+            {error, Reason};
+        error:{woody_error, {internal, resource_unavailable, <<"{pool_error,no_members}">>}} = Reason ->
             {error, Reason}
     end.
 

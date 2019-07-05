@@ -82,9 +82,9 @@ refresh(Getter, Refresher, Continuation0) ->
     end.
 
 assert_keyring_available() ->
-    case cds_keyring:is_available() of
-        true ->
-            ok;
-        false ->
-            throw(keyring_unavailable)
+    case cds_keyring:get_version() of
+        undefined ->
+            throw(keyring_unavailable);
+        _Version ->
+            ok
     end.
