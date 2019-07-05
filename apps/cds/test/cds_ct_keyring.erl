@@ -107,8 +107,11 @@ unlock(C) ->
 
 rotate(C) ->
     [{Id1, MasterKey1}] = cds_ct_utils:lookup(master_keys),
-    ok = cds_keyring_client:start_rotate(root_url(C)),
-    ok = cds_keyring_client:confirm_rotate(Id1, MasterKey1, root_url(C)).
+    RootUrl = root_url(C),
+    ok = cds_keyring_client:start_rotate(RootUrl),
+    ok = cds_keyring_client:confirm_rotate(Id1, MasterKey1, RootUrl),
+    {CurrentKeyID, _} = cds_keyring:get_current_key(),
+    ok = cds_keyring_client:set_current_key(CurrentKeyID + 1, RootUrl).
 
 %%%
 %%% Internal functions

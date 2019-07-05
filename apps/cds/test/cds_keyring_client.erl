@@ -1,6 +1,6 @@
 -module(cds_keyring_client).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
 -export([start_init/2]).
 -export([validate_init/3]).
@@ -18,6 +18,7 @@
 -export([validate_rekey/3]).
 -export([cancel_rekey/1]).
 -export([get_state/1]).
+-export([set_current_key/2]).
 
 -type shareholder_id() :: binary().
 -export_type([shareholder_id/0]).
@@ -32,18 +33,18 @@
 -type masterkey_share() :: binary().
 -export_type([masterkey_share/0]).
 
-%%
-%% Internal types
-%%
+%%%
+%%% Internal types
+%%%
 
 -type manager_state() :: locked | unlocked | not_initialized.
 -type initializer_state() :: uninitialized | validation.
 -type unlocker_state() :: uninitialized | validation.
 -type rotator_state() :: uninitialized | validation.
 
-%%
-%% API
-%%
+%%%
+%%% API
+%%%
 
 -spec start_init(integer(), woody:url()) ->
     [encrypted_master_key_share()] |
@@ -286,6 +287,25 @@ cancel_rekey(RootUrl) ->
 get_state(RootUrl) ->
     State = cds_woody_client:call(keyring_v2, 'GetState', [], RootUrl),
     decode_state(State).
+
+-spec set_current_key(cds_keyring:key_id(), woody:url()) ->
+    ok | {error, {invalid_status, manager_state()} | {invalid_meta, binary()}}.
+
+set_current_key(NewCurrentKeyID, RootUrl) ->
+    try
+        Diff = #'KeyringMetaDiff'{current_key_id = NewCurrentKeyID},
+        _ = cds_woody_client:call(keyring_v2, 'UpdateKeyringMeta', [Diff], RootUrl),
+        ok
+    catch
+        #'InvalidStatus'{status = Status} ->
+            {error, {invalid_status, Status}};
+        #'InvalidKeyringMeta'{reason = Reason} ->
+            {error, {invalid_meta, Reason}}
+    end.
+
+%%%
+%%% Internal functions
+%%%
 
 decode_state(#'KeyringState'{
     status = Status,
