@@ -33,7 +33,9 @@
     key_id() => cds_proto_keyring_thrift:'Key'()
 }.
 
--type state() :: #{}.
+-type state() :: #{
+    timer := reference() | undefined
+}.
 
 -define(DEFAULT_FETCH_INTERVAL, 60 * 1000).
 -define(DEFAULT_TIMEOUT, 10 * 1000).
@@ -136,7 +138,7 @@ start_link() ->
 
 init(_) ->
     ok = create_table(),
-    {ok, #{}, {continue, init}}.
+    {ok, #{timer => undefined}, {continue, init}}.
 
 -spec handle_call(term(), term(), state()) ->
     {reply, {error, undefined}, state()}.
@@ -155,17 +157,16 @@ handle_cast(_Msg, State) ->
 
 handle_continue(init, State) ->
     _ = fetch_keyring(),
-    _ = start_timer(),
-    {noreply, State}.
+    {noreply, State#{timer => start_timer()}}.
 
 -spec handle_info(timeout | any(), state()) ->
     {noreply, state()}.
 
-handle_info(timeout, State) ->
+handle_info({timeout, Timer, fetch}, #{timer := Timer} = State) ->
     _ = fetch_keyring(),
-    _ = start_timer(),
-    {noreply, State};
-handle_info(_Info, State) ->
+    {noreply, State#{timer => start_timer()}};
+handle_info(Info, State) ->
+    _ = logger:warning("Unhandled info: ~p", [Info]),
     {noreply, State}.
 
 -spec terminate(term(), state()) ->
@@ -307,7 +308,7 @@ get_keyring() ->
     reference().
 
 start_timer() ->
-    erlang:send_after(fetch_interval(), self(), timeout).
+    erlang:start_timer(fetch_interval(), self(), fetch).
 
 -spec fetch_interval() ->
     timeout().

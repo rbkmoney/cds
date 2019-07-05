@@ -21,7 +21,7 @@ call(Key, Method, Args) ->
             throw(Error)
     catch Class:Reason:Stacktrace ->
         _ = logger:error(
-            "~p (~p) ~p failed~nClass~s~nReason~s~nStacktrace:~s",
+            "~p (~p) ~p failed~nClass: ~s~nReason: ~p~nStacktrace: ~s",
             [Key, Module, Method, Class, Reason,
                 genlib_format:format_stacktrace(Stacktrace)]),
         handle_error(Class, Reason)
