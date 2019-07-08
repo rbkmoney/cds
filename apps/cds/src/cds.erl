@@ -111,7 +111,7 @@ stop(_State) ->
 %% Storage operations
 %%
 
--spec get_cardholder_data(token()) -> plaintext().
+-spec get_cardholder_data(token()) -> {cds_keyring:key_id(), plaintext()}.
 get_cardholder_data(Token) ->
     Encrypted = cds_card_storage:get_cardholder_data(Token),
     decrypt(Encrypted).
@@ -160,7 +160,7 @@ put_session(Session, MarshalledSessionData) ->
         cds_utils:current_time()
     ).
 
--spec get_session_data(session()) -> plaintext().
+-spec get_session_data(session()) -> {cds_keyring:key_id(), plaintext()}.
 get_session_data(Session) ->
     Encrypted = cds_card_storage:get_session_data(Session),
     decrypt(Encrypted).
@@ -189,13 +189,15 @@ encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
     <<KeyID, Cipher/binary>>.
 
--spec decrypt(ciphertext()) -> plaintext().
+-spec decrypt(ciphertext()) -> {cds_keyring:key_id(), plaintext()}.
 decrypt({Data, Metadata}) ->
-    {ok, DecryptedMetadata} = msgpack:unpack(decrypt(Metadata)),
-    {decrypt(Data), DecryptedMetadata};
+    {_, DecryptedMetadata} = decrypt(Metadata),
+    {ok, UnpackedMetadata} = msgpack:unpack(DecryptedMetadata),
+    {KeyID, DecryptedData} = decrypt(Data),
+    {KeyID, {DecryptedData, UnpackedMetadata}};
 decrypt(<<KeyID, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
-    cds_crypto:decrypt(Key, Cipher).
+    {KeyID, cds_crypto:decrypt(Key, Cipher)}.
 
 -spec find_or_create_token({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> {token(), hash()}.
 find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->

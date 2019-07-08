@@ -30,7 +30,10 @@ refresh_session_data_encryption() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
-        try cds:update_session_data(Key, cds:get_session_data(Key)) catch
+        try
+            {_, SessionData} = cds:get_session_data(Key),
+            cds:update_session_data(Key, SessionData)
+        catch
             throw:not_found ->
                 ok
         end
@@ -43,7 +46,7 @@ refresh_cardholder_encryption() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_tokens(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
-        CardData = cds:get_cardholder_data(Key),
+        {_, CardData} = cds:get_cardholder_data(Key),
         cds:update_cardholder_data(Key, CardData)
     end,
     refresh(Getter, Refresher).

@@ -92,22 +92,24 @@ get_current_key() ->
     {CurrentKeyID, CurrentKey}.
 
 -spec get_outdated_keys() ->
-    [{key_id(), key_id()}].
+    {[{key_id(), key_id()}], #{key_id() => #{retired := boolean()}}}.
 
 get_outdated_keys() ->
     CurrentKeyID = get_current_key_id(),
     ets:foldl(
-        fun({?KEYRING_META_KEY(KeyID), #'KeyMeta'{retired = false}}, Acc) when KeyID < CurrentKeyID ->
-                case Acc of
-                    [] ->
-                        [{KeyID, KeyID}];
-                    [{KeyID1, KeyID2}] ->
-                        [{erlang:min(KeyID1, KeyID), erlang:max(KeyID2, KeyID)}]
-                end;
+        fun({?KEYRING_META_KEY(KeyID), #'KeyMeta'{retired = Retired}}, {Interval, Meta}) when KeyID < CurrentKeyID ->
+                NewInternal =
+                    case Interval of
+                        [] ->
+                            [{KeyID, KeyID}];
+                        [{KeyID1, KeyID2}] ->
+                            [{erlang:min(KeyID1, KeyID), erlang:max(KeyID2, KeyID)}]
+                    end,
+                {NewInternal, Meta#{KeyID => #{retired => Retired}}};
            (_, Acc) ->
                Acc
         end,
-        [],
+        {[], #{}},
         ?KEYRING_TAB
     ).
 

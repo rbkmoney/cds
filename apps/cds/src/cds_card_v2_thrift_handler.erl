@@ -154,7 +154,7 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    CardholderData = cds:get_cardholder_data(Token),
+    {_, CardholderData} = cds:get_cardholder_data(Token),
     cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
@@ -170,7 +170,7 @@ put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).
 
 get_session_data(Session) ->
-    SessionData = cds:get_session_data(Session),
+    {_, SessionData} = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
 
 define_session_data(undefined, #'CardData'{cvv = CVV}) ->
