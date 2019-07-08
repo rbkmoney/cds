@@ -186,7 +186,7 @@ groups() ->
             refresh_sessions,
             recrypt
         ]},
-        {hash_collision_check, [parallel], [
+        {hash_collision_check, [parallel, {repeat, 2}], [
             put_card_data,
             put_card_data,
             put_card_data,

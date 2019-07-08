@@ -243,10 +243,11 @@ session() ->
     crypto:strong_rand_bytes(16).
 
 is_card_data_equal([Token | OtherTokens]) ->
-    FirstData = get_cardholder_data(Token),
+    {_, FirstData} = get_cardholder_data(Token),
     lists:all(
         fun(T) ->
-              FirstData =:= get_cardholder_data(T)
+              {_, OtherData} = get_cardholder_data(T),
+              FirstData =:= OtherData
         end,
         OtherTokens
     ).

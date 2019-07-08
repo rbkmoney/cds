@@ -104,7 +104,7 @@ recrypt(Subject, ItemID, Meta) ->
     case maps:get(KeyID, Meta) of
         #{retired := true} ->
             _ = logger:warning("Found ~p ~p encrypted with retired key ~p", [Subject, ItemID, KeyID]);
-        _ ->
+        #{retired := false} ->
             ok
     end,
     update_data(Subject, ItemID, Data).
