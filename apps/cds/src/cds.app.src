@@ -18,7 +18,8 @@
         erl_health,
         msgpack,
         jose,
-        cds_proto
+        cds_proto,
+        tds_proto
     ]},
     {env, []},
     {modules, []},
