@@ -7,6 +7,7 @@
 -export([get_key/1]).
 -export([get_keys_except/1]).
 -export([get_current_key/0]).
+-export([get_current_key_with_meta/0]).
 -export([get_outdated_keys/0]).
 -export([get_version/0]).
 -export([start_link/0]).
@@ -22,15 +23,19 @@
 
 -export_type([key/0]).
 -export_type([key_id/0]).
+-export_type([meta/0]).
 -export_type([version/0]).
 
 -type key()     :: cds_proto_keyring_thrift:'KeyData'().
 -type key_id()  :: cds_proto_keyring_thrift:'KeyId'().
--type meta()    :: cds_proto_keyring_thrift:'KeyMeta'().
 -type keyring() :: cds_proto_keyring_thrift:'Keyring'().
 -type version() :: integer().
 -type keys()    :: #{
     key_id() => cds_proto_keyring_thrift:'Key'()
+}.
+-type meta() :: #{
+    retired := boolean(),
+    scrypt_options := cds_hash:scrypt_options()
 }.
 
 -type state() :: #{
@@ -69,15 +74,15 @@ get_key(KeyID) ->
     end.
 
 -spec get_keys_except(key_id()) ->
-    [key()].
+    [{key(), meta()}].
 
-get_keys_except(ExceptId) ->
+get_keys_except(ExceptID) ->
     ets:foldl(
-        fun({?KEYRING_META_KEY(KeyID), #'KeyMeta'{retired = false}}, Acc) when KeyID /= ExceptId ->
+        fun({?KEYRING_META_KEY(KeyID), #{retired := false} = Meta}, Acc) when KeyID /= ExceptID ->
                 Key = persistent_term:get(?KEYRING_KEY(KeyID)),
-                [Key | Acc];
+                [{Key, Meta} | Acc];
            (_, Acc) ->
-               Acc
+                Acc
         end,
         [],
         ?KEYRING_TAB
@@ -87,25 +92,32 @@ get_keys_except(ExceptId) ->
     {key_id(), key()}.
 
 get_current_key() ->
-    CurrentKeyID = get_current_key_id(),
-    CurrentKey   = persistent_term:get(?KEYRING_KEY(CurrentKeyID)),
-    {CurrentKeyID, CurrentKey}.
+    KeyID = get_current_key_id(),
+    Key   = persistent_term:get(?KEYRING_KEY(KeyID)),
+    {KeyID, Key}.
+
+-spec get_current_key_with_meta() ->
+    {{key_id(), key()}, meta()}.
+
+get_current_key_with_meta() ->
+    {KeyID, _} = Key = get_current_key(),
+    {Key, get_meta(KeyID)}.
 
 -spec get_outdated_keys() ->
-    {[{key_id(), key_id()}], #{key_id() => #{retired := boolean()}}}.
+    {[{key_id(), key_id()}], #{key_id() => meta()}}.
 
 get_outdated_keys() ->
     CurrentKeyID = get_current_key_id(),
     ets:foldl(
-        fun({?KEYRING_META_KEY(KeyID), #'KeyMeta'{retired = Retired}}, {Interval, Meta}) when KeyID < CurrentKeyID ->
-                NewInternal =
-                    case Interval of
+        fun({?KEYRING_META_KEY(KeyID), Meta}, {Intervals, MetaAcc}) when KeyID < CurrentKeyID ->
+                NewIntervals =
+                    case Intervals of
                         [] ->
                             [{KeyID, KeyID}];
                         [{KeyID1, KeyID2}] ->
                             [{erlang:min(KeyID1, KeyID), erlang:max(KeyID2, KeyID)}]
                     end,
-                {NewInternal, Meta#{KeyID => #{retired => Retired}}};
+                {NewIntervals, MetaAcc#{KeyID => Meta}};
            (_, Acc) ->
                Acc
         end,
@@ -274,12 +286,30 @@ store_key(KeyID, Key) ->
             ok = persistent_term:put(?KEYRING_KEY(KeyID), Key)
     end.
 
--spec store_meta(key_id(), meta()) ->
+-spec store_meta(key_id(), cds_proto_keyring_thrift:'KeyMeta'()) ->
     ok.
 
-store_meta(KeyID, Meta) ->
+store_meta(KeyID, #'KeyMeta'{retired = Retired, security_parameters = SecParams}) ->
+    #'SecurityParameters'{
+        deduplication_hash_opts = #'ScryptOptions' {
+            n = N,
+            r = R,
+            p = P
+        }
+    } = SecParams,
+    Meta = #{
+        retired => Retired,
+        scrypt_options => {N, R, P}
+    },
     true = ets:insert(?KEYRING_TAB, {?KEYRING_META_KEY(KeyID), Meta}),
     ok.
+
+-spec get_meta(key_id()) ->
+    meta().
+
+get_meta(KeyID) ->
+    [{_, Meta}] = ets:lookup(?KEYRING_TAB, ?KEYRING_META_KEY(KeyID)),
+    Meta.
 
 -spec get_keyring() ->
     keyring() | no_return().

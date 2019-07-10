@@ -119,8 +119,8 @@ get_cardholder_data(Token) ->
 -spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
 put_card_data({MarshalledCardData, MarshalledSessionData}) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
-    {KeyID, _} = CurrentKey = cds_keyring:get_current_key(),
-    {Token, Hash} = find_or_create_token(CurrentKey, UniqueCardData),
+    {{KeyID, _Key} = CurrentKey, _Meta} = CurrentKeyWithMeta = cds_keyring:get_current_key_with_meta(),
+    {Token, Hash} = find_or_create_token(CurrentKeyWithMeta, UniqueCardData),
     Session = session(),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     EncryptedSessionData = encrypt(MarshalledSessionData, CurrentKey),
@@ -138,8 +138,8 @@ put_card_data({MarshalledCardData, MarshalledSessionData}) ->
 -spec put_card(plaintext()) -> token().
 put_card(MarshalledCardData) ->
     UniqueCardData = cds_card_data:unique(MarshalledCardData),
-    {KeyID, _} = CurrentKey = cds_keyring:get_current_key(),
-    {Token, Hash} = find_or_create_token(CurrentKey, UniqueCardData),
+    {{KeyID, _Key} = CurrentKey, _Meta} = CurrentKeyWithMeta = cds_keyring:get_current_key_with_meta(),
+    {Token, Hash} = find_or_create_token(CurrentKeyWithMeta, UniqueCardData),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
@@ -167,8 +167,8 @@ get_session_data(Session) ->
 
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
-    {KeyID, Key} = cds_keyring:get_current_key(),
-    Hash = cds_hash:hash(cds_card_data:unique(CardData), Key),
+    {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
+    Hash = cds_hash:hash(cds_card_data:unique(CardData), Key, maps:get(scrypt_options, Meta)),
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
@@ -199,10 +199,11 @@ decrypt(<<KeyID, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     {KeyID, cds_crypto:decrypt(Key, Cipher)}.
 
--spec find_or_create_token({cds_keyring:key_id(), cds_keyring:key()}, binary()) -> {token(), hash()}.
-find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
+-spec find_or_create_token({{cds_keyring:key_id(), cds_keyring:key()}, cds_keyring:meta()}, binary()) ->
+    {token(), hash()}.
+find_or_create_token({{CurrentKeyID, CurrentKey}, CurrentKeyMeta}, UniqueCardData) ->
     OtherKeys = cds_keyring:get_keys_except(CurrentKeyID),
-    CurrentHash = cds_hash:hash(UniqueCardData, CurrentKey),
+    CurrentHash = cds_hash:hash(UniqueCardData, CurrentKey, maps:get(scrypt_options, CurrentKeyMeta)),
     % let's check current key first
     FindResult = find_tokens(UniqueCardData, CurrentHash, OtherKeys),
     case FindResult of
@@ -221,8 +222,8 @@ find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
 
 find_tokens(_, []) ->
     not_found;
-find_tokens(UniqueCardData, [Key | OtherKeys]) ->
-    Hash = cds_hash:hash(UniqueCardData, Key),
+find_tokens(UniqueCardData, [{Key, Meta} | OtherKeys]) ->
+    Hash = cds_hash:hash(UniqueCardData, Key, maps:get(scrypt_options, Meta)),
     find_tokens(UniqueCardData, Hash, OtherKeys).
 
 find_tokens(UniqueCardData, Hash, OtherKeys) ->
