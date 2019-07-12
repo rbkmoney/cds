@@ -1,6 +1,6 @@
 -module(cds_keyring_client).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 
 -export([start_init/2]).
 -export([validate_init/3]).
@@ -23,7 +23,7 @@
 %% Internal types
 %%
 
--type encrypted_masterkey_share() :: dmsl_cds_thrift:'EncryptedMasterKeyShare'().
+-type encrypted_masterkey_share() :: #'EncryptedMasterKeyShare' {}.
 
 %%
 %% API
@@ -54,7 +54,8 @@ start_init(Threshold, RootUrl) ->
     {error, verification_failed} |
     {error, {invalid_arguments, binary()}}.
 validate_init(ShareholderId, Share, RootUrl) ->
-    try cds_woody_client:call(keyring_v2, 'ValidateInit', [ShareholderId, Share], RootUrl) of
+    SignedShare = encode_signed_share(ShareholderId, Share),
+    try cds_woody_client:call(keyring_v2, 'ValidateInit', [SignedShare], RootUrl) of
         {success, #'Success'{}} ->
             ok;
         {more_keys_needed, More} ->
@@ -101,7 +102,8 @@ start_unlock(RootUrl) ->
     {error, verification_failed} |
     {error, {operation_aborted, binary()}}.
 confirm_unlock(ShareholderId, Share, RootUrl) ->
-    try cds_woody_client:call(keyring_v2, 'ConfirmUnlock', [ShareholderId, Share], RootUrl) of
+    SignedShare = encode_signed_share(ShareholderId, Share),
+    try cds_woody_client:call(keyring_v2, 'ConfirmUnlock', [SignedShare], RootUrl) of
         {success, #'Success'{}} ->
             ok;
         {more_keys_needed, More} ->
@@ -154,7 +156,8 @@ start_rotate(RootUrl) ->
     {error, verification_failed} |
     {error, {operation_aborted, binary()}}.
 confirm_rotate(ShareholderId, Share, RootUrl) ->
-    try cds_woody_client:call(keyring_v2, 'ConfirmRotate', [ShareholderId, Share], RootUrl) of
+    SignedShare = encode_signed_share(ShareholderId, Share),
+    try cds_woody_client:call(keyring_v2, 'ConfirmRotate', [SignedShare], RootUrl) of
         {success, #'Success'{}} ->
             ok;
         {more_keys_needed, More} ->
@@ -201,7 +204,8 @@ start_rekey(Threshold, RootUrl) ->
     {error, verification_failed} |
     {error, {operation_aborted, binary()}}.
 confirm_rekey(ShareholderId, Share, RootUrl) ->
-    try cds_woody_client:call(keyring_v2, 'ConfirmRekey', [ShareholderId, Share], RootUrl) of
+    SignedShare = encode_signed_share(ShareholderId, Share),
+    try cds_woody_client:call(keyring_v2, 'ConfirmRekey', [SignedShare], RootUrl) of
         {success, #'Success'{}} ->
             ok;
         {more_keys_needed, More} ->
@@ -239,7 +243,8 @@ start_rekey_validation(RootUrl) ->
     {error, verification_failed} |
     {error, {operation_aborted, binary()}}.
 validate_rekey(ShareholderId, Share, RootUrl) ->
-    try cds_woody_client:call(keyring_v2, 'ValidateRekey', [ShareholderId, Share], RootUrl) of
+    SignedShare = encode_signed_share(ShareholderId, Share),
+    try cds_woody_client:call(keyring_v2, 'ValidateRekey', [SignedShare], RootUrl) of
         {success, #'Success'{}} ->
             ok;
         {more_keys_needed, More} ->
@@ -269,6 +274,12 @@ cancel_rekey(RootUrl) ->
 get_state(RootUrl) ->
     State = cds_woody_client:call(keyring_v2, 'GetState', [], RootUrl),
     decode_state(State).
+
+encode_signed_share(ShareholderId, Share) ->
+    #'SignedMasterKeyShare'{
+        id = ShareholderId,
+        signed_share = Share
+    }.
 
 decode_state(#'KeyringState'{
     status = Status,
