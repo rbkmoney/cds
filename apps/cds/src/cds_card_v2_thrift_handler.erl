@@ -29,17 +29,17 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
-                BankCard = #'BankCard'{
+                BankCard = #'cds_BankCard'{
                     token       = cds_utils:encode_token(Token),
                     bin         = maps:get(iin           , CardInfo),
                     last_digits = maps:get(last_digits   , CardInfo)
                 },
-                {ok, #'PutCardDataResult'{
+                {ok, #'cds_PutCardDataResult'{
                     bank_card   = BankCard,
                     session_id  = Session
                 }};
             {error, ValidationError} ->
-                cds_thrift_handler_utils:raise(#'InvalidCardData'{
+                cds_thrift_handler_utils:raise(#'cds_InvalidCardData'{
                     reason      = cds_thrift_handler_utils:map_validation_error(ValidationError)
                 })
         end
@@ -54,16 +54,16 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
-                BankCard = #'BankCard'{
+                BankCard = #'cds_BankCard'{
                     token          = cds_utils:encode_token(Token),
                     bin            = maps:get(iin           , CardInfo),
                     last_digits    = maps:get(last_digits   , CardInfo)
                 },
-                {ok, #'PutCardResult'{
+                {ok, #'cds_PutCardResult'{
                     bank_card = BankCard
                 }};
             {error, ValidationError} ->
-                cds_thrift_handler_utils:raise(#'InvalidCardData'{
+                cds_thrift_handler_utils:raise(#'cds_InvalidCardData'{
                     reason = cds_thrift_handler_utils:map_validation_error(ValidationError)
                 })
         end
@@ -81,7 +81,7 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
         )}
     catch
         not_found ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
+            cds_thrift_handler_utils:raise(#'cds_CardDataNotFound'{});
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end;
@@ -102,7 +102,7 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
         {ok, encode_session_data(SessionData)}
     catch
         not_found ->
-            cds_thrift_handler_utils:raise(#'SessionDataNotFound'{});
+            cds_thrift_handler_utils:raise(#'cds_SessionDataNotFound'{});
         {invalid_status, Status} ->
             cds_thrift_handler_utils:raise_keyring_unavailable(Status)
     end.
@@ -111,9 +111,9 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %% Internals
 %%
 
-decode_card_data(#'CardData'{
+decode_card_data(#'cds_CardData'{
     pan             = PAN,
-    exp_date        = #'ExpDate'{month = Month, year = Year},
+    exp_date        = #'cds_ExpDate'{month = Month, year = Year},
     cardholder_name = CardholderName
 }) ->
     #{
@@ -122,12 +122,12 @@ decode_card_data(#'CardData'{
         cardholder => CardholderName
     }.
 
-decode_session_data(#'SessionData'{auth_data = AuthData}) ->
+decode_session_data(#'cds_SessionData'{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
 
-decode_auth_data({card_security_code, #'CardSecurityCode'{value = Value}}) ->
+decode_auth_data({card_security_code, #'cds_CardSecurityCode'{value = Value}}) ->
     #{type => cvv, value => Value};
-decode_auth_data({auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
+decode_auth_data({auth_3ds, #'cds_Auth3DS'{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
 encode_cardholder_data(#{
@@ -135,21 +135,21 @@ encode_cardholder_data(#{
     exp_date   := {Month, Year},
     cardholder := CardholderName
 }) ->
-    #'CardData'{
+    #'cds_CardData'{
         pan             = PAN,
-        exp_date        = #'ExpDate'{month = Month, year = Year},
+        exp_date        = #'cds_ExpDate'{month = Month, year = Year},
         cardholder_name = CardholderName,
         cvv             = <<>>
     }.
 
 encode_session_data(#{auth_data := AuthData}) ->
-    #'SessionData'{auth_data = encode_auth_data(AuthData)}.
+    #'cds_SessionData'{auth_data = encode_auth_data(AuthData)}.
 
 encode_auth_data(#{type := cvv, value := Value}) ->
-    {card_security_code, #'CardSecurityCode'{value = Value}};
+    {card_security_code, #'cds_CardSecurityCode'{value = Value}};
 encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
     ECI = genlib_map:get(eci, Data),
-    {auth_3ds, #'Auth3DS'{cryptogram = Cryptogram, eci = ECI}}.
+    {auth_3ds, #'cds_Auth3DS'{cryptogram = Cryptogram, eci = ECI}}.
 
 %
 
@@ -173,7 +173,7 @@ get_session_data(Session) ->
     SessionData = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
 
-define_session_data(undefined, #'CardData'{cvv = CVV}) ->
-    #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
-define_session_data(#'SessionData'{} = SessionData, _CardData) ->
+define_session_data(undefined, #'cds_CardData'{cvv = CVV}) ->
+    #'cds_SessionData'{auth_data = {card_security_code, #'cds_CardSecurityCode'{value = CVV}}};
+define_session_data(#'cds_SessionData'{} = SessionData, _CardData) ->
     SessionData.

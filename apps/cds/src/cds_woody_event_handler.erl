@@ -44,34 +44,34 @@ filter_args(Args) -> filter(Args).
 filter(L) when is_list(L) -> [filter(E) || E <- L];
 filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
 
-filter(#'EncryptedMasterKeyShare'{} = EncryptedMasterKeyShare) ->
-    EncryptedMasterKeyShare#'EncryptedMasterKeyShare'{encrypted_share = <<"***">>};
-filter(#'SignedMasterKeyShare'{} = SignedShare) ->
-    SignedShare#'SignedMasterKeyShare'{signed_share = <<"***">>};
-filter(#'Keyring'{keys = Keys} = Keyring) ->
-    Keyring#'Keyring'{keys = filter(Keys)};
-filter(#'Key'{} = Key) ->
-    Key#'Key'{data = <<"***">>};
+filter(#'cds_EncryptedMasterKeyShare'{} = EncryptedMasterKeyShare) ->
+    EncryptedMasterKeyShare#'cds_EncryptedMasterKeyShare'{encrypted_share = <<"***">>};
+filter(#'cds_SignedMasterKeyShare'{} = SignedShare) ->
+    SignedShare#'cds_SignedMasterKeyShare'{signed_share = <<"***">>};
+filter(#'cds_Keyring'{keys = Keys} = Keyring) ->
+    Keyring#'cds_Keyring'{keys = filter(Keys)};
+filter(#'cds_Key'{} = Key) ->
+    Key#'cds_Key'{data = <<"***">>};
 
 filter(V) when is_integer(V) -> V;
 filter(ok) -> ok;
-filter({success, #'Success'{}} = V) -> V;
+filter({success, #'cds_Success'{}} = V) -> V;
 filter({more_keys_needed, D} = V) when is_integer(D) -> V;
-filter(#'KeyringState'{} = V) -> V;
-filter(#'KeyringMeta'{} = V) -> V;
-filter(#'KeyringMetaDiff'{} = V) -> V;
+filter(#'cds_KeyringState'{} = V) -> V;
+filter(#'cds_KeyringMeta'{} = V) -> V;
+filter(#'cds_KeyringMetaDiff'{} = V) -> V;
 
 %% cds storage
 
-filter(#'CardData'{} = V) -> V;
+filter(#'cds_CardData'{} = V) -> V;
 
 %% tds
 filter(#'tds_Token'{} = V) -> V;
 filter(V) when is_bitstring(V) -> V;
 
-filter(#'InvalidStatus'{} = V) -> V;
-filter(#'InvalidActivity'{} = V) -> V;
-filter(#'InvalidKeyringMeta'{} = V) -> V;
-filter(#'InvalidArguments'{} = V) -> V;
-filter(#'VerificationFailed'{} = V) -> V;
-filter(#'OperationAborted'{} = V) -> V.
+filter(#'cds_InvalidStatus'{} = V) -> V;
+filter(#'cds_InvalidActivity'{} = V) -> V;
+filter(#'cds_InvalidKeyringMeta'{} = V) -> V;
+filter(#'cds_InvalidArguments'{} = V) -> V;
+filter(#'cds_VerificationFailed'{} = V) -> V;
+filter(#'cds_OperationAborted'{} = V) -> V.
