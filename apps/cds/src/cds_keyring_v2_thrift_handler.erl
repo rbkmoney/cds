@@ -18,7 +18,14 @@
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
         keyring_v2,
-        fun() -> handle_function_(OperationID, Args, Context, Opts) end
+        fun() ->
+            try
+                handle_function_(OperationID, Args, Context, Opts)
+            catch
+                _Class:_Exception:Stacktrace ->
+                    woody_error:raise(system, {internal, result_unexpected, erlang:term_to_binary(Stacktrace)})
+            end
+        end
     ).
 
 handle_function_('StartInit', [Threshold], _Context, _Opts) ->
