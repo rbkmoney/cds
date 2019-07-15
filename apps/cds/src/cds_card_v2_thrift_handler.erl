@@ -21,8 +21,12 @@ handle_function(OperationID, Args, Context, Opts) ->
             try
                 handle_function_(OperationID, Args, Context, Opts)
             catch
+                throw:Exception ->
+                    throw(Exception);
+                error:{woody_error, _} = WoodyError ->
+                    erlang:error(WoodyError);
                 _Class:_Exception:Stacktrace ->
-                    woody_error:raise(system, {internal, result_unexpected, erlang:term_to_binary(Stacktrace)})
+                    woody_error:raise(system, {internal, result_unexpected, Stacktrace})
             end
         end
     ).
