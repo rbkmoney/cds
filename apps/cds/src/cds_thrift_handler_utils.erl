@@ -1,6 +1,6 @@
 -module(cds_thrift_handler_utils).
 
--export([handle_fun/5]).
+-export([handle_fun/1]).
 -export([raise/1]).
 -export([raise_keyring_unavailable/1]).
 
@@ -10,11 +10,11 @@
 %% API
 %%
 
--spec handle_fun(module(), woody:func(), woody:args(), woody_context:ctx(), woody:options()) -> fun().
-handle_fun(Module, OperationID, Args, Context, Opts) ->
+-spec handle_fun(fun()) -> fun().
+handle_fun(Fun) ->
     fun() ->
         try
-            Module:handle_function_(OperationID, Args, Context, Opts)
+            Fun()
         catch
             throw:Exception ->
                 throw(Exception);
