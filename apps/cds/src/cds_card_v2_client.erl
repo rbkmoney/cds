@@ -56,7 +56,7 @@ get_card_data(Token, RootUrl) ->
         EncodedCardData ->
             decode_card_data(EncodedCardData)
     catch
-        #'cds_CardDataNotFound'{} ->
+        #cds_CardDataNotFound{} ->
             {error, card_data_not_found}
     end.
 
@@ -70,13 +70,13 @@ put_card_data(CardData, RootUrl) ->
 put_card_data(CardData, SessionData, RootUrl) ->
     try cds_woody_client:call(card_v2, 'PutCardData',
         [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
-        #'cds_PutCardDataResult'{bank_card = BankCard, session_id = PaymentSessionId} ->
+        #cds_PutCardDataResult{bank_card = BankCard, session_id = PaymentSessionId} ->
             #{
                 bank_card => decode_bank_card(BankCard),
                 session_id => PaymentSessionId
             }
     catch
-        #'cds_InvalidCardData'{reason = Reason} ->
+        #cds_InvalidCardData{reason = Reason} ->
             {error, {invalid_card_data, Reason}}
     end.
 
@@ -87,7 +87,7 @@ get_session_data(Session, RootUrl) ->
         SessionData ->
             decode_session_data(SessionData)
     catch
-        #'cds_SessionDataNotFound'{} ->
+        #cds_SessionDataNotFound{} ->
             {error, session_data_not_found}
     end.
 
@@ -95,12 +95,12 @@ get_session_data(Session, RootUrl) ->
     #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try cds_woody_client:call(card_v2, 'PutCard', [encode_card_data(CardData)], RootUrl) of
-        #'cds_PutCardResult'{bank_card = BankCard} ->
+        #cds_PutCardResult{bank_card = BankCard} ->
             #{
                 bank_card => decode_bank_card(BankCard)
             }
     catch
-        #'cds_InvalidCardData'{reason = Reason} ->
+        #cds_InvalidCardData{reason = Reason} ->
             {error, {invalid_card_data, Reason}}
     end.
 
@@ -117,9 +117,9 @@ encode_card_data(
             year := ExpDateYear
         }
     } = CardData) ->
-    #'cds_CardData'{
+    #cds_CardData{
         pan = Pan,
-        exp_date = #'cds_ExpDate'{
+        exp_date = #cds_ExpDate{
             month = ExpDateMonth,
             year = ExpDateYear
         },
@@ -136,8 +136,8 @@ encode_session_data(
             eci := Eci
         }}
     }) ->
-    #'cds_SessionData'{
-        auth_data = {auth_3ds, #'cds_Auth3DS'{
+    #cds_SessionData{
+        auth_data = {auth_3ds, #cds_Auth3DS{
             cryptogram = Cryptogram,
             eci = Eci
         }}
@@ -148,14 +148,14 @@ encode_session_data(
             value := Value
         }}
     }) ->
-    #'cds_SessionData'{
-        auth_data = {card_security_code, #'cds_CardSecurityCode'{
+    #cds_SessionData{
+        auth_data = {card_security_code, #cds_CardSecurityCode{
             value = Value
         }}
     }.
 
 decode_bank_card(
-    #'cds_BankCard'{
+    #cds_BankCard{
         token = Token,
         bin = Bin,
         last_digits = LastDigits
@@ -167,9 +167,9 @@ decode_bank_card(
     }.
 
 decode_card_data(
-    #'cds_CardData'{
+    #cds_CardData{
         pan = Pan,
-        exp_date = #'cds_ExpDate'{
+        exp_date = #cds_ExpDate{
             month = ExpDateMonth,
             year = ExpDateYear
         },
@@ -188,8 +188,8 @@ decode_card_data(
     genlib_map:compact(DecodedCardData).
 
 decode_session_data(
-    #'cds_SessionData'{
-        auth_data = {auth_3ds, #'cds_Auth3DS'{
+    #cds_SessionData{
+        auth_data = {auth_3ds, #cds_Auth3DS{
             cryptogram = Cryptogram,
             eci = Eci
         }}
@@ -201,8 +201,8 @@ decode_session_data(
         }}
     };
 decode_session_data(
-    #'cds_SessionData'{
-        auth_data = {card_security_code, #'cds_CardSecurityCode'{
+    #cds_SessionData{
+        auth_data = {card_security_code, #cds_CardSecurityCode{
             value = Value
         }}
     }) ->

@@ -59,25 +59,25 @@ filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details
 filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
 
 %% cds_proto
-filter(#'cds_EncryptedMasterKeyShare'{} = EncryptedMasterKeyShare) ->
-    EncryptedMasterKeyShare#'cds_EncryptedMasterKeyShare'{encrypted_share = <<"***">>};
-filter(#'cds_SignedMasterKeyShare'{} = SignedShare) ->
-    SignedShare#'cds_SignedMasterKeyShare'{signed_share = <<"***">>};
-filter(#'cds_Keyring'{keys = Keys} = Keyring) ->
-    Keyring#'cds_Keyring'{keys = filter(Keys)};
-filter(#'cds_Key'{} = Key) ->
-    Key#'cds_Key'{data = <<"***">>};
-filter({success, #'cds_Success'{}} = V) -> V;
+filter(#cds_EncryptedMasterKeyShare{} = EncryptedMasterKeyShare) ->
+    EncryptedMasterKeyShare#cds_EncryptedMasterKeyShare{encrypted_share = <<"***">>};
+filter(#cds_SignedMasterKeyShare{} = SignedShare) ->
+    SignedShare#cds_SignedMasterKeyShare{signed_share = <<"***">>};
+filter(#cds_Keyring{keys = Keys} = Keyring) ->
+    Keyring#cds_Keyring{keys = filter(Keys)};
+filter(#cds_Key{} = Key) ->
+    Key#cds_Key{data = <<"***">>};
+filter({success, #cds_Success{}} = V) -> V;
 filter({more_keys_needed, D} = V) when is_integer(D) -> V;
-filter(#'cds_KeyringState'{} = V) -> V;
-filter(#'cds_KeyringMeta'{} = V) -> V;
-filter(#'cds_KeyringMetaDiff'{} = V) -> V;
+filter(#cds_KeyringState{} = V) -> V;
+filter(#cds_KeyringMeta{} = V) -> V;
+filter(#cds_KeyringMetaDiff{} = V) -> V;
 
 %% cds_proto storage
-filter(#'cds_CardData'{} = V) -> V;
-filter(#'cds_SessionData'{} = V) -> V;
-filter(#'cds_PutCardResult'{} = V) -> V;
-filter(#'cds_PutCardDataResult'{} = V) -> V;
+filter(#cds_CardData{} = V) -> V;
+filter(#cds_SessionData{} = V) -> V;
+filter(#cds_PutCardResult{} = V) -> V;
+filter(#cds_PutCardDataResult{} = V) -> V;
 
 %% damsel storage
 filter(#'CardData'{} = V) -> V;
@@ -86,22 +86,22 @@ filter(#'PutCardResult'{} = V) -> V;
 filter(#'PutCardDataResult'{} = V) -> V;
 
 %% identdocstore
-filter({russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{}} = V) -> V;
-filter({russian_retiree_insurance_certificate, #'identdocstore_RussianRetireeInsuranceCertificate'{}} = V) -> V;
+filter({russian_domestic_passport, #identdocstore_RussianDomesticPassport{}} = V) -> V;
+filter({russian_retiree_insurance_certificate, #identdocstore_RussianRetireeInsuranceCertificate{}} = V) -> V;
 
 %% tds
-filter(#'tds_Token'{} = V) -> V#'tds_Token'{content = <<"***">>};
+filter(#tds_Token{} = V) -> V#tds_Token{content = <<"***">>};
 
 %% cds_proto exceptions
-filter(#'cds_InvalidStatus'{} = V) -> V;
-filter(#'cds_InvalidActivity'{} = V) -> V;
-filter(#'cds_InvalidKeyringMeta'{} = V) -> V;
-filter(#'cds_InvalidArguments'{} = V) -> V;
-filter(#'cds_VerificationFailed'{} = V) -> V;
-filter(#'cds_OperationAborted'{} = V) -> V;
-filter(#'cds_InvalidCardData'{} = V) -> V;
-filter(#'cds_CardDataNotFound'{} = V) -> V;
-filter(#'cds_SessionDataNotFound'{} = V) -> V;
+filter(#cds_InvalidStatus{} = V) -> V;
+filter(#cds_InvalidActivity{} = V) -> V;
+filter(#cds_InvalidKeyringMeta{} = V) -> V;
+filter(#cds_InvalidArguments{} = V) -> V;
+filter(#cds_VerificationFailed{} = V) -> V;
+filter(#cds_OperationAborted{} = V) -> V;
+filter(#cds_InvalidCardData{} = V) -> V;
+filter(#cds_CardDataNotFound{} = V) -> V;
+filter(#cds_SessionDataNotFound{} = V) -> V;
 
 %% damsel exceptions
 filter(#'InvalidCardData'{} = V) -> V;
@@ -109,7 +109,7 @@ filter(#'CardDataNotFound'{} = V) -> V;
 filter(#'SessionDataNotFound'{} = V) -> V;
 
 %% identdocstore exceptions
-filter(#'identdocstore_IdentityDocumentNotFound'{} = V) -> V;
+filter(#identdocstore_IdentityDocumentNotFound{} = V) -> V;
 
 %% tds exceptions
-filter(#'tds_TokenNotFound'{} = V) -> V.
+filter(#tds_TokenNotFound{} = V) -> V.

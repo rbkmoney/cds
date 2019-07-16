@@ -23,7 +23,7 @@
 %% Internal types
 %%
 
--type encrypted_masterkey_share() :: #'cds_EncryptedMasterKeyShare' {}.
+-type encrypted_masterkey_share() :: #cds_EncryptedMasterKeyShare {}.
 
 %%
 %% API
@@ -39,11 +39,11 @@ start_init(Threshold, RootUrl) ->
         EncryptedShares ->
             decode_encrypted_shares(EncryptedShares)
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_InvalidArguments'{reason = Reason} ->
+        #cds_InvalidArguments{reason = Reason} ->
             {error, {invalid_arguments, Reason}}
     end.
 
@@ -56,18 +56,18 @@ start_init(Threshold, RootUrl) ->
 validate_init(ShareholderId, Share, RootUrl) ->
     SignedShare = encode_signed_share(ShareholderId, Share),
     try cds_woody_client:call(keyring_v2, 'ValidateInit', [SignedShare], RootUrl) of
-        {success, #'cds_Success'{}} ->
+        {success, #cds_Success{}} ->
             ok;
         {more_keys_needed, More} ->
             {more_keys_needed, More}
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_VerificationFailed'{} ->
+        #cds_VerificationFailed{} ->
             {error, verification_failed};
-        #'cds_OperationAborted'{reason = Reason} ->
+        #cds_OperationAborted{reason = Reason} ->
             {error, {operation_aborted, Reason}}
     end.
 
@@ -77,9 +77,9 @@ validate_init(ShareholderId, Share, RootUrl) ->
     {error, {invalid_activity, {initialization, cds_keyring_initializer:state()}}}.
 cancel_init(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'CancelInit', [], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}}
     end.
 
@@ -89,9 +89,9 @@ cancel_init(RootUrl) ->
     {error, {invalid_activity, {unlock, cds_keyring_unlocker:state()}}}.
 start_unlock(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'StartUnlock', [], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}}
     end.
 
@@ -104,18 +104,18 @@ start_unlock(RootUrl) ->
 confirm_unlock(ShareholderId, Share, RootUrl) ->
     SignedShare = encode_signed_share(ShareholderId, Share),
     try cds_woody_client:call(keyring_v2, 'ConfirmUnlock', [SignedShare], RootUrl) of
-        {success, #'cds_Success'{}} ->
+        {success, #cds_Success{}} ->
             ok;
         {more_keys_needed, More} ->
             {more_keys_needed, More}
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_VerificationFailed'{} ->
+        #cds_VerificationFailed{} ->
             {error, verification_failed};
-        #'cds_OperationAborted'{reason = Reason} ->
+        #cds_OperationAborted{reason = Reason} ->
             {error, {operation_aborted, Reason}}
     end.
 
@@ -124,7 +124,7 @@ confirm_unlock(ShareholderId, Share, RootUrl) ->
     {error, {invalid_status, cds_keyring_manager:state()}}.
 cancel_unlock(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'CancelUnlock', [], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}}
     end.
 
@@ -133,7 +133,7 @@ cancel_unlock(RootUrl) ->
     {error, {invalid_status, cds_keyring_manager:state()}}.
 lock(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'Lock', [], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}}
     end.
 
@@ -143,9 +143,9 @@ lock(RootUrl) ->
     {error, {invalid_activity, {rotation, cds_keyring_rotator:state()}}}.
 start_rotate(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'StartRotate', [], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}}
     end.
 
@@ -158,18 +158,18 @@ start_rotate(RootUrl) ->
 confirm_rotate(ShareholderId, Share, RootUrl) ->
     SignedShare = encode_signed_share(ShareholderId, Share),
     try cds_woody_client:call(keyring_v2, 'ConfirmRotate', [SignedShare], RootUrl) of
-        {success, #'cds_Success'{}} ->
+        {success, #cds_Success{}} ->
             ok;
         {more_keys_needed, More} ->
             {more_keys_needed, More}
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_VerificationFailed'{} ->
+        #cds_VerificationFailed{} ->
             {error, verification_failed};
-        #'cds_OperationAborted'{reason = Reason} ->
+        #cds_OperationAborted{reason = Reason} ->
             {error, {operation_aborted, Reason}}
     end.
 
@@ -178,7 +178,7 @@ confirm_rotate(ShareholderId, Share, RootUrl) ->
     {error, {invalid_status, cds_keyring_manager:state()}}.
 cancel_rotate(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'CancelRotate', [], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}}
     end.
 
@@ -189,11 +189,11 @@ cancel_rotate(RootUrl) ->
     {error, {invalid_arguments, binary()}}.
 start_rekey(Threshold, RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'StartRekey', [Threshold], RootUrl) catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_InvalidArguments'{reason = Reason} ->
+        #cds_InvalidArguments{reason = Reason} ->
             {error, {invalid_arguments, Reason}}
     end.
 
@@ -206,18 +206,18 @@ start_rekey(Threshold, RootUrl) ->
 confirm_rekey(ShareholderId, Share, RootUrl) ->
     SignedShare = encode_signed_share(ShareholderId, Share),
     try cds_woody_client:call(keyring_v2, 'ConfirmRekey', [SignedShare], RootUrl) of
-        {success, #'cds_Success'{}} ->
+        {success, #cds_Success{}} ->
             ok;
         {more_keys_needed, More} ->
             {more_keys_needed, More}
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_VerificationFailed'{} ->
+        #cds_VerificationFailed{} ->
             {error, verification_failed};
-        #'cds_OperationAborted'{reason = Reason} ->
+        #cds_OperationAborted{reason = Reason} ->
             {error, {operation_aborted, Reason}}
     end.
 
@@ -230,9 +230,9 @@ start_rekey_validation(RootUrl) ->
         EncryptedShares ->
             decode_encrypted_shares(EncryptedShares)
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}}
     end.
 
@@ -245,18 +245,18 @@ start_rekey_validation(RootUrl) ->
 validate_rekey(ShareholderId, Share, RootUrl) ->
     SignedShare = encode_signed_share(ShareholderId, Share),
     try cds_woody_client:call(keyring_v2, 'ValidateRekey', [SignedShare], RootUrl) of
-        {success, #'cds_Success'{}} ->
+        {success, #cds_Success{}} ->
             ok;
         {more_keys_needed, More} ->
             {more_keys_needed, More}
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}};
-        #'cds_InvalidActivity'{activity = Activity} ->
+        #cds_InvalidActivity{activity = Activity} ->
             {error, {invalid_activity, Activity}};
-        #'cds_VerificationFailed'{} ->
+        #cds_VerificationFailed{} ->
             {error, verification_failed};
-        #'cds_OperationAborted'{reason = Reason} ->
+        #cds_OperationAborted{reason = Reason} ->
             {error, {operation_aborted, Reason}}
     end.
 
@@ -266,7 +266,7 @@ validate_rekey(ShareholderId, Share, RootUrl) ->
 cancel_rekey(RootUrl) ->
     try cds_woody_client:call(keyring_v2, 'CancelRekey', [], RootUrl)
     catch
-        #'cds_InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             {error, {invalid_status, Status}}
     end.
 
@@ -276,30 +276,30 @@ get_state(RootUrl) ->
     decode_state(State).
 
 encode_signed_share(ShareholderId, Share) ->
-    #'cds_SignedMasterKeyShare'{
+    #cds_SignedMasterKeyShare{
         id = ShareholderId,
         signed_share = Share
     }.
 
-decode_state(#'cds_KeyringState'{
+decode_state(#cds_KeyringState{
     status = Status,
-    activities = #'cds_ActivitiesState'{
-        initialization =  #'cds_InitializationState'{
+    activities = #cds_ActivitiesState{
+        initialization =  #cds_InitializationState{
             phase = InitPhase,
             lifetime = InitLifetime,
             validation_shares = InitValShares
         },
-        unlock = #'cds_UnlockState'{
+        unlock = #cds_UnlockState{
             phase = UnlockPhase,
             lifetime = UnlockLifetime,
             confirmation_shares = UnlockConShares
         },
-        rotation = #'cds_RotationState'{
+        rotation = #cds_RotationState{
             phase = RotatePhase,
             lifetime = RotateLifetime,
             confirmation_shares = RotateConShares
         },
-        rekeying = #'cds_RekeyingState'{
+        rekeying = #cds_RekeyingState{
             phase = RekeyPhase,
             lifetime = RekeyLifetime,
             confirmation_shares = RekeyConShares,
@@ -343,7 +343,7 @@ decode_encrypted_shares(EncryptedMasterKeyShares) ->
 -spec decode_encrypted_share(encrypted_masterkey_share()) ->
     cds_keysharing:encrypted_master_key_share().
 
-decode_encrypted_share(#'cds_EncryptedMasterKeyShare' {
+decode_encrypted_share(#cds_EncryptedMasterKeyShare{
     id = Id,
     owner = Owner,
     encrypted_share = EncryptedShare
