@@ -24,7 +24,8 @@
     Opts  :: woody:options().
 
 handle_event(?EV_INTERNAL_ERROR, RpcID, RawMeta, Opts) ->
-    scoper_woody_event_handler:handle_event(?EV_INTERNAL_ERROR, RpcID, RawMeta, Opts);
+    RawMetaWithoutReason = RawMeta#{reason => <<"***">>},
+    scoper_woody_event_handler:handle_event(?EV_INTERNAL_ERROR, RpcID, RawMetaWithoutReason, Opts);
 handle_event(Event, RpcID, RawMeta, Opts) ->
     FilteredMeta = filter_meta(RawMeta),
     scoper_woody_event_handler:handle_event(Event, RpcID, FilteredMeta, Opts).
@@ -54,12 +55,8 @@ filter(V) when is_integer(V) -> V;
 filter(V) when is_bitstring(V) -> V;
 filter(ok) -> ok;
 filter(undefined) -> undefined;
-filter({internal, resource_unavailable, Details} = V) when is_binary(Details) -> V;
-filter({internal, result_unexpected, Details} = V) when is_binary(Details) -> V;
-filter({internal, result_unknown, Details} = V) when is_binary(Details) -> V;
-filter({external, resource_unavailable, Details} = V) when is_binary(Details) -> V;
-filter({external, result_unexpected, Details} = V) when is_binary(Details) -> V;
-filter({external, result_unknown, Details} = V) when is_binary(Details) -> V;
+filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
+filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
 
 %% cds_proto
 filter(#'cds_EncryptedMasterKeyShare'{} = EncryptedMasterKeyShare) ->
