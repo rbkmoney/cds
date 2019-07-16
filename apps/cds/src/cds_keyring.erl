@@ -10,6 +10,7 @@
 -export([get_current_key_with_meta/0]).
 -export([get_outdated_keys/0]).
 -export([get_version/0]).
+-export([deduplication_hash_opts/1]).
 -export([start_link/0]).
 
 %% gen_server callbacks
@@ -35,7 +36,9 @@
 }.
 -type meta() :: #{
     retired := boolean(),
-    scrypt_options := cds_hash:scrypt_options()
+    security_parameters := #{
+        deduplication_hash_opts := cds_hash:scrypt_options()
+    }
 }.
 
 -type state() :: #{
@@ -138,6 +141,12 @@ get_version() ->
         error:badarg ->
             undefined
     end.
+
+-spec deduplication_hash_opts(meta()) ->
+    cds_hash:scrypt_options().
+
+deduplication_hash_opts(#{security_parameters := SecParams}) ->
+    maps:get(deduplication_hash_opts, SecParams).
 
 -spec start_link() ->
     {ok, pid()} | {error, {already_started, pid()}}.
@@ -299,7 +308,9 @@ store_meta(KeyID, #'KeyMeta'{retired = Retired, security_parameters = SecParams}
     } = SecParams,
     Meta = #{
         retired => Retired,
-        scrypt_options => {N, R, P}
+        security_parameters => #{
+            deduplication_hash_opts => {N, R, P}
+        }
     },
     true = ets:insert(?KEYRING_TAB, {?KEYRING_META_KEY(KeyID), Meta}),
     ok.

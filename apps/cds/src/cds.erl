@@ -168,7 +168,7 @@ get_session_data(Session) ->
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
     {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
-    Hash = cds_hash:hash(cds_card_data:unique(CardData), Key, maps:get(scrypt_options, Meta)),
+    Hash = cds_hash:hash(cds_card_data:unique(CardData), Key, scrypt_options(Meta)),
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
@@ -203,7 +203,7 @@ decrypt(<<KeyID, Cipher/binary>>) ->
     {token(), hash()}.
 find_or_create_token(CurrentKeyID, CurrentKey, CurrentKeyMeta, UniqueCardData) ->
     OtherKeys = cds_keyring:get_keys_except(CurrentKeyID),
-    CurrentHash = cds_hash:hash(UniqueCardData, CurrentKey, maps:get(scrypt_options, CurrentKeyMeta)),
+    CurrentHash = cds_hash:hash(UniqueCardData, CurrentKey, scrypt_options(CurrentKeyMeta)),
     % let's check current key first
     FindResult = find_tokens(UniqueCardData, CurrentHash, OtherKeys),
     case FindResult of
@@ -223,7 +223,7 @@ find_or_create_token(CurrentKeyID, CurrentKey, CurrentKeyMeta, UniqueCardData) -
 find_tokens(_, []) ->
     not_found;
 find_tokens(UniqueCardData, [{Key, Meta} | OtherKeys]) ->
-    Hash = cds_hash:hash(UniqueCardData, Key, maps:get(scrypt_options, Meta)),
+    Hash = cds_hash:hash(UniqueCardData, Key, scrypt_options(Meta)),
     find_tokens(UniqueCardData, Hash, OtherKeys).
 
 find_tokens(UniqueCardData, Hash, OtherKeys) ->
@@ -252,3 +252,6 @@ is_card_data_equal([Token | OtherTokens]) ->
         end,
         OtherTokens
     ).
+
+scrypt_options(Meta) ->
+    cds_keyring:deduplication_hash_opts(Meta).
