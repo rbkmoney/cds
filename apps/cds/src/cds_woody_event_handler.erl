@@ -89,8 +89,8 @@ filter(#'PutCardDataResult'{} = V) -> V;
 filter({russian_domestic_passport, #'identdocstore_RussianDomesticPassport'{}} = V) -> V;
 filter({russian_retiree_insurance_certificate, #'identdocstore_RussianRetireeInsuranceCertificate'{}} = V) -> V;
 
-%% tds exceptions
-filter(#'tds_TokenNotFound'{} = V) -> V;
+%% tds
+filter(#'tds_Token'{} = V) -> V#'tds_Token'{content = <<"***">>};
 
 %% cds_proto exceptions
 filter(#'cds_InvalidStatus'{} = V) -> V;
@@ -111,5 +111,5 @@ filter(#'SessionDataNotFound'{} = V) -> V;
 %% identdocstore exceptions
 filter(#'identdocstore_IdentityDocumentNotFound'{} = V) -> V;
 
-%% tds
-filter(#'tds_Token'{} = V) -> V.
+%% tds exceptions
+filter(#'tds_TokenNotFound'{} = V) -> V.
