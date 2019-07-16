@@ -5,6 +5,7 @@
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
+-export([handle_function_/4]).
 
 -type encrypted_masterkey_share() :: #'cds_EncryptedMasterKeyShare' {}.
 
@@ -18,19 +19,11 @@
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
         keyring_v2,
-        fun() ->
-            try
-                handle_function_(OperationID, Args, Context, Opts)
-            catch
-                throw:Exception ->
-                    throw(Exception);
-                error:{woody_error, _} = WoodyError:Stacktrace ->
-                    erlang:raise(error, WoodyError, Stacktrace);
-                Class:_Exception:Stacktrace ->
-                    erlang:raise(Class, '***', Stacktrace)
-            end
-        end
+        cds_thrift_handler_utils:handle_fun(?MODULE, OperationID, Args, Context, Opts)
     ).
+
+-spec handle_function_(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
+    {ok, woody:result()} | no_return().
 
 handle_function_('StartInit', [Threshold], _Context, _Opts) ->
     try cds_keyring_manager:initialize(Threshold) of

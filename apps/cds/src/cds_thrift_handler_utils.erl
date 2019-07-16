@@ -1,5 +1,6 @@
 -module(cds_thrift_handler_utils).
 
+-export([handle_fun/5]).
 -export([raise/1]).
 -export([raise_keyring_unavailable/1]).
 
@@ -8,6 +9,21 @@
 %%
 %% API
 %%
+
+-spec handle_fun(module(), woody:func(), woody:args(), woody_context:ctx(), woody:options()) -> fun().
+handle_fun(Module, OperationID, Args, Context, Opts) ->
+    fun() ->
+        try
+            Module:handle_function_(OperationID, Args, Context, Opts)
+        catch
+            throw:Exception ->
+                throw(Exception);
+            error:{woody_error, _} = WoodyError:Stacktrace ->
+                erlang:raise(error, WoodyError, Stacktrace);
+            Class:_Exception:Stacktrace ->
+                erlang:raise(Class, '***', Stacktrace)
+        end
+    end.
 
 -spec raise_keyring_unavailable(locked | not_initialized) ->
     no_return().
