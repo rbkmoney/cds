@@ -22,10 +22,10 @@ handle_function(OperationID, Args, Context, Opts) ->
             catch
                 throw:Exception ->
                     throw(Exception);
-                error:{woody_error, _} = WoodyError ->
-                    erlang:error(WoodyError);
-                _Class:_Exception:Stacktrace ->
-                    woody_error:raise(system, {internal, result_unexpected, Stacktrace})
+                error:{woody_error, _} = WoodyError:Stacktrace ->
+                    erlang:raise(error, WoodyError, Stacktrace);
+                Class:_Exception:Stacktrace ->
+                    erlang:raise(Class, '***', Stacktrace)
             end
         end
     ).
