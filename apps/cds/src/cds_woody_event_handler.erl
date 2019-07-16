@@ -86,7 +86,8 @@ filter(#'PutCardResult'{} = V) -> V;
 filter(#'PutCardDataResult'{} = V) -> V;
 
 %% identdocstore
-filter({russian_domestic_passport, #identdocstore_RussianDomesticPassport{}} = V) -> V;
+filter({russian_domestic_passport, #identdocstore_RussianDomesticPassport{}} = V) ->
+    {russian_domestic_passport, <<"***">>};
 filter({russian_retiree_insurance_certificate, #identdocstore_RussianRetireeInsuranceCertificate{}} = V) -> V;
 
 %% tds
