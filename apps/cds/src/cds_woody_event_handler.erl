@@ -87,7 +87,19 @@ filter(#'PutCardDataResult'{} = V) -> V;
 
 %% identdocstore
 filter({russian_domestic_passport, #identdocstore_RussianDomesticPassport{}}) ->
-    {russian_domestic_passport, <<"***">>};
+    FilteredPassport = #identdocstore_RussianDomesticPassport{
+        series = <<"***">>,
+        number = <<"***">>,
+        issuer = <<"***">>,
+        issuer_code = <<"***">>,
+        issued_at = <<"***">>,
+        family_name = <<"***">>,
+        first_name = <<"***">>,
+        patronymic = <<"***">>,
+        birth_date = <<"***">>,
+        birth_place = <<"***">>
+    },
+    {russian_domestic_passport, FilteredPassport};
 filter({russian_retiree_insurance_certificate, #identdocstore_RussianRetireeInsuranceCertificate{}} = V) -> V;
 
 %% tds
