@@ -17,7 +17,7 @@
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
         card_data_v2,
-        cds_thrift_handler_utils:handle_fun(fun() -> handle_function_(OperationID, Args, Context, Opts) end)
+        cds_thrift_handler_utils:filter_fun_exceptions(fun() -> handle_function_(OperationID, Args, Context, Opts) end)
     ).
 
 handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
