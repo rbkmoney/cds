@@ -16,7 +16,7 @@
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
         ident_doc,
-        fun() -> handle_function_(OperationID, Args, Context, Opts) end
+        cds_thrift_handler_utils:filter_fun_exceptions(fun() -> handle_function_(OperationID, Args, Context, Opts) end)
     ).
 
 handle_function_('Put', [IdentityDocument], _Context, _Opts) ->

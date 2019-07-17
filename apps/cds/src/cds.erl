@@ -71,7 +71,7 @@ init([]) ->
                 cds_thrift_services:handler_spec(keyring_v2),
                 cds_thrift_services:handler_spec(ident_doc)
             ],
-            event_handler     => scoper_woody_event_handler,
+            event_handler     => cds_woody_event_handler,
             ip                => IP,
             port              => genlib_app:env(?MODULE, port, 8022),
             transport_opts    => genlib_app:env(?MODULE, transport_opts, #{}),

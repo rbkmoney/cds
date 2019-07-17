@@ -49,7 +49,7 @@ service_path(ident_doc) ->
 thrift_service(token) ->
     {tds_proto_storage_thrift, 'TokenStorage'};
 thrift_service(keyring_v2) ->
-    {cds_proto_keyring_thrift, 'Keyring'};
+    {cds_proto_keyring_thrift, 'KeyringManagement'};
 thrift_service(card) ->
     {dmsl_cds_thrift, 'Storage'};
 thrift_service(card_v2) ->
