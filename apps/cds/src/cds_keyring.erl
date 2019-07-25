@@ -247,14 +247,14 @@ set_current_key_id(KeyID) ->
 fetch_keyring() ->
     CurrentVersion = get_version(),
     try get_keyring() of
-        #'Keyring'{version = CurrentVersion} ->
+        #cds_Keyring{version = CurrentVersion} ->
             ok; % no changes
         Keyring ->
             ok = store_keyring(Keyring),
             _ = logger:info("New keyring version received: ~p", [get_version()]),
             ok
     catch
-        #'InvalidStatus'{status = Status} ->
+        #cds_InvalidStatus{status = Status} ->
             _ = logger:error("Could not fetch keyring: ~p: ~p", [invalid_status, Status]),
             {error, {invalid_status, Status}};
         Class:Error ->
@@ -265,7 +265,7 @@ fetch_keyring() ->
 -spec store_keyring(keyring()) ->
     ok.
 
-store_keyring(#'Keyring'{version = Version, keys = Keys, current_key_id = CurrentKeyID}) ->
+store_keyring(#cds_Keyring{version = Version, keys = Keys, current_key_id = CurrentKeyID}) ->
     ok = store_keys(Keys),
     ok = set_current_key_id(CurrentKeyID),
     ok = set_version(Version).
@@ -275,7 +275,7 @@ store_keyring(#'Keyring'{version = Version, keys = Keys, current_key_id = Curren
 
 store_keys(Keys) ->
     maps:fold(
-        fun(KeyID, #'Key'{data = Key, meta = Meta}, _) ->
+        fun(KeyID, #cds_Key{data = Key, meta = Meta}, _) ->
             ok = store_key(KeyID, Key),
             ok = store_meta(KeyID, Meta)
         end,
@@ -298,9 +298,9 @@ store_key(KeyID, Key) ->
 -spec store_meta(key_id(), cds_proto_keyring_thrift:'KeyMeta'()) ->
     ok.
 
-store_meta(KeyID, #'KeyMeta'{retired = Retired, security_parameters = SecParams}) ->
-    #'SecurityParameters'{
-        deduplication_hash_opts = #'ScryptOptions' {
+store_meta(KeyID, #cds_KeyMeta{retired = Retired, security_parameters = SecParams}) ->
+    #cds_SecurityParameters{
+        deduplication_hash_opts = #cds_ScryptOptions {
             n = N,
             r = R,
             p = P

@@ -113,7 +113,7 @@ get_session_data(Session, RootUrl) ->
     #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try call(card, 'PutCard', [encode_card_data(CardData)], RootUrl) of
-        #'PutCardResult'{bank_card = BankCard} ->
+        #cds_PutCardResult{bank_card = BankCard} ->
             #{
                 bank_card => decode_bank_card(BankCard)
             }
