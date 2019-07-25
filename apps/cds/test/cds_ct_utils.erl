@@ -63,11 +63,6 @@ start_clear(Config) ->
                 }}
             ]}
         ]) ++
-        genlib_app:start_application_with(os_mon, [
-            {start_disksup, false},
-            {start_memsup, false},
-            {start_cpu_sup, false}
-        ]) ++
         genlib_app:start_application_with(cds, [
             {ip, IP},
             {port, Port},
