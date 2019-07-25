@@ -47,6 +47,27 @@ start_clear(Config) ->
         genlib_app:start_application_with(scoper, [
             {storage, scoper_storage_logger}
         ]) ++
+        genlib_app:start_application_with(kernel, [
+            {logger_sasl_compatible, false},
+            {logger_level, debug},
+            {logger, [
+                {handler, default, logger_std_h, #{
+                    formatter => {logger_logstash_formatter, #{
+                        message_redaction_regex_list => [
+                            "[0-9]{12,19}", %% pan
+                            "[0-9]{2}.[0-9]{2,4}", %% expiration date
+                            "[0-9]{3,4}", %% cvv
+                            "^ey[JI]([a-zA-Z0-9_-]*.?){1,6}" %% JWS and JWE compact representation
+                        ]
+                    }}
+                }}
+            ]}
+        ]) ++
+        genlib_app:start_application_with(os_mon, [
+            {start_disksup, false},
+            {start_memsup, false},
+            {start_cpu_sup, false}
+        ]) ++
         genlib_app:start_application_with(cds, [
             {ip, IP},
             {port, Port},

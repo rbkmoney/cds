@@ -1,5 +1,6 @@
 -module(cds_thrift_handler_utils).
 
+-export([filter_fun_exceptions/1]).
 -export([raise/1]).
 -export([raise_keyring_unavailable/0]).
 
@@ -8,6 +9,21 @@
 %%
 %% API
 %%
+
+-spec filter_fun_exceptions(fun()) -> fun().
+filter_fun_exceptions(Fun) ->
+    fun() ->
+        try
+            Fun()
+        catch
+            throw:Exception ->
+                throw(Exception);
+            error:{woody_error, _} = WoodyError:Stacktrace ->
+                erlang:raise(error, WoodyError, Stacktrace);
+            Class:_Exception:Stacktrace ->
+                erlang:raise(Class, '***', Stacktrace)
+        end
+    end.
 
 -spec raise_keyring_unavailable() ->
     no_return().

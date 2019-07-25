@@ -32,7 +32,7 @@ call(ServiceCode, Function, Args, RootUrl, ExtraOpts, WoodyContext) ->
     Path = genlib:to_binary(cds_thrift_services:service_path(ServiceCode)),
     CallOpts = maps:merge(ExtraOpts, #{
         url => <<RootUrl/binary, Path/binary>>,
-        event_handler => scoper_woody_event_handler
+        event_handler => cds_woody_event_handler
     }),
     case woody_client:call(Request, CallOpts, WoodyContext) of
         {ok, Result} ->

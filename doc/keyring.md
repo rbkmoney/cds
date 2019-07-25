@@ -81,7 +81,7 @@ EC ключ для криптоподписи:
 ```bash
 $ woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring StartInit '<insert threshold here>'
+   KeyringManagement StartInit '<insert threshold here>'
 ```
 
 `threshold` - количество фрагментов мастер-ключа, которое нужно для его востановление
@@ -111,7 +111,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jws sign - --key ec.json | \
   woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring ValidateInit '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+   KeyringManagement ValidateInit '{"id":"<insert id, ex. ndiezel>","signed_share":"'"$(cat -)"'"}'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
@@ -142,7 +142,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 ```bash
 $ woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring StartUnlock
+   KeyringManagement StartUnlock
 ```
 
 ### Подтверждение
@@ -156,7 +156,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jws sign - --key ec.json | \
   woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring ConfirmUnlock '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+   KeyringManagement ConfirmUnlock '{"id":"<insert id, ex. ndiezel>","signed_share":"'"$(cat -)"'"}'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
@@ -186,7 +186,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 ```bash
 $ woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring StartRotate
+   KeyringManagement StartRotate
 ```
 
 ### Подтверждение
@@ -200,7 +200,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jws sign - --key ec.json | \
   woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring ConfirmRotate '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+   KeyringManagement ConfirmRotate '{"id":"<insert id, ex. ndiezel>","signed_share":"'"$(cat -)"'"}'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
@@ -241,7 +241,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 ```bash
 $ woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring StartRekey '<insert threshold here>'
+   KeyringManagement StartRekey '<insert threshold here>'
 ```
 
 `threshold` - количество фрагментов мастер-ключа, которое нужно для его востановление
@@ -257,7 +257,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jws sign - --key ec.json | \
   woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring ConfirmRekey '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+   KeyringManagement ConfirmRekey '{"id":"<insert id, ex. ndiezel>","signed_share":"'"$(cat -)"'"}'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
@@ -271,7 +271,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
 ```bash
 $ woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring StartRekeyValidation
+   KeyringManagement StartRekeyValidation
 ```
 
 Пример получаемых фрагментов:
@@ -297,7 +297,7 @@ $ echo "<insert EncryptedMasterKeyShare here>" | \
   step crypto jws sign - --key ec.json | \
   woorl -s cds_proto/proto/keyring.thrift \
    'http://cds:8022/v2/keyring' \
-   Keyring ValidateRekey '"<insert id, ex. ndiezel>"' '"'"$(cat -)"'"'
+   KeyringManagement ValidateRekey '{"id":"<insert id, ex. ndiezel>","signed_share":"'"$(cat -)"'"}'
 ```
 
 `EncodedMasterKeyShare` - полученный зашифрованный фрагмент мастер-ключа
