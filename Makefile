@@ -16,9 +16,9 @@ SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
 BASE_IMAGE_NAME := service-erlang
 BASE_IMAGE_TAG := 294d280ff42e6c0cc68ab40fe81e76a6262636c4
 
-BUILD_IMAGE_TAG := cd38c35976f3684fe7552533b6175a4c3460e88b
+BUILD_IMAGE_TAG := bdc05544014b3475c8e0726d3b3d6fc81b09db96
 
-CALL_W_CONTAINER := all submodules rebar-update compile xref lint dialyze test start devrel release clean distclean
+CALL_W_CONTAINER := all submodules compile xref lint dialyze test start devrel release clean distclean
 
 DOCKER_COMPOSE_PREEXEC_HOOK = $(DOCKER_COMPOSE) scale member=4
 
@@ -35,10 +35,7 @@ $(SUBTARGETS): %/.git: %
 
 submodules: $(SUBTARGETS)
 
-rebar-update:
-	$(REBAR) update
-
-compile: submodules rebar-update
+compile: submodules
 	$(REBAR) compile
 
 xref: submodules
