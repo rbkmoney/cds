@@ -20,8 +20,6 @@ BUILD_IMAGE_TAG := bdc05544014b3475c8e0726d3b3d6fc81b09db96
 
 CALL_W_CONTAINER := all submodules compile xref lint dialyze test start devrel release clean distclean
 
-DOCKER_COMPOSE_PREEXEC_HOOK = $(DOCKER_COMPOSE) scale member=4
-
 .PHONY: $(CALL_W_CONTAINER)
 
 all: compile

@@ -30,7 +30,8 @@ services:
       timeout: 5s
       retries: 5
 
-  member:
+  member1:
+    &member-node
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
     ports:
       - "8087"
@@ -46,6 +47,12 @@ services:
       - COORDINATOR_NODE=riakdb
     volumes:
       - ./riak_user.conf:/etc/riak/user.conf:ro
+
+  member2:
+    <<: *member-node
+
+  member3:
+    <<: *member-node
 
 volumes:
   schemas:
