@@ -32,7 +32,8 @@ services:
       timeout: 5s
       retries: 5
 
-  member:
+  member1:
+    &member-node
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
     ports:
       - "8087"
@@ -61,6 +62,12 @@ services:
       interval: 5s
       timeout: 1s
       retries: 20
+
+  member2:
+    <<: *member-node
+
+  member3:
+    <<: *member-node
 
 volumes:
   schemas:
