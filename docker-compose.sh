@@ -27,28 +27,10 @@ services:
     volumes:
       - ./test/riak/user.conf:/etc/riak/user.conf:ro
     healthcheck:
-      test: "riak-admin test"
+      test: "riak ping"
       interval: 5s
       timeout: 5s
       retries: 5
-
-  member1:
-    &member-node
-    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
-    ports:
-      - "8087"
-      - "8098"
-    labels:
-      - "com.basho.riak.cluster.name=riakkv"
-    links:
-      - riakdb
-    depends_on:
-      - riakdb
-    environment:
-      - CLUSTER_NAME=riakkv
-      - COORDINATOR_NODE=riakdb
-    volumes:
-      - ./test/riak/user.conf:/etc/riak/user.conf:ro
 
   kds:
     image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
@@ -62,12 +44,6 @@ services:
       interval: 5s
       timeout: 1s
       retries: 20
-
-  member2:
-    <<: *member-node
-
-  member3:
-    <<: *member-node
 
 volumes:
   schemas:
