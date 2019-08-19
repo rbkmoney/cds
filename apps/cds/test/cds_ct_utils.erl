@@ -117,7 +117,13 @@ set_riak_storage(C) ->
                     keepalive => true
                 }
             },
-            timeout => 5000
+            timeout => 5000,
+            pool_params => #{
+                max_count     => 100,
+                init_count    => 20,
+                cull_interval => {0, min},
+                pool_timeout  => {1, sec}
+            }
         }}
     ],
     [{storage_config, StorageConfig} | C].
