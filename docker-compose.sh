@@ -26,6 +26,7 @@ services:
       - "com.basho.riak.cluster.name=riakkv"
     volumes:
       - ./test/riak/user.conf:/etc/riak/user.conf:ro
+      - ./_build/test/logs/log/riak1:/var/log/riak:rw
     healthcheck:
       test: "riak-admin test"
       interval: 5s
@@ -44,6 +45,7 @@ services:
       - COORDINATOR_NODE=riakdb
     volumes:
       - ./test/riak/user.conf:/etc/riak/user.conf:ro
+      - ./_build/test/logs/log/riak2:/var/log/riak:rw
 
   kds:
     image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
@@ -52,6 +54,7 @@ services:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
       - ./test/kds/ca.crt:/var/lib/kds/ca.crt:ro
       - ./test/kds/server.pem:/var/lib/kds/server.pem:ro
+      - ./_build/test/logs/log/kds:/var/log/kds:rw
     healthcheck:
       test: "curl http://localhost:8022/"
       interval: 5s
