@@ -23,29 +23,26 @@
     Meta  :: woody_event_handler:event_meta(),
     Opts  :: woody:options().
 
-handle_event(?EV_INTERNAL_ERROR, RpcID, RawMeta, Opts) ->
-    RawMetaWithoutReason = RawMeta#{reason => <<"***">>},
-    scoper_woody_event_handler:handle_event(?EV_INTERNAL_ERROR, RpcID, RawMetaWithoutReason, Opts);
 handle_event(Event, RpcID, RawMeta, Opts) ->
     FilteredMeta = filter_meta(RawMeta),
     scoper_woody_event_handler:handle_event(Event, RpcID, FilteredMeta, Opts).
 
-filter_meta(RawMeta) ->
-    case RawMeta of
-        #{result := Result} ->
-            RawMeta#{result => filter_result(Result)};
-        #{args := Args} ->
-            RawMeta#{args => filter_args(Args)};
-        _ ->
-            RawMeta
-    end.
+filter_meta(RawMeta0) ->
+    RawMeta1 = filter_meta_result(RawMeta0),
+    RawMeta2 = filter_meta_args(RawMeta1),
+    RawMeta2.
 
-filter_result({ok, Result}) -> {ok, filter(Result)};
-filter_result({system, SystemError}) -> {system, filter(SystemError)};
-filter_result({exception, Exception}) -> {exception, filter(Exception)};
-filter_result(Result) -> filter(Result).
+filter_meta_result(#{status := ok, result := Result} = Meta) ->
+    Meta#{result => filter(Result)};
+filter_meta_result(#{status := error, class := business, result := Error} = Meta) ->
+    Meta#{result => filter(Error)};
+filter_meta_result(Meta) ->
+    Meta.
 
-filter_args(Args) -> filter(Args).
+filter_meta_args(#{args := Args} = Meta) ->
+    Meta#{args => filter(Args)};
+filter_meta_args(Meta) ->
+    Meta.
 
 filter(L) when is_list(L) -> [filter(E) || E <- L];
 filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
