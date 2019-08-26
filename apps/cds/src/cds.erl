@@ -240,7 +240,7 @@ find_or_create_token({CurrentKeyID, CurrentKey}, UniqueCardData) ->
                 true ->
                     {hd(ManyTokens), Hash};
                 false ->
-                    error({<<"Hash collision detected">>, Hash})
+                    error({hash_collision_detected, Hash})
             end;
         not_found ->
             {token(), CurrentHash}
