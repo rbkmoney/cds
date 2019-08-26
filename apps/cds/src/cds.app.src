@@ -4,7 +4,6 @@
     {registered, []},
     {mod, { cds , []}},
     {applications, [
-        logger_logstash_formatter,
         kernel,
         stdlib,
         crypto,
@@ -12,6 +11,8 @@
         scrypt,
         riakc,
         woody,
+        how_are_you,
+        shamir,
         scoper,
         dmsl,
         identdocstore_proto,

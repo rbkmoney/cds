@@ -53,8 +53,7 @@ filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
 %% common
 filter(V) when is_integer(V) -> V;
 filter(V) when is_bitstring(V) -> V;
-filter(ok) -> ok;
-filter(undefined) -> undefined;
+filter(V) when is_atom(V) -> V;
 filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
 filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
 

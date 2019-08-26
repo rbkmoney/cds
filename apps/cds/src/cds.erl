@@ -214,7 +214,7 @@ find_or_create_token(CurrentKeyID, CurrentKey, CurrentKeyMeta, UniqueCardData) -
                 true ->
                     {hd(ManyTokens), Hash};
                 false ->
-                    error({<<"Hash collision detected">>, Hash})
+                    error({hash_collision_detected, Hash})
             end;
         not_found ->
             {token(), CurrentHash}
@@ -245,10 +245,12 @@ session() ->
 
 is_card_data_equal([Token | OtherTokens]) ->
     {_, FirstData} = get_cardholder_data(Token),
+    FirstUniqueData = cds_card_data:unique(FirstData),
     lists:all(
         fun(T) ->
               {_, OtherData} = get_cardholder_data(T),
-              FirstData =:= OtherData
+              OtherUniqueData = cds_card_data:unique(OtherData),
+              FirstUniqueData =:= OtherUniqueData
         end,
         OtherTokens
     ).
