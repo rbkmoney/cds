@@ -66,9 +66,17 @@ filter_error_reason(Reason) when is_tuple(Reason) ->
     erlang:list_to_tuple([filter_error_reason(R) || R <- erlang:tuple_to_list(Reason)]);
 filter_error_reason(Reason) when is_list(Reason) ->
     [filter_error_reason(R) || R <- Reason];
+filter_error_reason(Reason) when is_map(Reason) ->
+    maps:map(
+        fun(_Key, Value) ->
+            filter_error_reason(Value)
+        end,
+        Reason
+    );
 filter_error_reason(Reason) when
     is_atom(Reason) orelse
     is_number(Reason) orelse
+    is_reference(Reason) orelse
     is_pid(Reason)
 ->
     Reason;
