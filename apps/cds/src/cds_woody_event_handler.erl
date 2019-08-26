@@ -32,10 +32,10 @@ filter_meta(RawMeta0) ->
     RawMeta2 = filter_meta_args(RawMeta1),
     RawMeta2.
 
-filter_meta_result(#{status := ok, result := Result} = Meta) ->
+filter_meta_result(#{result := Result} = Meta) ->
     Meta#{result => filter(Result)};
-filter_meta_result(#{status := error, class := business, result := Error} = Meta) ->
-    Meta#{result => filter(Error)};
+filter_meta_result(#{reason := Error} = Meta) ->
+    Meta#{reason => filter(Error)};
 filter_meta_result(Meta) ->
     Meta.
 
@@ -44,13 +44,7 @@ filter_meta_args(#{args := Args} = Meta) ->
 filter_meta_args(Meta) ->
     Meta.
 
-filter(L) when is_list(L) -> [filter(E) || E <- L];
-filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
-
-%% common
-filter(V) when is_integer(V) -> V;
-filter(V) when is_bitstring(V) -> V;
-filter(V) when is_atom(V) -> V;
+%% woody errors
 filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
 filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
 
@@ -121,4 +115,18 @@ filter(#'SessionDataNotFound'{} = V) -> V;
 filter(#identdocstore_IdentityDocumentNotFound{} = V) -> V;
 
 %% tds exceptions
-filter(#tds_TokenNotFound{} = V) -> V.
+filter(#tds_TokenNotFound{} = V) -> V;
+
+%% common
+filter(V) when is_atom(V) -> V;
+filter(V) when is_number(V) -> V;
+filter(L) when is_list(L) -> [filter(E) || E <- L];
+filter(T) when is_tuple(T) -> list_to_tuple(filter(tuple_to_list(T)));
+filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
+filter(B) when is_binary(B) -> <<"***">>;
+filter(B) when is_bitstring(B) -> <<"***">>;
+filter(P) when is_pid(P) -> P;
+filter(R) when is_reference(R) -> R;
+
+%% fallback
+filter(_V) -> <<"*filtered*">>.
