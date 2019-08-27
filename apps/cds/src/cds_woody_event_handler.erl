@@ -15,6 +15,7 @@
 %%
 %% woody_event_handler behaviour callbacks
 %%
+
 -spec handle_event(Event, RpcId, Meta, Opts) ->
     ok
     when
@@ -23,39 +24,23 @@
     Meta  :: woody_event_handler:event_meta(),
     Opts  :: woody:options().
 
-handle_event(?EV_INTERNAL_ERROR, RpcID, RawMeta, Opts) ->
-    RawMetaWithoutReason = RawMeta#{reason => <<"***">>},
-    scoper_woody_event_handler:handle_event(?EV_INTERNAL_ERROR, RpcID, RawMetaWithoutReason, Opts);
 handle_event(Event, RpcID, RawMeta, Opts) ->
     FilteredMeta = filter_meta(RawMeta),
     scoper_woody_event_handler:handle_event(Event, RpcID, FilteredMeta, Opts).
 
-filter_meta(RawMeta) ->
-    case RawMeta of
-        #{result := Result} ->
-            RawMeta#{result => filter_result(Result)};
-        #{args := Args} ->
-            RawMeta#{args => filter_args(Args)};
-        _ ->
-            RawMeta
-    end.
+%% Internals
 
-filter_result({ok, Result}) -> {ok, filter(Result)};
-filter_result({system, SystemError}) -> {system, filter(SystemError)};
-filter_result({exception, Exception}) -> {exception, filter(Exception)};
-filter_result(Result) -> filter(Result).
+filter_meta(RawMeta0) ->
+    maps:map(fun do_filter_meta/2, RawMeta0).
 
-filter_args(Args) -> filter(Args).
-
-filter(L) when is_list(L) -> [filter(E) || E <- L];
-filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
-
-%% common
-filter(V) when is_integer(V) -> V;
-filter(V) when is_bitstring(V) -> V;
-filter(V) when is_atom(V) -> V;
-filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
-filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
+do_filter_meta(result, Result) ->
+    filter(Result);
+do_filter_meta(reason, Error) ->
+    filter(Error);
+do_filter_meta(args, Args) ->
+    filter(Args);
+do_filter_meta(_Key, Value) ->
+    Value.
 
 %% cds_proto
 filter(#cds_EncryptedMasterKeyShare{} = EncryptedMasterKeyShare) ->
@@ -124,4 +109,28 @@ filter(#'SessionDataNotFound'{} = V) -> V;
 filter(#identdocstore_IdentityDocumentNotFound{} = V) -> V;
 
 %% tds exceptions
-filter(#tds_TokenNotFound{} = V) -> V.
+filter(#tds_TokenNotFound{} = V) -> V;
+
+%% woody errors
+filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
+filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
+
+%% Known woody error reasons
+filter(<<"Deadline reached">> = V) -> V;
+filter(<<"partial response">> = V) -> V;
+filter(<<"thrift protocol read failed">> = V) -> V;
+
+%% common
+filter(V) when is_atom(V) -> V;
+filter(V) when is_number(V) -> V;
+filter(L) when is_list(L) -> [filter(E) || E <- L];
+filter(T) when is_tuple(T) -> list_to_tuple(filter(tuple_to_list(T)));
+filter(M) when is_map(M) -> genlib_map:truemap(fun (K, V) -> {filter(K), filter(V)} end, M);
+filter(B) when is_bitstring(B) -> <<"***">>;
+filter(P) when is_pid(P) -> P;
+filter(P) when is_port(P) -> P;
+filter(F) when is_function(F) -> F;
+filter(R) when is_reference(R) -> R;
+
+%% fallback
+filter(_V) -> <<"*filtered*">>.
