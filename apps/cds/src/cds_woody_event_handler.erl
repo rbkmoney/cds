@@ -15,6 +15,7 @@
 %%
 %% woody_event_handler behaviour callbacks
 %%
+
 -spec handle_event(Event, RpcId, Meta, Opts) ->
     ok
     when
@@ -27,22 +28,19 @@ handle_event(Event, RpcID, RawMeta, Opts) ->
     FilteredMeta = filter_meta(RawMeta),
     scoper_woody_event_handler:handle_event(Event, RpcID, FilteredMeta, Opts).
 
+%% Internals
+
 filter_meta(RawMeta0) ->
-    RawMeta1 = filter_meta_result(RawMeta0),
-    RawMeta2 = filter_meta_args(RawMeta1),
-    RawMeta2.
+    maps:map(fun do_filter_meta/2, RawMeta0).
 
-filter_meta_result(#{result := Result} = Meta) ->
-    Meta#{result => filter(Result)};
-filter_meta_result(#{reason := Error} = Meta) ->
-    Meta#{reason => filter(Error)};
-filter_meta_result(Meta) ->
-    Meta.
-
-filter_meta_args(#{args := Args} = Meta) ->
-    Meta#{args => filter(Args)};
-filter_meta_args(Meta) ->
-    Meta.
+do_filter_meta(result, Result) ->
+    filter(Result);
+do_filter_meta(reason, Error) ->
+    filter(Error);
+do_filter_meta(args, Args) ->
+    filter(Args);
+do_filter_meta(_Key, Value) ->
+    Value.
 
 %% woody errors
 filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
@@ -122,10 +120,11 @@ filter(V) when is_atom(V) -> V;
 filter(V) when is_number(V) -> V;
 filter(L) when is_list(L) -> [filter(E) || E <- L];
 filter(T) when is_tuple(T) -> list_to_tuple(filter(tuple_to_list(T)));
-filter(M) when is_map(M) -> maps:map(fun (_K, V) -> filter(V) end, M);
-filter(B) when is_binary(B) -> <<"***">>;
+filter(M) when is_map(M) -> genlib_map:truemap(fun (K, V) -> {filter(K), filter(V)} end, M);
 filter(B) when is_bitstring(B) -> <<"***">>;
 filter(P) when is_pid(P) -> P;
+filter(P) when is_port(P) -> P;
+filter(F) when is_function(F) -> F;
 filter(R) when is_reference(R) -> R;
 
 %% fallback
