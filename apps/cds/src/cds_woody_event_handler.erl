@@ -42,10 +42,6 @@ do_filter_meta(args, Args) ->
 do_filter_meta(_Key, Value) ->
     Value.
 
-%% woody errors
-filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
-filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
-
 %% cds_proto
 filter(#cds_EncryptedMasterKeyShare{} = EncryptedMasterKeyShare) ->
     EncryptedMasterKeyShare#cds_EncryptedMasterKeyShare{encrypted_share = <<"***">>};
@@ -114,6 +110,15 @@ filter(#identdocstore_IdentityDocumentNotFound{} = V) -> V;
 
 %% tds exceptions
 filter(#tds_TokenNotFound{} = V) -> V;
+
+%% woody errors
+filter({internal, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
+filter({external, Error, Details} = V) when is_atom(Error) and is_binary(Details) -> V;
+
+%% Known woody error reasons
+filter(<<"Deadline reached">> = V) -> V;
+filter(<<"partial response">> = V) -> V;
+filter(<<"thrift protocol read failed">> = V) -> V;
 
 %% common
 filter(V) when is_atom(V) -> V;
