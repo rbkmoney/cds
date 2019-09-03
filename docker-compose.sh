@@ -31,7 +31,7 @@ services:
       test: "riak-admin test"
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
   member:
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
     labels:
