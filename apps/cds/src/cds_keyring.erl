@@ -328,18 +328,11 @@ get_meta(KeyID) ->
 get_keyring() ->
     {ok, Opts} = application:get_env(cds, keyring),
     RootUrl    = maps:get(url, Opts),
-    ServerCN   = maps:get(server_cn, Opts),
-    CACert     = maps:get(cacertfile, Opts),
-    ClientCert = maps:get(certfile, Opts),
+    SslOptions = maps:get(ssl_options, Opts),
     TransOpts  = maps:get(transport_opts, Opts, #{}),
     ExtraOpts  = #{
         transport_opts => maps:merge(TransOpts, #{
-            ssl_options => [
-                {server_name_indication, ServerCN},
-                {verify,                 verify_peer},
-                {cacertfile,             CACert},
-                {certfile,               ClientCert}
-            ]
+            ssl_options => SslOptions
         })
     },
     WoodyContext1 = woody_context:new(),

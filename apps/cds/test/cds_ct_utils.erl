@@ -73,9 +73,12 @@ start_clear(Config) ->
             {shutdown_timeout, 0},
             {keyring, #{
                 url => <<"https://kds:8023">>,
-                server_cn => "Test Server",
-                cacertfile => ?file_path(Config, "ca.crt"),
-                certfile => ?file_path(Config, "client.pem"),
+                ssl_options => [
+                    {server_name_indication, "Test Server"},
+                    {verify, verify_peer},
+                    {cacertfile, ?file_path(Config, "ca.crt")},
+                    {certfile, ?file_path(Config, "client.pem")}
+                ],
                 transport_opts => #{
                     recv_timeout => 10000,
                     connect_timeout => 1000
