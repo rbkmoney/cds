@@ -86,12 +86,12 @@ start_clear(Config) ->
                 timeout => 10000
             }},
             {keyring_fetch_interval, 1000},
-            {health_checkers, [
-                {erl_health, disk,      ["/", 99]  },
-                {erl_health, cg_memory, [99]       },
-                {erl_health, service,   [<<"cds">>]},
-                {cds_health, keyring,   []}
-            ]}
+            {health_check, #{
+                disk    => {erl_health, disk     , ["/", 99]  },
+                memory  => {erl_health, cg_memory, [99]       },
+                service => {erl_health, service  , [<<"cds">>]},
+                keyring => {cds_health, keyring,   []         }
+            }}
         ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
     ,
     [
@@ -239,7 +239,7 @@ health_check(Count, C) ->
     case hackney:request(<<RootUrl/binary, "/health">>) of
         {ok, 200, _Headers, Ref} ->
             {ok, Body} = hackney:body(Ref),
-            #{<<"keyring_version">> := Version} = jsx:decode(Body, [return_maps]),
+            #{<<"keyring">> := #{<<"version">> := Version}} = jsx:decode(Body, [return_maps]),
             true = erlang:is_integer(Version),
             ok;
         _Error ->

@@ -8,12 +8,12 @@
 }.
 
 -spec keyring() ->
-    {ok, info()} | {error, 503, binary()}.
+    {passing, info()} | {critical, binary()}.
 
 keyring() ->
     case cds_keyring:get_version() of
         undefined ->
-            {error, 503, <<"Keyring is unavailable">>};
+            {critical, <<"Keyring is unavailable">>};
         Version ->
-            {ok, #{<<"keyring_version">> => Version}}
+            {passing, #{<<"version">> => Version}}
     end.
