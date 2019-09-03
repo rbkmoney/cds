@@ -76,6 +76,8 @@ clean_sessions(From, To, BatchSize, Continuation0) ->
         end
     catch
         throw:Reason ->
+            {error, Reason};
+        error:{woody_error, {_, Class, _}} = Reason when Class == resource_unavailable; Class == result_unknown ->
             {error, Reason}
     end.
 

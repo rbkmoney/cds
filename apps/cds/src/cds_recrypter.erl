@@ -54,27 +54,29 @@ handle_timeout(State = #{subject := Subject, continuation := Continuation0}) ->
 
 process_recrypting(Subject, BatchSize, Continuation) ->
     try
-        Intervals = cds_keyring_manager:get_outdated_keys(),
-        process_recrypting(Subject, Intervals, BatchSize, Continuation)
+        {Intervals, Meta} = cds_keyring:get_outdated_keys(),
+        process_recrypting(Subject, Intervals, BatchSize, Continuation, Meta)
     catch
         throw:Reason ->
+            {error, Reason};
+        error:{woody_error, {_, Class, _}} = Reason when Class == resource_unavailable; Class == result_unknown ->
             {error, Reason}
     end.
 
-process_recrypting(_, [], _, _) ->
+process_recrypting(_, [], _, _, _) ->
     {ok, done};
 
-process_recrypting(_, _, Left, Continuation) when
+process_recrypting(_, _, Left, Continuation, _) when
     Left =< 0
 ->
     {ok, more, Continuation};
 
-process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0) ->
+process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0, Meta) ->
     {Items, Continuation} = get_data_by_key_id_between(Subject, Interval, BatchSize, Continuation0),
     Count = length(Items),
     _ = logger:info("Got ~p ~s items to recrypt", [Count, Subject]),
-    _ = [recrypt_item(Subject, ItemID) || ItemID <- Items],
-    process_recrypting(Subject, Rest, BatchSize - Count, Continuation).
+    _ = [recrypt_item(Subject, ItemID, Meta) || ItemID <- Items],
+    process_recrypting(Subject, Rest, BatchSize - Count, Continuation, Meta).
 
 get_data_by_key_id_between(session, {From, To}, BatchSize, Continuation) ->
     cds_card_storage:get_sessions_by_key_id_between(From, To, BatchSize, Continuation);
@@ -82,9 +84,9 @@ get_data_by_key_id_between(session, {From, To}, BatchSize, Continuation) ->
 get_data_by_key_id_between(carddata, {From, To}, BatchSize, Continuation) ->
     cds_card_storage:get_tokens_by_key_id_between(From, To, BatchSize, Continuation).
 
-recrypt_item(Subject, ItemID) ->
+recrypt_item(Subject, ItemID, Meta) ->
     try
-        _ = recrypt(Subject, ItemID),
+        _ = recrypt(Subject, ItemID, Meta),
         _ = logger:debug("Recrypted ~s with id = ~s", [Subject, encode(Subject, ItemID)]),
         ok
     catch
@@ -94,15 +96,27 @@ recrypt_item(Subject, ItemID) ->
 
 encode(session, Session) ->
     cds_utils:encode_session(Session);
-
 encode(carddata, Token) ->
     cds_utils:encode_token(Token).
 
-recrypt(session, Session) ->
-    cds:update_session_data(Session, cds:get_session_data(Session));
+recrypt(Subject, ItemID, Meta) ->
+    {KeyID, Data} = get_data(Subject, ItemID),
+    case maps:get(KeyID, Meta) of
+        #{retired := true} ->
+            _ = logger:warning("Found ~p ~p encrypted with retired key ~p", [Subject, ItemID, KeyID]);
+        #{retired := false} ->
+            ok
+    end,
+    update_data(Subject, ItemID, Data).
 
-recrypt(carddata, Token) ->
-    CardData = cds:get_cardholder_data(Token),
+get_data(session, Session) ->
+    cds:get_session_data(Session);
+get_data(carddata, Token) ->
+    cds:get_cardholder_data(Token).
+
+update_data(session, Session, SessionData) ->
+    cds:update_session_data(Session, SessionData);
+update_data(carddata, Token, CardData) ->
     cds:update_cardholder_data(Token, CardData).
 
 get_interval() ->

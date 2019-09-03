@@ -18,7 +18,6 @@
         identdocstore_proto,
         erl_health,
         msgpack,
-        lib_combin,
         jose,
         cds_proto,
         tds_proto

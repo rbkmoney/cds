@@ -2,18 +2,24 @@
 
 -behaviour(supervisor).
 
--export([hash/2]).
+-export([hash/3]).
 -export([start_link/0]).
 -export([init/1]).
 -export([start_scrypt_port/0]).
 
+-export_type([scrypt_options/0]).
+-type scrypt_options() :: {
+    N :: integer(),
+    R :: integer(),
+    P :: integer()
+}.
+
 -define(DEFAULT_HASH_PROC_COUNT, 4).
 
--spec hash(binary(), binary()) -> Hash :: binary().
-hash(Plain, Salt) ->
+-spec hash(binary(), binary(), scrypt_options()) -> Hash :: binary().
+hash(Plain, Salt, {N, R, P}) ->
     Pids = [Child || {_, Child, _, _} <- supervisor:which_children(?MODULE), is_pid(Child)],
     Pid = lists:nth(rand:uniform(length(Pids)), Pids),
-    {N, R, P} = application:get_env(cds, scrypt_opts, {16384, 8, 1}),
     gen_server:call(Pid, {scrypt, Plain, Salt, N, R, P, 16}, infinity).
 
 -spec start_link() -> {ok, pid()} | {error, Reason :: any()}.

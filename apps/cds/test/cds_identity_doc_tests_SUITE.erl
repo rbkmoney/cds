@@ -12,7 +12,6 @@
 
 %% Tests
 
--export([init/1]).
 -export([put_passport/1]).
 -export([put_insurance_cert/1]).
 -export([assert_doc_stored/1]).
@@ -35,7 +34,7 @@ all() ->
         {group, all_groups}
     ].
 
--spec groups() -> [{atom(), list(), [atom()]}].
+-spec groups() -> [{atom(), list(), [atom() | {group, atom()}]}].
 groups() ->
     [
         {all_groups, [], [
@@ -49,12 +48,10 @@ groups() ->
             {group, basic_insurance_cert_lifecycle}
         ]},
         {basic_passport_lifecycle, [sequence], [
-            init,
             put_passport,
             assert_doc_stored
         ]},
         {basic_insurance_cert_lifecycle, [sequence], [
-            init,
             put_insurance_cert,
             assert_doc_stored
         ]}
@@ -72,8 +69,10 @@ init_per_group(Group, C) when
 ->
     C;
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_stash(C),
-    cds_ct_utils:start_clear(C1).
+    ok = cds_ct_utils:start_stash(),
+    C1 = cds_ct_utils:start_clear(C),
+    ok = cds_ct_keyring:ensure_init(C1),
+    C1.
 
 -spec end_per_group(atom(), config()) -> _.
 end_per_group(Group, C) when
@@ -91,29 +90,24 @@ end_per_group(_, C) ->
 %% Tests
 %%
 
-
--spec init(config()) -> any() | no_return().
-init(C) ->
-    cds_ct_keyring:init(C).
-
 -spec put_passport(config()) -> any() | no_return().
 put_passport(C) ->
     Doc = build_passport(),
     Token = cds_ident_doc_client:put_ident_doc(Doc, root_url(C)),
     true = erlang:is_binary(Token),
-    ok = cds_ct_utils:store([{token, Token}, {doc, Doc}], C).
+    ok = cds_ct_utils:store([{token, Token}, {doc, Doc}]).
 
 -spec put_insurance_cert(config()) -> any() | no_return().
 put_insurance_cert(C) ->
     Doc = build_insurance_cert(),
     Token = cds_ident_doc_client:put_ident_doc(Doc, root_url(C)),
     true = erlang:is_binary(Token),
-    ok = cds_ct_utils:store([{token, Token}, {doc, Doc}], C).
+    ok = cds_ct_utils:store([{token, Token}, {doc, Doc}]).
 
 -spec assert_doc_stored(config()) -> any() | no_return().
 assert_doc_stored(C) ->
-    Token = cds_ct_utils:lookup(token, C),
-    Doc = cds_ct_utils:lookup(doc, C),
+    Token = cds_ct_utils:lookup(token),
+    Doc = cds_ct_utils:lookup(doc),
     Doc = cds_ident_doc_client:get_ident_doc(Token, root_url(C)).
 
 %%

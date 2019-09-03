@@ -2,7 +2,7 @@
 
 -export([filter_fun_exceptions/1]).
 -export([raise/1]).
--export([raise_keyring_unavailable/1]).
+-export([raise_keyring_unavailable/0]).
 
 -export([map_validation_error/1]).
 
@@ -25,10 +25,10 @@ filter_fun_exceptions(Fun) ->
         end
     end.
 
--spec raise_keyring_unavailable(locked | not_initialized) ->
+-spec raise_keyring_unavailable() ->
     no_return().
-raise_keyring_unavailable(KeyringState) ->
-    woody_error:raise(system, {internal, resource_unavailable, get_details(KeyringState)}).
+raise_keyring_unavailable() ->
+    woody_error:raise(system, {internal, resource_unavailable, <<"Keyring is unavailable">>}).
 
 -spec raise(_) -> no_return().
 raise(Exception) ->
@@ -52,11 +52,6 @@ map_validation_error({invalid, Field, Check}) ->
 
 map_validation_check({length, _}) -> length;
 map_validation_check(Check) -> Check.
-
-get_details(locked) ->
-    <<"Keyring is locked">>;
-get_details(not_initialized) ->
-    <<"Keyring is not initialized">>.
 
 % Known safe errors
 filter_error_reason({hash_collision_detected, _Hash} = Reason) ->

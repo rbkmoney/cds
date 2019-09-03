@@ -17,7 +17,7 @@ get_namespaces() ->
 
 -spec put_token(token_id(), token_content()) -> ok.
 put_token(TokenId, TokenContent) ->
-    {KeyID, Key} = cds_keyring_manager:get_current_key(),
+    {KeyID, Key} = cds_keyring:get_current_key(),
     TokenData = encode_token_content(TokenContent, {KeyID, Key}),
     ok = cds_storage:put(
         ?TOKEN_NS,
@@ -37,5 +37,5 @@ encode_token_content(TokenContent, {KeyID, Key}) ->
     <<KeyID, Cipher/binary>>.
 
 decode_token_content(<<KeyID, Cipher/binary>>) ->
-    {KeyID, Key} = cds_keyring_manager:get_key(KeyID),
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     cds_crypto:decrypt(Key, Cipher).

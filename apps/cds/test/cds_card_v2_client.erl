@@ -52,7 +52,7 @@
 -spec get_card_data(cds:token(), woody:url()) ->
     card_data() | {error, card_data_not_found}.
 get_card_data(Token, RootUrl) ->
-    try cds_woody_client:call(card_v2, 'GetCardData', [Token], RootUrl) of
+    try call(card_v2, 'GetCardData', [Token], RootUrl) of
         EncodedCardData ->
             decode_card_data(EncodedCardData)
     catch
@@ -68,7 +68,7 @@ put_card_data(CardData, RootUrl) ->
 -spec put_card_data(card_data(), session_data() | undefined, woody:url()) ->
     put_card_data_result() | {error, {invalid_card_data, binary()}}.
 put_card_data(CardData, SessionData, RootUrl) ->
-    try cds_woody_client:call(card_v2, 'PutCardData',
+    try call(card_v2, 'PutCardData',
         [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
         #cds_PutCardDataResult{bank_card = BankCard, session_id = PaymentSessionId} ->
             #{
@@ -83,7 +83,7 @@ put_card_data(CardData, SessionData, RootUrl) ->
 -spec get_session_data(cds:session(), woody:url()) ->
     session_data() | {error, session_data_not_found}.
 get_session_data(Session, RootUrl) ->
-    try cds_woody_client:call(card_v2, 'GetSessionData', [Session], RootUrl) of
+    try call(card_v2, 'GetSessionData', [Session], RootUrl) of
         SessionData ->
             decode_session_data(SessionData)
     catch
@@ -94,7 +94,7 @@ get_session_data(Session, RootUrl) ->
 -spec put_card(card_data(), woody:url()) ->
     #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
-    try cds_woody_client:call(card_v2, 'PutCard', [encode_card_data(CardData)], RootUrl) of
+    try call(card_v2, 'PutCard', [encode_card_data(CardData)], RootUrl) of
         #cds_PutCardResult{bank_card = BankCard} ->
             #{
                 bank_card => decode_bank_card(BankCard)
@@ -107,7 +107,7 @@ put_card(CardData, RootUrl) ->
 -spec put_session(cds:session(), session_data(), woody:url()) ->
     ok.
 put_session(SessionID, SessionData, RootUrl) ->
-    cds_woody_client:call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
+    call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
 
 encode_card_data(
     #{
@@ -211,3 +211,6 @@ decode_session_data(
             value => Value
         }}
     }.
+
+call(Service, Method, Args, RootUrl) ->
+    cds_ct_utils:call(Service, Method, Args, RootUrl).

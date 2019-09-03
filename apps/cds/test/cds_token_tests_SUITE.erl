@@ -71,8 +71,8 @@ init_per_group(Group, C) when
 ->
     C;
 init_per_group(_, C) ->
-    C1 = cds_ct_utils:start_stash(C),
-    cds_ct_utils:start_clear(C1).
+    ok = cds_ct_utils:start_stash(),
+    cds_ct_utils:start_clear(C).
 
 -spec end_per_group(atom(), config()) -> _.
 end_per_group(Group, C) when
@@ -92,7 +92,7 @@ end_per_group(_, C) ->
 
 -spec init(config()) -> any() | no_return().
 init(C) ->
-    cds_ct_keyring:init(C).
+    cds_ct_keyring:ensure_init(C).
 
 -spec token_not_found(config()) -> any() | no_return().
 token_not_found(C) ->

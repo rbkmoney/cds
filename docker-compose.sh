@@ -15,6 +15,8 @@ services:
     depends_on:
       riakdb:
         condition: service_healthy
+      kds:
+        condition: service_healthy
 
   riakdb:
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
@@ -23,19 +25,14 @@ services:
     labels:
       - "com.basho.riak.cluster.name=riakkv"
     volumes:
-      - ./riak_user.conf:/etc/riak/user.conf:ro
+      - ./test/riak/user.conf:/etc/riak/user.conf:ro
     healthcheck:
       test: "riak-admin test"
       interval: 5s
       timeout: 5s
-      retries: 5
-
-  member1:
-    &member-node
+      retries: 20
+  member:
     image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
-    ports:
-      - "8087"
-      - "8098"
     labels:
       - "com.basho.riak.cluster.name=riakkv"
     links:
@@ -46,13 +43,20 @@ services:
       - CLUSTER_NAME=riakkv
       - COORDINATOR_NODE=riakdb
     volumes:
-      - ./riak_user.conf:/etc/riak/user.conf:ro
+      - ./test/riak/user.conf:/etc/riak/user.conf:ro
 
-  member2:
-    <<: *member-node
-
-  member3:
-    <<: *member-node
+  kds:
+    image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
+    command: /opt/kds/bin/kds foreground
+    volumes:
+      - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
+      - ./test/kds/ca.crt:/var/lib/kds/ca.crt:ro
+      - ./test/kds/server.pem:/var/lib/kds/server.pem:ro
+    healthcheck:
+      test: "curl http://localhost:8022/"
+      interval: 5s
+      timeout: 1s
+      retries: 20
 
 volumes:
   schemas:

@@ -26,8 +26,8 @@ handle_function_('GetToken', [TokenId], _Context, _opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#tds_TokenNotFound{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 handle_function_('PutToken', [TokenId, Token], _Context, _opts) ->
     try
@@ -35,6 +35,6 @@ handle_function_('PutToken', [TokenId, Token], _Context, _opts) ->
         ok = cds_token_storage:put_token(TokenId, TokenContent),
         {ok, ok}
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end.

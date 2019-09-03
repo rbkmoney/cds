@@ -44,8 +44,8 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                 })
         end
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('PutCard', [CardData], _Context, _Opts) ->
@@ -68,8 +68,8 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
                 })
         end
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
@@ -82,8 +82,8 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#cds_CardDataNotFound{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
@@ -92,8 +92,8 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
         ok = put_session(Session, OwnSessionData),
         {ok, ok}
     catch
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('GetSessionData', [Session], _Context, _Opts) ->
@@ -103,8 +103,8 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#cds_SessionDataNotFound{});
-        {invalid_status, Status} ->
-            cds_thrift_handler_utils:raise_keyring_unavailable(Status)
+        no_keyring ->
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end.
 
 %%
@@ -154,7 +154,7 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    CardholderData = cds:get_cardholder_data(Token),
+    {_, CardholderData} = cds:get_cardholder_data(Token),
     cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
@@ -170,7 +170,7 @@ put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).
 
 get_session_data(Session) ->
-    SessionData = cds:get_session_data(Session),
+    {_, SessionData} = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
 
 define_session_data(undefined, #cds_CardData{cvv = CVV}) ->
