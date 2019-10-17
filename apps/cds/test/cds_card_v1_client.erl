@@ -5,11 +5,12 @@
 
 -export([get_card_data/2]).
 -export([get_session_card_data/3]).
--export([put_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
 -export([put_card/2]).
 -export([put_session/3]).
+-export([get_test_credit_card/1]).
+-export([get_test_credit_card/2]).
 
 %%
 %% Internal types
@@ -77,11 +78,6 @@ get_session_card_data(Token, Session, RootUrl) ->
         #'CardDataNotFound'{} ->
             {error, session_data_not_found}
     end.
-
--spec put_card_data(card_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_card_data, binary()}}.
-put_card_data(CardData, RootUrl) ->
-    put_card_data(CardData, undefined, RootUrl).
 
 -spec put_card_data(card_data(), session_data() | undefined, woody:url()) ->
     put_card_data_result() | {error, {invalid_card_data, binary()}}.
@@ -245,3 +241,14 @@ decode_session_data(
 
 call(Service, Method, Args, RootUrl) ->
     cds_ct_utils:call(Service, Method, Args, RootUrl).
+
+-spec get_test_credit_card(binary() | undefined) -> card_data().
+
+get_test_credit_card(CVV) ->
+    Card = cds_card_v2_client:get_test_credit_card(CVV),
+    get_test_credit_card(Card, CVV).
+
+-spec get_test_credit_card(card_data(), binary() | undefined) -> card_data().
+
+get_test_credit_card(CardData, CVV) ->
+    CardData#{cvv => CVV}.

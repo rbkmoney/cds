@@ -22,9 +22,7 @@ handle_function(OperationID, Args, Context, Opts) ->
 
 handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
-    OwnSessionData = decode_session_data(
-        define_session_data(SessionData, CardData)
-    ),
+    OwnSessionData = decode_session_data(SessionData),
     try
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
@@ -138,8 +136,7 @@ encode_cardholder_data(#{
     #cds_CardData{
         pan             = PAN,
         exp_date        = #cds_ExpDate{month = Month, year = Year},
-        cardholder_name = CardholderName,
-        cvv             = <<>>
+        cardholder_name = CardholderName
     }.
 
 encode_session_data(#{auth_data := AuthData}) ->
@@ -172,8 +169,3 @@ put_session(Session, SessionData) ->
 get_session_data(Session) ->
     {_, SessionData} = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
-
-define_session_data(undefined, #cds_CardData{cvv = CVV}) ->
-    #cds_SessionData{auth_data = {card_security_code, #cds_CardSecurityCode{value = CVV}}};
-define_session_data(#cds_SessionData{} = SessionData, _CardData) ->
-    SessionData.

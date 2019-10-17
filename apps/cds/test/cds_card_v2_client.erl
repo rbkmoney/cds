@@ -4,11 +4,12 @@
 -include_lib("cds_proto/include/cds_proto_base_thrift.hrl").
 
 -export([get_card_data/2]).
--export([put_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
 -export([put_card/2]).
 -export([put_session/3]).
+-export([get_test_credit_card/1]).
+-export([get_test_credit_card/2]).
 
 %%
 %% Internal types
@@ -20,8 +21,7 @@
         month := integer(),
         year := integer()
     },
-    cardholder_name => binary() | undefined,
-    cvv => binary() | undefined
+    cardholder_name => binary() | undefined
 }.
 
 -type session_data() :: #{
@@ -59,11 +59,6 @@ get_card_data(Token, RootUrl) ->
         #cds_CardDataNotFound{} ->
             {error, card_data_not_found}
     end.
-
--spec put_card_data(card_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_card_data, binary()}}.
-put_card_data(CardData, RootUrl) ->
-    put_card_data(CardData, undefined, RootUrl).
 
 -spec put_card_data(card_data(), session_data() | undefined, woody:url()) ->
     put_card_data_result() | {error, {invalid_card_data, binary()}}.
@@ -123,8 +118,7 @@ encode_card_data(
             month = ExpDateMonth,
             year = ExpDateYear
         },
-        cardholder_name = maps:get(cardholder_name, CardData, undefined),
-        cvv = maps:get(cvv, CardData, undefined)
+        cardholder_name = maps:get(cardholder_name, CardData, undefined)
     }.
 
 encode_session_data(undefined) ->
@@ -173,8 +167,7 @@ decode_card_data(
             month = ExpDateMonth,
             year = ExpDateYear
         },
-        cardholder_name = CardHolderName,
-        cvv = CVV
+        cardholder_name = CardHolderName
     }) ->
     DecodedCardData = #{
         pan => Pan,
@@ -182,8 +175,7 @@ decode_card_data(
             month => ExpDateMonth,
             year => ExpDateYear
         },
-        cardholder_name => CardHolderName,
-        cvv => CVV
+        cardholder_name => CardHolderName
     },
     genlib_map:compact(DecodedCardData).
 
@@ -214,3 +206,21 @@ decode_session_data(
 
 call(Service, Method, Args, RootUrl) ->
     cds_ct_utils:call(Service, Method, Args, RootUrl).
+
+-spec get_test_credit_card(binary() | undefined) -> card_data().
+
+get_test_credit_card(CVV) ->
+    get_test_credit_card(
+    #{
+        pan => <<"5321301234567892">>,
+        exp_date => #{
+            month => 12,
+            year => 3000
+        },
+        cardholder_name => <<"Tony Stark">> %% temporarily hardcoded instead of saved
+    }, CVV).
+
+-spec get_test_credit_card(card_data(), binary() | undefined) -> card_data().
+
+get_test_credit_card(CardData, _CVV) ->
+    CardData.
