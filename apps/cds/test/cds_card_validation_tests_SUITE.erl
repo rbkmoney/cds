@@ -6,6 +6,7 @@
 -export([groups/0]).
 -export([full_card_data_validation/1]).
 -export([payment_system_detection/1]).
+-export([pan_only_card_data_validation/1]).
 
 %%
 
@@ -30,7 +31,8 @@ groups() ->
     [
         {card_data_validation, [parallel], [
             full_card_data_validation,
-            payment_system_detection
+            payment_system_detection,
+            pan_only_card_data_validation
         ]}
     ].
 
@@ -123,3 +125,17 @@ get_card_data_samples() ->
         }
         end
     || {Target, CN, SD} <- Samples].
+
+-spec pan_only_card_data_validation(config()) -> _.
+
+pan_only_card_data_validation(_C) ->
+    SD_CVV = #{auth_data => #{cvv => <<"345">>}},
+    MC = #{
+        cardnumber => <<"5321301234567892">>
+    },
+    {ok, #{
+        payment_system := mastercard,
+        iin            := <<"532130">>,
+        last_digits    := <<"7892">>
+    }} = cds_card_data:validate(MC, SD_CVV),
+    ok.
