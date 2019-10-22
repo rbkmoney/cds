@@ -176,17 +176,29 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    {_, CardholderData} = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshal_cardholder_data(CardholderData).
+    {_, CardNumberData, CardholderData} = cds:get_cardholder_data(Token),
+    fill_card_data(
+        cds_card_data:unmarshal_card_data(CardNumberData),
+        CardholderData).
+
+fill_card_data(CardData, undefined) ->
+    CardData;
+fill_card_data(CardData, CardholderData) ->
+    UnmarshaledCardholderData = cds_card_data:unmarshal_cardholder_data(CardholderData),
+    maps:merge(CardData, UnmarshaledCardholderData).
 
 put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data({
-        cds_card_data:marshal_cardholder_data(CardholderData),
+    cds:put_card_data(
+        cds_card_data:marshal_card_number(CardholderData),
+        cds_card_data:marshal_card_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
-    }).
+    ).
 
 put_card(CardholderData) ->
-    cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).
+    cds:put_card(
+        cds_card_data:marshal_card_number(CardholderData),
+        cds_card_data:marshal_card_data(CardholderData)
+    ).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).

@@ -10,7 +10,6 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([get_session_data/1]).
--export([put_card_data/7]).
 -export([put_card/4]).
 -export([put_session/4]).
 -export([delete_session/1]).
@@ -44,8 +43,12 @@ get_tokens_by_hash(Hash) ->
 
 -spec get_cardholder_data(cds:token()) -> cds:ciphertext() | no_return().
 get_cardholder_data(Token) ->
-    {CardData, _, _} = cds_storage:get(?TOKEN_NS, Token),
-    CardData.
+    case cds_storage:get(?TOKEN_NS, Token) of
+        {Data, undefined, _} ->
+            Data;
+        {Data, Meta, _} ->
+            {Data, Meta}
+    end.
 
 -spec get_session_data(cds:session()) -> cds:ciphertext() | no_return().
 get_session_data(Session) ->
@@ -61,29 +64,18 @@ get_session_data(Session) ->
 get_session_card_data(Token, Session) ->
     {get_cardholder_data(Token), get_session_data(Session)}.
 
--spec put_card_data(
-    cds:token(),
-    cds:session(),
-    cds:hash(),
-    CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphertext(),
-    cds_keyring:key_id(),
-    timestamp()
-) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
-    ok = put_card(Token, Hash, CardData, KeyID),
-    ok = put_session(Session, SessionData, KeyID, CreatedAt).
-
 -spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
     ok | no_return().
-put_card(Token, Hash, CardData, KeyID) ->
+put_card(Token, Hash, {CardData, CardMeta}, KeyID) ->
     ok = cds_storage:put(
         ?TOKEN_NS,
         Token,
         CardData,
-        undefined,
+        CardMeta,
         prepare_card_data_indexes(Hash, KeyID)
-    ).
+    );
+put_card(Token, Hash, CardData, KeyID) ->
+    put_card(Token, Hash, {CardData, undefined}, KeyID).
 
 -spec put_session(cds:session(), cds:ciphertext(), cds_keyring:key_id(), timestamp()) ->
     ok | no_return().
@@ -168,14 +160,17 @@ get_tokens(Limit, Continuation) ->
     cds_storage:get_keys(?TOKEN_NS, Limit, Continuation).
 
 -spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) -> ok.
-update_cardholder_data(Token, CardData, Hash, KeyID) ->
+
+update_cardholder_data(Token, {Data, Meta}, Hash, KeyID) ->
     ok = cds_storage:update(
         ?TOKEN_NS,
         Token,
-        CardData,
-        <<"">>,
+        Data,
+        Meta,
         prepare_card_data_indexes(Hash, KeyID)
-    ).
+    );
+update_cardholder_data(Token, CardData, Hash, KeyID) ->
+    update_cardholder_data(Token, {CardData, <<"">>}, Hash, KeyID) .
 
 -spec update_session_data(
     cds:session(),

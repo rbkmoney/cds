@@ -7,11 +7,12 @@
 -export([validate/1]).
 -export([validate/2]).
 
--export([marshal_cardholder_data/1]).
+-export([marshal_card_data/1]).
+-export([marshal_card_number/1]).
 -export([marshal_session_data/1]).
+-export([unmarshal_card_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
--export([unique/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
@@ -128,19 +129,18 @@ detect_payment_system(0, _) ->
 
 -type marshalled() :: binary() | {binary(), marshalled_metadata()}.
 
--spec marshal_cardholder_data(cardholder_data()) -> marshalled().
+-spec marshal_card_data(cardholder_data()) -> marshalled().
 
-marshal_cardholder_data(#{
-    cardnumber := CN,
-    exp_date   := {Month, Year},
-    cardholder := Cardholder
-}) ->
-    <<
-        (byte_size(CN)),
-        CN/binary,
-        Month:8, Year:16,
-        (marshal(cardholder, Cardholder))/binary
-    >>.
+marshal_card_data(CardData) ->
+    {
+        msgpack:pack(marshal(card_data, CardData)),
+        marshal(metadata, #{content_type => <<"application/msgpack">>, vsn => 1})
+    }.
+
+-spec marshal_card_number(cardholder_data()) -> marshalled().
+
+marshal_card_number(#{cardnumber := CN}) ->
+    << (byte_size(CN)), CN/binary >>.
 
 -spec marshal_session_data(session_data()) -> marshalled().
 
@@ -154,6 +154,10 @@ marshal(cardholder, V) when is_binary(V) ->
     V;
 marshal(cardholder, undefined) ->
     <<>>;
+marshal(exp_date, undefined) ->
+    nil;
+marshal(exp_date, {Month, Year}) ->
+    #{<<"month">> => Month, <<"year">> => Year};
 marshal(session_data, #{auth_data := AuthData}) ->
     #{<<"auth_data">> => marshal(auth_data, AuthData)};
 marshal(auth_data, #{type := cvv, value := Value}) ->
@@ -162,16 +166,35 @@ marshal(auth_data, #{type := '3ds', cryptogram := Cryptogram} = Data) ->
     ECI = genlib_map:get(eci, Data),
     genlib_map:compact(#{<<"type">> => <<"3ds">>, <<"cryptogram">> => Cryptogram, <<"eci">> => ECI});
 marshal(metadata, #{content_type := ContentType, vsn := VSN}) ->
-    #{<<"content_type">> => ContentType, <<"vsn">> => integer_to_binary(VSN)}.
+    #{<<"content_type">> => ContentType, <<"vsn">> => integer_to_binary(VSN)};
+marshal(card_data, CardData) ->
+    ExpDate = maps:get(exp_date, CardData, undefined),
+    Cardholder = maps:get(cardholder, CardData, undefined),
+    #{<<"exp_date">> => marshal(exp_date, ExpDate), <<"cardholder">> => marshal(cardholder, Cardholder)}.
+
+-spec unmarshal_card_data(marshalled()) -> cardholder_data().
+
+unmarshal_card_data(<<CNSize, CN:CNSize/binary, Rest/binary>>) ->
+    {ExpDate, Cardholder} = unmarshal_rest_card_data(Rest),
+    #{
+        cardnumber => CN,
+        exp_date   => ExpDate,
+        cardholder => Cardholder
+    }.
+
+unmarshal_rest_card_data(<<>>) ->
+    {undefined, undefined};
+unmarshal_rest_card_data(<< Month:8, Year:16, Cardholder/binary >>) ->
+    {{Month, Year}, Cardholder}.
 
 -spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
-unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardholder/binary>>) ->
-    #{
-        cardnumber => CN,
-        exp_date   => {Month, Year},
-        cardholder => unmarshal(cardholder, Cardholder)
-    }.
+unmarshal_cardholder_data({CardholderData, CardholderMeta}) ->
+    {ok, UnpackedCardholderData} = msgpack:unpack(CardholderData),
+    unmarshal_cardholder_data_(UnpackedCardholderData, unmarshal(metadata, CardholderMeta)).
+
+unmarshal_cardholder_data_(CardholderData, #{content_type := <<"application/msgpack">>, vsn := VSN}) ->
+    unmarshal({card_data, VSN}, CardholderData).
 
 -spec unmarshal_session_data(marshalled()) -> session_data().
 
@@ -188,6 +211,10 @@ unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
     V;
 unmarshal(cardholder, <<>>) ->
     undefined;
+unmarshal(exp_date, nil) ->
+    undefined;
+unmarshal(exp_date, #{<<"month">> := Month, <<"year">> := Year}) ->
+    {Month, Year};
 unmarshal({session_data, 1}, #{<<"auth_data">> := AuthData}) ->
     #{auth_data => unmarshal(auth_data, AuthData)};
 unmarshal(auth_data, #{<<"type">> := <<"cvv">>, <<"value">> := Value}) ->
@@ -196,12 +223,12 @@ unmarshal(auth_data, #{<<"type">> := <<"3ds">>, <<"cryptogram">> := Cryptogram} 
     ECI = genlib_map:get(<<"eci">>, Data),
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI});
 unmarshal(metadata, #{<<"content_type">> := ContentType, <<"vsn">> := VSN}) ->
-    #{content_type => ContentType, vsn => binary_to_integer(VSN)}.
-
--spec unique(binary()) -> binary().
-
-unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
-    <<CNSize, CN:CNSize/binary, Month:8, Year:16>>.
+    #{content_type => ContentType, vsn => binary_to_integer(VSN)};
+unmarshal({card_data, 1}, #{<<"exp_date">> := ExpDate, <<"cardholder">> := Cardholder}) ->
+    #{
+        exp_date   => unmarshal(exp_date, ExpDate),
+        cardholder => unmarshal(cardholder, Cardholder)
+    }.
 
 %%
 

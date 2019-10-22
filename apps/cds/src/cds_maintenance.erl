@@ -46,8 +46,8 @@ refresh_cardholder_encryption() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_tokens(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
-        {_, CardData} = cds:get_cardholder_data(Key),
-        cds:update_cardholder_data(Key, CardData)
+        {_, CardNumber, CardData} = cds:get_cardholder_data(Key),
+        cds:update_cardholder_data(Key, CardNumber, CardData)
     end,
     refresh(Getter, Refresher).
 

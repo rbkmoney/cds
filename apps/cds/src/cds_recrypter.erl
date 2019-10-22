@@ -99,25 +99,22 @@ encode(session, Session) ->
 encode(carddata, Token) ->
     cds_utils:encode_token(Token).
 
-recrypt(Subject, ItemID, Meta) ->
-    {KeyID, Data} = get_data(Subject, ItemID),
+recrypt(session, Session, Meta) ->
+    {KeyID, SessionData} = cds:get_session_data(Session),
+    warn_retired_key(session, KeyID, Session, Meta),
+    cds:update_session_data(Session, SessionData);
+recrypt(carddata, Token, Meta) ->
+    {KeyID, CardNumber, CardData} = cds:get_cardholder_data(Token),
+    warn_retired_key(carddata, KeyID, Token, Meta),
+    cds:update_cardholder_data(Token, CardNumber, CardData).
+
+warn_retired_key(Subject, KeyID, ItemID, Meta) ->
     case maps:get(KeyID, Meta) of
         #{retired := true} ->
             _ = logger:warning("Found ~p ~p encrypted with retired key ~p", [Subject, ItemID, KeyID]);
         #{retired := false} ->
             ok
-    end,
-    update_data(Subject, ItemID, Data).
-
-get_data(session, Session) ->
-    cds:get_session_data(Session);
-get_data(carddata, Token) ->
-    cds:get_cardholder_data(Token).
-
-update_data(session, Session, SessionData) ->
-    cds:update_session_data(Session, SessionData);
-update_data(carddata, Token, CardData) ->
-    cds:update_cardholder_data(Token, CardData).
+    end.
 
 get_interval() ->
     maps:get(interval, get_config(), ?DEFAULT_INTERVAL).
