@@ -13,6 +13,7 @@
 -export([unmarshal_card_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
+-export([unique/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
@@ -120,6 +121,18 @@ detect_payment_system(Size, CardNumber) when Size > 0 ->
     end;
 detect_payment_system(0, _) ->
     {error, unrecognized}.
+
+-spec unique(cds:plaintext()) -> binary().
+
+% Old format data
+unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
+    <<CNSize, CN:CNSize/binary, Month:8, Year:16>>;
+% New format data - card number only
+unique(<<CNSize, CN:CNSize/binary>>) ->
+    <<CNSize, CN:CNSize/binary>>;
+% New format data - expiration date and cardholder with meta
+unique({Data, _Meta}) ->
+    Data.
 
 %%
 

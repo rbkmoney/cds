@@ -141,9 +141,10 @@ put_card(MarshalledCardNumber, MarshalledCardData, CurrentKey, Meta) ->
     CardDataToken = put_card_data_(CurrentKey, Meta, MarshalledCardData),
     cds_utils:merge_tokens(CardNumberToken, CardDataToken).
 
-put_card_number({KeyID, Key} = CurrentKey, Meta, Data) ->
-    {Token, Hash} = find_or_create_token(KeyID, Key, Meta, Data),
-    EncryptedCardData = encrypt(Data, CurrentKey),
+put_card_number({KeyID, Key} = CurrentKey, Meta, MarshalledCardData) ->
+    UniqueCardData = cds_card_data:unique(MarshalledCardData),
+    {Token, Hash} = find_or_create_token(KeyID, Key, Meta, UniqueCardData),
+    EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
         Hash,
@@ -154,8 +155,9 @@ put_card_number({KeyID, Key} = CurrentKey, Meta, Data) ->
 
 put_card_data_(_CurrentKey, _Meta, undefined) ->
     <<>>;
-put_card_data_({KeyID, Key} = CurrentKey, Meta, {Data, _Meta} = MarshalledCardData) ->
-    {Token, Hash} = find_or_create_token(KeyID, Key, Meta, Data),
+put_card_data_({KeyID, Key} = CurrentKey, Meta, MarshalledCardData) ->
+    UniqueCardData = cds_card_data:unique(MarshalledCardData),
+    {Token, Hash} = find_or_create_token(KeyID, Key, Meta, UniqueCardData),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
@@ -182,16 +184,11 @@ get_session_data(Session) ->
     decrypt(Encrypted).
 
 -spec update_cardholder_data(token(), plaintext()) -> ok.
-update_cardholder_data(Token, {Data, _} = CardData) ->
+update_cardholder_data(Token, CardData) ->
     {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
-    Hash = cds_hash:hash(Data, Key, scrypt_options(Meta)),
+    Hash = cds_hash:hash(cds_card_data:unique(CardData), Key, scrypt_options(Meta)),
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
-    cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID);
-update_cardholder_data(Token, Data) ->
-    {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
-    Hash = cds_hash:hash(Data, Key, scrypt_options(Meta)),
-    EncryptedCardData = encrypt(Data, {KeyID, Key}),
-    cds_card_storage:update_cardholder_data(Token, {EncryptedCardData, undefined}, Hash, KeyID).
+    cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID).
 
 -spec update_session_data(session(), plaintext()) -> ok.
 update_session_data(Session, SessionData) ->
@@ -266,10 +263,12 @@ session() ->
 
 is_card_data_equal([Token | OtherTokens]) ->
     {_, FirstData} = get_cardholder_data(Token),
+    FirstUniqueData = cds_card_data:unique(FirstData),
     lists:all(
         fun(T) ->
               {_, OtherData} = get_cardholder_data(T),
-            FirstData =:= OtherData
+            OtherUniqueData = cds_card_data:unique(OtherData),
+            FirstUniqueData =:= OtherUniqueData
         end,
         OtherTokens
     ).

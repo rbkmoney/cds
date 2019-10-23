@@ -176,7 +176,9 @@ update_cardholder_data(Token, {Data, Meta}, Hash, KeyID) ->
         Data,
         Meta,
         prepare_card_data_indexes(Hash, KeyID)
-    ).
+    );
+update_cardholder_data(Token, Data, Hash, KeyID) ->
+    update_cardholder_data(Token, {Data, undefined}, Hash, KeyID).
 
 -spec update_session_data(
     cds:session(),
