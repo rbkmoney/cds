@@ -124,15 +124,10 @@ detect_payment_system(0, _) ->
 
 -spec unique(cds:plaintext()) -> binary().
 
-% Old format data
-unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
-    <<CNSize, CN:CNSize/binary, Month:8, Year:16>>;
-% New format data - card number only
-unique(<<CNSize, CN:CNSize/binary>>) ->
-    <<CNSize, CN:CNSize/binary>>;
-% New format data - expiration date and cardholder with meta
 unique({Data, _Meta}) ->
-    Data.
+    Data;
+unique(Bin) when is_binary(Bin) ->
+    Bin.
 
 %%
 
