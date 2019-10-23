@@ -596,12 +596,14 @@ recrypt(C) ->
         cds_card_data:marshal_session_data(SessionData3DS)
     ),
 
-    {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
-    <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
+    {EncryptedCardNumberCVV0, EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
+    <<KeyID0, _/binary>> = EncryptedCardNumberCVV0,
+    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedCardDataCVV0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
 
-    {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
-    <<KeyID0, _/binary>> = EncryptedCardData3DS0,
+    {EncryptedCardNumber3DS0, EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
+    <<KeyID0, _/binary>> = EncryptedCardNumber3DS0,
+    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
 
 
@@ -615,12 +617,14 @@ recrypt(C) ->
     _ = timer:sleep(Interval * 2 + KeyringFetchInterval * 2),
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
-    {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
-    <<KeyID, _/binary>> = EncryptedCardDataCVV,
+    {EncryptedCardNumberCVV, EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
+    <<KeyID, _/binary>> = EncryptedCardNumberCVV,
+    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedCardDataCVV,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
 
-    {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
-    <<KeyID, _/binary>> = EncryptedCardData3DS,
+    {EncryptedCardNumber3DS, EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
+    <<KeyID, _/binary>> = EncryptedCardNumber3DS,
+    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedCardData3DS,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
 
 %%

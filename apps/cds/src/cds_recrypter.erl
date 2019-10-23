@@ -104,9 +104,9 @@ recrypt(session, Session, Meta) ->
     warn_retired_key(session, KeyID, Session, Meta),
     cds:update_session_data(Session, SessionData);
 recrypt(carddata, Token, Meta) ->
-    {KeyID, CardNumber, CardData} = cds:get_cardholder_data(Token),
+    {KeyID, Data, _} = cds:get_cardholder_data(Token),
     warn_retired_key(carddata, KeyID, Token, Meta),
-    cds:update_cardholder_data(Token, CardNumber, CardData).
+    cds:update_cardholder_data(Token, Data).
 
 warn_retired_key(Subject, KeyID, ItemID, Meta) ->
     case maps:get(KeyID, Meta) of

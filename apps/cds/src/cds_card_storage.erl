@@ -60,9 +60,17 @@ get_session_data(Session) ->
     end.
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
-    {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
-get_session_card_data(Token, Session) ->
-    {get_cardholder_data(Token), get_session_data(Session)}.
+    {CardData :: cds:ciphertext(), CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
+get_session_card_data(<< CardNumberToken:16/binary, CardDataToken/binary >>, Session) ->
+    CardNumberData = get_cardholder_data(CardNumberToken),
+    SessionData = get_session_data(Session),
+    case CardDataToken of
+        <<>> ->
+            {CardNumberData, undefined, SessionData};
+        CardDataToken ->
+            CardData = get_cardholder_data(CardDataToken),
+            {CardNumberData, CardData, SessionData}
+    end.
 
 -spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
     ok | no_return().
@@ -168,9 +176,7 @@ update_cardholder_data(Token, {Data, Meta}, Hash, KeyID) ->
         Data,
         Meta,
         prepare_card_data_indexes(Hash, KeyID)
-    );
-update_cardholder_data(Token, CardData, Hash, KeyID) ->
-    update_cardholder_data(Token, {CardData, <<"">>}, Hash, KeyID) .
+    ).
 
 -spec update_session_data(
     cds:session(),
