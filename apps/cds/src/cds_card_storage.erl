@@ -61,11 +61,12 @@ get_session_data(Session) ->
 
 -spec get_session_card_data(cds:token(), cds:session()) ->
     {CardData :: cds:ciphertext(), CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
-get_session_card_data(<< CardNumberToken:16/binary, CardDataToken/binary >>, Session) ->
+get_session_card_data(Token, Session) ->
+    {CardNumberToken, CardDataToken} = cds_utils:split_token(Token),
     CardNumberData = get_cardholder_data(CardNumberToken),
     SessionData = get_session_data(Session),
     case CardDataToken of
-        <<>> ->
+        undefined ->
             {CardNumberData, undefined, SessionData};
         CardDataToken ->
             CardData = get_cardholder_data(CardDataToken),
