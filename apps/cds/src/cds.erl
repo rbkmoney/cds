@@ -199,7 +199,10 @@ update_cardholder_data(Token, {Data, _} = CardData) ->
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_card_storage:update_cardholder_data(Token, EncryptedCardData, Hash, KeyID);
 update_cardholder_data(Token, Data) ->
-    update_cardholder_data(Token, {Data, <<"">>}).
+    {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
+    Hash = cds_hash:hash(Data, Key, scrypt_options(Meta)),
+    EncryptedCardData = encrypt(Data, {KeyID, Key}),
+    cds_card_storage:update_cardholder_data(Token, {EncryptedCardData, undefined}, Hash, KeyID).
 
 -spec update_session_data(session(), plaintext()) -> ok.
 update_session_data(Session, SessionData) ->

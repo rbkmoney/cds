@@ -152,12 +152,12 @@ groups() ->
             unlock
         ]},
         {session_management, [sequence], [
-%%            init,
-%%            lock,
-%%            unlock,
-%%            session_cleaning,
-%%            refresh_sessions,
-%%            recrypt
+            init,
+            lock,
+            unlock,
+            session_cleaning,
+            refresh_sessions,
+            recrypt
         ]},
         {hash_collision_check, [parallel, {repeat, 2}], [
             put_card_data,
