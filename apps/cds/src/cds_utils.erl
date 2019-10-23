@@ -7,6 +7,8 @@
 -export([encode_token/1]).
 -export([decode_session/1]).
 -export([encode_session/1]).
+-export([split_token/1]).
+-export([merge_tokens/2]).
 
 -spec current_time() -> pos_integer().
 current_time() ->
@@ -47,6 +49,19 @@ calc_padding(Size, N) ->
         _ ->
             N * (Size div N + 1)
     end.
+
+-spec split_token(cds:token()) -> {cds:token(), cds:token() | undefined}.
+split_token(<< Token1:16/binary, Token2/binary >>) ->
+    case Token2 of
+        <<>> ->
+            {Token1, undefined};
+        Token2 ->
+            {Token1, Token2}
+    end.
+
+-spec merge_tokens(cds:token(), cds:token()) -> cds:token().
+merge_tokens(Token1, Token2) ->
+    << Token1/binary, Token2/binary  >>.
 
 % test
 

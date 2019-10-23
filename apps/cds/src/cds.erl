@@ -117,21 +117,10 @@ stop(_State) ->
 %% Storage operations
 %%
 
--spec get_cardholder_data(token()) -> {cds_keyring:key_id(), plaintext(), plaintext()}.
-get_cardholder_data(<< CardNumberToken:16/binary, CardDataToken/binary >>) ->
-    {KeyId, CardNumberData} = get_card_data(CardNumberToken),
-    case CardDataToken of
-        <<>> ->
-            {KeyId, CardNumberData, undefined};
-        CardDataToken ->
-            {KeyId, CardData} = get_card_data(CardDataToken),
-            {KeyId, CardNumberData, CardData}
-    end.
-
-get_card_data(Token) ->
+-spec get_cardholder_data(token()) -> {cds_keyring:key_id(), plaintext()}.
+get_cardholder_data(Token) ->
     Encrypted = cds_card_storage:get_cardholder_data(Token),
     decrypt(Encrypted).
-
 
 -spec put_card_data(plaintext(), plaintext(), plaintext()) -> {token(), session()}.
 put_card_data(MarshalledCardNumber, MarshalledCardData, MarshalledSessionData) ->
@@ -150,7 +139,7 @@ put_card(MarshalledCardNumber, MarshalledCardData) ->
 put_card(MarshalledCardNumber, MarshalledCardData, CurrentKey, Meta) ->
     CardNumberToken = put_card_number(CurrentKey, Meta, MarshalledCardNumber),
     CardDataToken = put_card_data_(CurrentKey, Meta, MarshalledCardData),
-    << CardNumberToken/binary, CardDataToken/binary  >>.
+    cds_utils:merge_tokens(CardNumberToken, CardDataToken).
 
 put_card_number({KeyID, Key} = CurrentKey, Meta, Data) ->
     {Token, Hash} = find_or_create_token(KeyID, Key, Meta, Data),
@@ -276,10 +265,10 @@ session() ->
     crypto:strong_rand_bytes(16).
 
 is_card_data_equal([Token | OtherTokens]) ->
-    {_, FirstData, _} = get_cardholder_data(Token),
+    {_, FirstData} = get_cardholder_data(Token),
     lists:all(
         fun(T) ->
-              {_, OtherData, _} = get_cardholder_data(T),
+              {_, OtherData} = get_cardholder_data(T),
             FirstData =:= OtherData
         end,
         OtherTokens
