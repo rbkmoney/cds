@@ -339,7 +339,7 @@ put_card_data(C) ->
         },
         session_id := Session
     } = CDSCardClient:put_card_data(
-        CDSCardClient:get_test_credit_card(undefined),
+        CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(?CVV)),
         root_url(C)
     ),
@@ -350,7 +350,7 @@ put_card_data(C) ->
 get_card_data(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_credit_card(<<>>),
+        CDSCardClient:get_test_card(<<>>),
         CDSCardClient:get_card_data(
             cds_ct_utils:lookup(token),
             root_url(C)
@@ -382,7 +382,7 @@ put_card(C) ->
             token := Token
         }
     } = CDSCardClient:put_card(CardData, root_url(C)),
-    CardData2 = CDSCardClient:get_test_credit_card(CardData, <<>>),
+    CardData2 = CDSCardClient:get_test_card(CardData, <<>>),
     ?assertEqual(CardData2, CDSCardClient:get_card_data(Token, root_url(C))).
 
 -spec put_session(config()) -> _.
@@ -404,7 +404,7 @@ put_card_data_3ds(C) ->
         },
         session_id := Session
     } = CDSCardClient:put_card_data(
-        CDSCardClient:get_test_credit_card(undefined),
+        CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?AUTH_3DS),
         root_url(C)
     ),
@@ -415,7 +415,7 @@ put_card_data_3ds(C) ->
 get_card_data_3ds(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_credit_card(<<>>),
+        CDSCardClient:get_test_card(<<>>),
         CDSCardClient:get_card_data(cds_ct_utils:lookup(token), root_url(C))
     ).
 
@@ -439,7 +439,7 @@ get_session_data_backward_compatibilty(C) ->
 get_session_card_data_backward_compatibilty(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_credit_card(?CVV),
+        CDSCardClient:get_test_card(?CVV),
         CDSCardClient:get_session_card_data(
             cds_ct_utils:lookup(token),
             cds_ct_utils:lookup(session),
@@ -469,7 +469,7 @@ put_card_data_unavailable(C) ->
     CDSCardClient = config(cds_storage_client, C),
     try
         CDSCardClient:put_card_data(
-            CDSCardClient:get_test_credit_card(undefined),
+            CDSCardClient:get_test_card(undefined),
             ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
         )
     catch
@@ -483,7 +483,7 @@ put_card_data_3ds_unavailable(C) ->
     CDSCardClient = config(cds_storage_client, C),
     try
         CDSCardClient:put_card_data(
-            CDSCardClient:get_test_credit_card(undefined),
+            CDSCardClient:get_test_card(undefined),
             ?SESSION_DATA(?AUTH_3DS), root_url(C)
         )
     catch
@@ -497,7 +497,7 @@ put_card_data_no_member(C) ->
     CDSCardClient = config(cds_storage_client, C),
     try
         CDSCardClient:put_card_data(
-            CDSCardClient:get_test_credit_card(undefined),
+            CDSCardClient:get_test_card(undefined),
             ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
         )
     catch
@@ -515,12 +515,12 @@ session_cleaning(C) ->
         },
         session_id := Session
     } = CDSCardClient:put_card_data(
-        CDSCardClient:get_test_credit_card(undefined),
+        CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
     ),
 
     ?assertEqual(
-        CDSCardClient:get_test_credit_card(<<>>),
+        CDSCardClient:get_test_card(<<>>),
         CDSCardClient:get_card_data(Token, root_url(C))
     ),
     ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(Session, root_url(C)),
@@ -533,7 +533,7 @@ session_cleaning(C) ->
     ok = timer:sleep(Lifetime * 1000 + Interval * 2),
     _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_data(Session, root_url(C))),
     _ = ?assertEqual(
-        CDSCardClient:get_test_credit_card(<<>>),
+        CDSCardClient:get_test_card(<<>>),
         CDSCardClient:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
@@ -546,7 +546,7 @@ refresh_sessions(C) ->
         },
         session_id := Session
     } = CDSCardClient:put_card_data(
-        CDSCardClient:get_test_credit_card(undefined),
+        CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(<<"345">>)), root_url(C)
     ),
 
@@ -568,7 +568,7 @@ refresh_sessions(C) ->
 
     _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_data(Session, root_url(C))),
     _ = ?assertEqual(
-        CDSCardClient:get_test_credit_card(<<>>),
+        CDSCardClient:get_test_card(<<>>),
         CDSCardClient:get_card_data(Token, root_url(C))
     ).
 

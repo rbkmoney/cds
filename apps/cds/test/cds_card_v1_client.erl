@@ -9,8 +9,8 @@
 -export([get_session_data/2]).
 -export([put_card/2]).
 -export([put_session/3]).
--export([get_test_credit_card/1]).
--export([get_test_credit_card/2]).
+-export([get_test_card/1]).
+-export([get_test_card/2]).
 
 %%
 %% Internal types
@@ -242,13 +242,13 @@ decode_session_data(
 call(Service, Method, Args, RootUrl) ->
     cds_ct_utils:call(Service, Method, Args, RootUrl).
 
--spec get_test_credit_card(binary() | undefined) -> card_data().
+-spec get_test_card(binary() | undefined) -> card_data().
 
-get_test_credit_card(CVV) ->
-    Card = cds_card_v2_client:get_test_credit_card(CVV),
-    get_test_credit_card(Card, CVV).
+get_test_card(CVV) ->
+    Card = cds_card_v2_client:get_test_card(CVV),
+    get_test_card(Card, CVV).
 
--spec get_test_credit_card(card_data(), binary() | undefined) -> card_data().
+-spec get_test_card(card_data(), binary() | undefined) -> card_data().
 
-get_test_credit_card(CardData, CVV) ->
+get_test_card(CardData, CVV) ->
     CardData#{cvv => CVV}.
