@@ -267,8 +267,8 @@ is_card_data_equal([Token | OtherTokens]) ->
     lists:all(
         fun(T) ->
               {_, OtherData} = get_cardholder_data(T),
-            OtherUniqueData = cds_card_data:unique(OtherData),
-            FirstUniqueData =:= OtherUniqueData
+              OtherUniqueData = cds_card_data:unique(OtherData),
+              FirstUniqueData =:= OtherUniqueData
         end,
         OtherTokens
     ).
