@@ -23,6 +23,7 @@
 -export([get_session_data_3ds/1]).
 -export([get_session_data_backward_compatibilty/1]).
 -export([get_session_card_data_backward_compatibilty/1]).
+-export([get_card_data_backward_compatibilty/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
 -export([refresh_sessions/1]).
@@ -111,7 +112,8 @@ groups() ->
                 {basic_lifecycle, [sequence], [
                     init,
                     put_card_data,
-                    get_session_card_data_backward_compatibilty
+                    get_session_card_data_backward_compatibilty,
+                    get_card_data_backward_compatibilty
                 ]}
             ]}
         ]},
@@ -446,6 +448,55 @@ get_session_card_data_backward_compatibilty(C) ->
             root_url(C)
         )
     ).
+
+-spec get_card_data_backward_compatibilty(config()) -> _.
+
+%% This test emulates old card data structure for
+%% test backward compatibility with new code
+get_card_data_backward_compatibilty(C) ->
+    CardData = #{
+        pan => <<"5321301234567892">>,
+        exp_date => #{month => 12,year => 3000},
+        cardholder_name => <<"Tony Stark">>,
+        cvv => <<>>
+    },
+    MarshalledCardData = marshal_cardholder_data(CardData),
+    {{KeyId, Key} = CurrentKey, CurrentKeyMeta} = cds_keyring:get_current_key_with_meta(),
+    UniqueCardData = unique_card_data(MarshalledCardData),
+    Hash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
+    Token = crypto:strong_rand_bytes(16),
+    EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
+    ok = cds_card_storage:put_card(
+        Token,
+        Hash,
+        EncryptedCardData,
+        KeyId
+    ),
+
+    CDSCardClient = config(cds_storage_client, C),
+    ?assertEqual(
+        CardData,
+        CDSCardClient:get_card_data(cds_utils:encode_token(Token), root_url(C))
+    ).
+
+marshal_cardholder_data(#{
+    pan := CN,
+    exp_date := #{month := Month, year := Year},
+    cardholder_name := Cardholder
+}) ->
+    <<
+        (byte_size(CN)),
+        CN/binary,
+        Month:8, Year:16,
+        Cardholder/binary
+    >>.
+
+unique_card_data(<< CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary >>) ->
+    << CNSize, CN/binary, Month:8, Year:16 >>.
+
+encrypt(Plain, {KeyID, Key}) ->
+    Cipher = cds_crypto:encrypt(Key, Plain),
+    <<KeyID, Cipher/binary>>.
 
 -spec get_card_data_unavailable(config()) -> _.
 
