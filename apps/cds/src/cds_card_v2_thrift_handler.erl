@@ -111,14 +111,23 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 
 decode_card_data(#cds_CardData{
     pan             = PAN,
-    exp_date        = #cds_ExpDate{month = Month, year = Year},
+    exp_date        = ExpDate,
     cardholder_name = CardholderName
 }) ->
     #{
         cardnumber => PAN,
-        exp_date   => {Month, Year},
+        exp_date   => decode_exp_date(ExpDate),
         cardholder => CardholderName
     }.
+
+decode_exp_date(undefined) ->
+    undefined;
+decode_exp_date(
+    #cds_ExpDate{
+        month = Month,
+        year = Year
+    }) ->
+    {Month, Year}.
 
 decode_session_data(#cds_SessionData{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
@@ -130,13 +139,21 @@ decode_auth_data({auth_3ds, #cds_Auth3DS{cryptogram = Cryptogram, eci = ECI}}) -
 
 encode_cardholder_data(#{
     cardnumber := PAN,
-    exp_date   := {Month, Year},
+    exp_date   := ExpDate,
     cardholder := CardholderName
 }) ->
     #cds_CardData{
         pan             = PAN,
-        exp_date        = #cds_ExpDate{month = Month, year = Year},
+        exp_date        = encode_exp_date(ExpDate),
         cardholder_name = CardholderName
+    }.
+
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date({Month, Year}) ->
+    #cds_ExpDate{
+        month = Month,
+        year = Year
     }.
 
 encode_session_data(#{auth_data := AuthData}) ->

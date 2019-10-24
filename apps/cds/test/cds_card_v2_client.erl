@@ -104,22 +104,26 @@ put_card(CardData, RootUrl) ->
 put_session(SessionID, SessionData, RootUrl) ->
     call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
 
-encode_card_data(
-    #{
-        pan := Pan,
-        exp_date := #{
-            month := ExpDateMonth,
-            year := ExpDateYear
-        }
-    } = CardData) ->
+encode_card_data(#{pan := Pan} = CardData) ->
     #cds_CardData{
         pan = Pan,
-        exp_date = #cds_ExpDate{
-            month = ExpDateMonth,
-            year = ExpDateYear
-        },
+        exp_date = encode_exp_date(CardData),
         cardholder_name = maps:get(cardholder_name, CardData, undefined)
     }.
+
+encode_exp_date(CardData) ->
+    case maps:get(exp_date, CardData, undefined) of
+        undefined ->
+            undefined;
+        #{
+            month := ExpDateMonth,
+            year := ExpDateYear
+        } ->
+            #cds_ExpDate{
+                month = ExpDateMonth,
+                year = ExpDateYear
+            }
+    end.
 
 encode_session_data(undefined) ->
     undefined;
@@ -163,21 +167,27 @@ decode_bank_card(
 decode_card_data(
     #cds_CardData{
         pan = Pan,
-        exp_date = #cds_ExpDate{
-            month = ExpDateMonth,
-            year = ExpDateYear
-        },
+        exp_date = ExpDate,
         cardholder_name = CardHolderName
     }) ->
     DecodedCardData = #{
         pan => Pan,
-        exp_date => #{
-            month => ExpDateMonth,
-            year => ExpDateYear
-        },
+        exp_date => decode_exp_date(ExpDate),
         cardholder_name => CardHolderName
     },
     genlib_map:compact(DecodedCardData).
+
+decode_exp_date(undefined) ->
+    undefined;
+decode_exp_date(
+    #cds_ExpDate{
+        month = ExpDateMonth,
+        year = ExpDateYear
+    }) ->
+    #{
+        month => ExpDateMonth,
+        year => ExpDateYear
+    }.
 
 decode_session_data(
     #cds_SessionData{
@@ -212,12 +222,7 @@ call(Service, Method, Args, RootUrl) ->
 get_test_card(CVV) ->
     get_test_card(
     #{
-        pan => <<"5321301234567892">>,
-        exp_date => #{
-            month => 12,
-            year => 3000
-        },
-        cardholder_name => <<"Tony Stark">> %% temporarily hardcoded instead of saved
+        pan => <<"5321301234567892">>
     }, CVV).
 
 -spec get_test_card(card_data(), binary() | undefined) -> card_data().

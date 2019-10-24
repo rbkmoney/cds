@@ -163,7 +163,7 @@ marshal(cardholder, V) when is_binary(V) ->
 marshal(cardholder, undefined) ->
     <<>>;
 marshal(exp_date, undefined) ->
-    nil;
+    <<>>;
 marshal(exp_date, {Month, Year}) ->
     #{<<"month">> => Month, <<"year">> => Year};
 marshal(session_data, #{auth_data := AuthData}) ->
@@ -219,7 +219,7 @@ unmarshal(cardholder, V) when is_binary(V), V =/= <<>> ->
     V;
 unmarshal(cardholder, <<>>) ->
     undefined;
-unmarshal(exp_date, nil) ->
+unmarshal(exp_date, <<>>) ->
     undefined;
 unmarshal(exp_date, #{<<"month">> := Month, <<"year">> := Year}) ->
     {Month, Year};

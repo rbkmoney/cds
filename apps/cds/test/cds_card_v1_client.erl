@@ -245,8 +245,15 @@ call(Service, Method, Args, RootUrl) ->
 -spec get_test_card(binary() | undefined) -> card_data().
 
 get_test_card(CVV) ->
-    Card = cds_card_v2_client:get_test_card(CVV),
-    get_test_card(Card, CVV).
+    get_test_card(
+        #{
+            pan => <<"5321301234567892">>,
+            exp_date => #{
+            month => 12,
+            year => 3000
+        },
+        cardholder_name => <<"Tony Stark">> %% temporarily hardcoded instead of saved
+    }, CVV).
 
 -spec get_test_card(card_data(), binary() | undefined) -> card_data().
 
