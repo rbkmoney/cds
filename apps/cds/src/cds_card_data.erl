@@ -16,13 +16,13 @@
 -export([unique/1]).
 
 -type cardnumber() :: binary().
--type exp_date()   :: {1..12, pos_integer()} | undefined.
--type cardholder() :: binary() | undefined.
+-type exp_date()   :: {1..12, pos_integer()}.
+-type cardholder() :: binary().
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
-    exp_date   := exp_date(),
-    cardholder := cardholder()
+    exp_date   := exp_date() | undefined,
+    cardholder := cardholder()  | undefined
 }.
 
 -type cvv() :: #{
