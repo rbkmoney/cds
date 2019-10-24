@@ -84,7 +84,13 @@ put_card(Token, Hash, {CardData, CardMeta}, KeyID) ->
         prepare_card_data_indexes(Hash, KeyID)
     );
 put_card(Token, Hash, CardData, KeyID) ->
-    put_card(Token, Hash, {CardData, undefined}, KeyID).
+    ok = cds_storage:put(
+        ?TOKEN_NS,
+        Token,
+        CardData,
+        undefined,
+        prepare_card_data_indexes(Hash, KeyID)
+    ).
 
 -spec put_session(cds:session(), cds:ciphertext(), cds_keyring:key_id(), timestamp()) ->
     ok | no_return().
@@ -179,7 +185,13 @@ update_cardholder_data(Token, {Data, Meta}, Hash, KeyID) ->
         prepare_card_data_indexes(Hash, KeyID)
     );
 update_cardholder_data(Token, Data, Hash, KeyID) ->
-    update_cardholder_data(Token, {Data, undefined}, Hash, KeyID).
+    ok = cds_storage:update(
+        ?TOKEN_NS,
+        Token,
+        Data,
+        undefined,
+        prepare_card_data_indexes(Hash, KeyID)
+    ).
 
 -spec update_session_data(
     cds:session(),

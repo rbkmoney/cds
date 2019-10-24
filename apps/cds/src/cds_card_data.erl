@@ -16,7 +16,7 @@
 -export([unique/1]).
 
 -type cardnumber() :: binary().
--type exp_date()   :: {1..12, pos_integer()}.
+-type exp_date()   :: {1..12, pos_integer()} | undefined.
 -type cardholder() :: binary() | undefined.
 
 -type cardholder_data() :: #{
