@@ -10,7 +10,6 @@
 -export([marshal_card_data/1]).
 -export([marshal_card_number/1]).
 -export([marshal_session_data/1]).
--export([unmarshal_card_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
 -export([unique/1]).
@@ -180,29 +179,26 @@ marshal(card_data, CardData) ->
     Cardholder = maps:get(cardholder, CardData, undefined),
     #{<<"exp_date">> => marshal(exp_date, ExpDate), <<"cardholder">> => marshal(cardholder, Cardholder)}.
 
--spec unmarshal_card_data(marshalled()) -> cardholder_data().
+-spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
-unmarshal_card_data(<<CNSize, CN:CNSize/binary, Rest/binary>>) ->
+unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Rest/binary>>) ->
     {ExpDate, Cardholder} = unmarshal_rest_card_data(Rest),
     #{
         cardnumber => CN,
         exp_date   => ExpDate,
         cardholder => Cardholder
-    }.
-
-unmarshal_rest_card_data(<<>>) ->
-    {undefined, undefined};
-unmarshal_rest_card_data(<< Month:8, Year:16, Cardholder/binary >>) ->
-    {{Month, Year}, Cardholder}.
-
--spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
-
+    };
 unmarshal_cardholder_data({CardholderData, CardholderMeta}) ->
     {ok, UnpackedCardholderData} = msgpack:unpack(CardholderData),
     unmarshal_cardholder_data_(UnpackedCardholderData, unmarshal(metadata, CardholderMeta)).
 
 unmarshal_cardholder_data_(CardholderData, #{content_type := <<"application/msgpack">>, vsn := VSN}) ->
     unmarshal({card_data, VSN}, CardholderData).
+
+unmarshal_rest_card_data(<<>>) ->
+    {undefined, undefined};
+unmarshal_rest_card_data(<< Month:8, Year:16, Cardholder/binary >>) ->
+    {{Month, Year}, Cardholder}.
 
 -spec unmarshal_session_data(marshalled()) -> session_data().
 
