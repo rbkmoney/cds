@@ -174,8 +174,8 @@ get_session_data(Session) ->
 update_cardholder_data(Token, CardData) ->
     {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
     CardDataHash = cds_hash:hash(cds_card_data:unique(CardData), Key, scrypt_options(Meta)),
-    #{cardnumber := CN} = cds_card_data:unmarshal_cardholder_data(CardData),
-    CardNumberHash = cds_hash:hash(CN, Key, scrypt_options(Meta)),
+    CardNumber = cds_card_data:card_number(cds_card_data:unmarshal_cardholder_data(CardData)),
+    CardNumberHash = cds_hash:hash(CardNumber, Key, scrypt_options(Meta)),
     EncryptedCardData = encrypt(CardData, {KeyID, Key}),
     cds_card_storage:update_cardholder_data(Token, EncryptedCardData, CardDataHash, CardNumberHash, KeyID).
 
@@ -283,11 +283,13 @@ session() ->
 
 is_card_number_equal([Token | OtherTokens]) ->
     {_, FirstData} = get_cardholder_data(Token),
-    #{cardnumber := FirstCN} = cds_card_data:unmarshal_cardholder_data(FirstData),
+    FirstCN = cds_card_data:card_number(
+                cds_card_data:unmarshal_cardholder_data(FirstData)),
     lists:all(
         fun(T) ->
             {_, OtherData} = get_cardholder_data(T),
-            #{cardnumber := OtherCN} = cds_card_data:unmarshal_cardholder_data(OtherData),
+            OtherCN = cds_card_data:card_number(
+                cds_card_data:unmarshal_cardholder_data(OtherData)),
             FirstCN =:= OtherCN
         end,
         OtherTokens

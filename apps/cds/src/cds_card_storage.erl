@@ -176,21 +176,21 @@ get_tokens(Limit, Continuation) ->
 
 -spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds:hash(), cds_keyring:key_id()) -> ok.
 
-update_cardholder_data(Token, {Data, Meta}, Hash, Hash2, KeyID) ->
+update_cardholder_data(Token, {Data, Meta}, CardDataHash, CardNumberHash, KeyID) ->
     ok = cds_storage:update(
         ?TOKEN_NS,
         Token,
         Data,
         Meta,
-        prepare_card_data_indexes(Hash, Hash2, KeyID)
+        prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID)
     );
-update_cardholder_data(Token, Data, Hash, Hash2, KeyID) ->
+update_cardholder_data(Token, Data, CardDataHash, CardNumberHash, KeyID) ->
     ok = cds_storage:update(
         ?TOKEN_NS,
         Token,
         Data,
         undefined,
-        prepare_card_data_indexes(Hash, Hash2, KeyID)
+        prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID)
     ).
 
 -spec update_session_data(
@@ -211,5 +211,9 @@ update_session_data(Session, {SessionData, SessionMeta}, KeyID) ->
 %% Internals
 %%
 
-prepare_card_data_indexes(CardDataHash, CardnumberHash, KeyID) ->
-    [{?CARD_DATA_HASH_INDEX, CardDataHash}, {?CARD_NUMBER_HASH_INDEX, CardnumberHash}, {?KEY_ID_INDEX, KeyID}].
+prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID) ->
+    [
+        {?CARD_DATA_HASH_INDEX, CardDataHash},
+        {?CARD_NUMBER_HASH_INDEX, CardNumberHash},
+        {?KEY_ID_INDEX, KeyID}
+    ].
