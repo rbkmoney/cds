@@ -454,8 +454,9 @@ get_session_card_data_backward_compatibilty(C) ->
 %% This test emulates old card data structure for
 %% test backward compatibility with new code
 get_card_data_backward_compatibilty(C) ->
+    CN = <<"5321301234567892">>,
     CardData = #{
-        pan => <<"5321301234567892">>,
+        pan => CN,
         exp_date => #{month => 12,year => 3000},
         cardholder_name => <<"Tony Stark">>,
         cvv => <<>>
@@ -464,11 +465,13 @@ get_card_data_backward_compatibilty(C) ->
     {{KeyId, Key} = CurrentKey, CurrentKeyMeta} = cds_keyring:get_current_key_with_meta(),
     UniqueCardData = unique_card_data(MarshalledCardData),
     Hash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
+    Hash2 = cds_hash:hash(CN, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
     Token = crypto:strong_rand_bytes(16),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
         Hash,
+        Hash2,
         EncryptedCardData,
         KeyId
     ),
@@ -635,25 +638,23 @@ recrypt(C) ->
     },
     SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
     {TokenCVV, SessionCVV} = cds:put_card_data(
-        cds_card_data:marshal_card_number(CardholderData),
-        cds_card_data:marshal_card_data(CardholderData),
+        cds_card_data:card_number(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionDataCVV)
     ),
 
     SessionData3DS = #{auth_data => #{type => '3ds', cryptogram => <<"cryptogram">>, eci => <<"5">>}},
     {Token3DS, Session3DS} = cds:put_card_data(
-        cds_card_data:marshal_card_number(CardholderData),
-        cds_card_data:marshal_card_data(CardholderData),
+        cds_card_data:card_number(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData3DS)
     ),
 
-    {EncryptedCardNumberCVV0, EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
-    <<KeyID0, _/binary>> = EncryptedCardNumberCVV0,
+    {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedCardDataCVV0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
 
-    {EncryptedCardNumber3DS0, EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
-    <<KeyID0, _/binary>> = EncryptedCardNumber3DS0,
+    {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
 
@@ -668,13 +669,11 @@ recrypt(C) ->
     _ = timer:sleep(Interval * 2 + KeyringFetchInterval * 2),
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
-    {EncryptedCardNumberCVV, EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
-    <<KeyID, _/binary>> = EncryptedCardNumberCVV,
+    {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedCardDataCVV,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
 
-    {EncryptedCardNumber3DS, EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
-    <<KeyID, _/binary>> = EncryptedCardNumber3DS,
+    {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedCardData3DS,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
 

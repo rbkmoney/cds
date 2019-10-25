@@ -176,29 +176,20 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    {CardnumberToken, CardDataToken} = cds_utils:split_token(Token),
-    {_, CardNumberData} = cds:get_cardholder_data(CardnumberToken),
-    UnmarshalledCardNumberData = cds_card_data:unmarshal_card_data(CardNumberData),
-    case CardDataToken of
-        undefined ->
-            UnmarshalledCardNumberData;
-        CardDataToken ->
-            {_, CardData} = cds:get_cardholder_data(CardDataToken),
-            UnmarshaledCardData = cds_card_data:unmarshal_cardholder_data(CardData),
-            maps:merge(UnmarshalledCardNumberData, UnmarshaledCardData)
-    end.
+    {_, CardNumberData} = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshal_cardholder_data(CardNumberData).
 
 put_card_data(CardholderData, SessionData) ->
     cds:put_card_data(
-        cds_card_data:marshal_card_number(CardholderData),
-        cds_card_data:marshal_card_data(CardholderData),
+        cds_card_data:card_number(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
     ).
 
 put_card(CardholderData) ->
     cds:put_card(
-        cds_card_data:marshal_card_number(CardholderData),
-        cds_card_data:marshal_card_data(CardholderData)
+        cds_card_data:card_number(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData)
     ).
 
 put_session(Session, SessionData) ->

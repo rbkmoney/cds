@@ -59,7 +59,7 @@ split_token(InvalidToken) ->
     throw({invalid_token, InvalidToken}).
 
 -spec merge_tokens(cds:token(), cds:token()) -> cds:token().
-merge_tokens(Token1, Token2) ->
+merge_tokens(<< Token1:16/binary >>, << Token2:16/binary >>) ->
     << Token1/binary, Token2/binary  >>.
 
 % test
