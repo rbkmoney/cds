@@ -435,10 +435,11 @@ same_card_number_has_same_token(C) ->
             token := Token2
         }
     } = CDSCardClient:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
-    {CardNumberToken1, _} = cds_utils:split_token(cds_utils:decode_token(Token1)),
-    {CardNumberToken2, _} = cds_utils:split_token(cds_utils:decode_token(Token2)),
+    {CardNumberToken1, CardDataToken1} = cds_utils:split_token(cds_utils:decode_token(Token1)),
+    {CardNumberToken2, CardDataToken2} = cds_utils:split_token(cds_utils:decode_token(Token2)),
 
-    ?assertEqual(CardNumberToken1, CardNumberToken2).
+    ?assertEqual(CardNumberToken1, CardNumberToken2),
+    ?assertNotEqual(CardDataToken1, CardDataToken2).
 
 -spec put_session(config()) -> _.
 
