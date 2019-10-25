@@ -50,14 +50,13 @@ calc_padding(Size, N) ->
             N * (Size div N + 1)
     end.
 
--spec split_token(cds:token()) -> {cds:token(), cds:token() | undefined}.
-split_token(<< Token1:16/binary, Token2/binary >>) ->
-    case Token2 of
-        <<>> ->
-            {Token1, undefined};
-        Token2 ->
-            {Token1, Token2}
-    end.
+-spec split_token(cds:token()) -> {cds:token(), cds:token() | undefined} | no_return().
+split_token(<< Token1:16/binary, Token2:16/binary >>) ->
+    {Token1, Token2};
+split_token(<< Token1:16/binary >>) ->
+    {Token1, undefined};
+split_token(InvalidToken) ->
+    throw({invalid_token, InvalidToken}).
 
 -spec merge_tokens(cds:token(), cds:token()) -> cds:token().
 merge_tokens(Token1, Token2) ->
