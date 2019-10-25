@@ -32,6 +32,8 @@
 -export([get_card_data_unavailable/1]).
 -export([get_session_card_data_unavailable/1]).
 -export([put_card_data_no_member/1]).
+-export([same_card_data_has_same_token/1]).
+-export([same_card_number_has_same_token/1]).
 
 %%
 
@@ -140,6 +142,8 @@ groups() ->
             rotate,
             get_card_data_3ds,
             get_session_data_3ds,
+            same_card_data_has_same_token,
+            same_card_number_has_same_token,
             {group, hash_collision_check}
         ]},
         {keyring_errors, [sequence], [
@@ -387,6 +391,55 @@ put_card(C) ->
     CardData2 = CDSCardClient:get_test_card(CardData, <<>>),
     ?assertEqual(CardData2, CDSCardClient:get_card_data(Token, root_url(C))).
 
+-spec same_card_data_has_same_token(config()) -> _.
+
+same_card_data_has_same_token(C) ->
+    CDSCardClient = config(cds_storage_client, C),
+    CardData = #{
+        pan => <<"4242424242424648">>,
+        exp_date => #{
+            month => 11,
+            year => 3000
+        }
+    },
+    #{
+        bank_card := #{
+            token := Token1
+        }
+    } = CDSCardClient:put_card(CardData, root_url(C)),
+    #{
+        bank_card := #{
+            token := Token2
+        }
+    } = CDSCardClient:put_card(CardData, root_url(C)),
+    ?assertEqual(Token1, Token2).
+
+-spec same_card_number_has_same_token(config()) -> _.
+
+same_card_number_has_same_token(C) ->
+    CDSCardClient = config(cds_storage_client, C),
+    CardData = #{
+        pan => <<"4242424242424648">>,
+        exp_date => #{
+            month => 11,
+            year => 3000
+        }
+    },
+    #{
+        bank_card := #{
+            token := Token1
+        }
+    } = CDSCardClient:put_card(CardData, root_url(C)),
+    #{
+        bank_card := #{
+            token := Token2
+        }
+    } = CDSCardClient:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
+    {CardNumberToken1, _} = cds_utils:split_token(cds_utils:decode_token(Token1)),
+    {CardNumberToken2, _} = cds_utils:split_token(cds_utils:decode_token(Token2)),
+
+    ?assertEqual(CardNumberToken1, CardNumberToken2).
+
 -spec put_session(config()) -> _.
 
 put_session(C) ->
@@ -454,7 +507,7 @@ get_session_card_data_backward_compatibilty(C) ->
 %% This test emulates old card data structure for
 %% test backward compatibility with new code
 get_card_data_backward_compatibilty(C) ->
-    CN = <<"5321301234567892">>,
+    CN = <<"5321301234567894">>,
     CardData = #{
         pan => CN,
         exp_date => #{month => 12,year => 3000},
@@ -464,14 +517,14 @@ get_card_data_backward_compatibilty(C) ->
     MarshalledCardData = marshal_cardholder_data(CardData),
     {{KeyId, Key} = CurrentKey, CurrentKeyMeta} = cds_keyring:get_current_key_with_meta(),
     UniqueCardData = unique_card_data(MarshalledCardData),
-    Hash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
-    Hash2 = cds_hash:hash(CN, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
+    CardDataHash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
+    CardNumberHash = cds_hash:hash(CN, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
     Token = crypto:strong_rand_bytes(16),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
-        Hash,
-        Hash2,
+        CardDataHash,
+        CardNumberHash,
         EncryptedCardData,
         KeyId
     ),
