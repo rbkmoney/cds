@@ -57,9 +57,7 @@ handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
         not_found ->
             cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
         no_keyring ->
-            cds_thrift_handler_utils:raise_keyring_unavailable();
-        invalid_token ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{})
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('PutCard', [CardData], _Context, _Opts) ->
@@ -98,9 +96,7 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
         not_found ->
             cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
         no_keyring ->
-            cds_thrift_handler_utils:raise_keyring_unavailable();
-        invalid_token ->
-            cds_thrift_handler_utils:raise(#'CardDataNotFound'{})
+            cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
 
 handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
@@ -179,13 +175,18 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 
 %
 
-get_cardholder_data({CardnumberToken, CardDataToken}) ->
-    CardNumberData = get_cardholder_data(CardnumberToken),
-    CardData = get_cardholder_data(CardDataToken),
-    maps:merge(CardNumberData, CardData);
 get_cardholder_data(Token) ->
-    {_, CardNumberData} = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshal_cardholder_data(CardNumberData).
+    {CardnumberToken, CardDataToken} = cds_utils:split_token(Token),
+    {_, CardNumberData} = cds:get_cardholder_data(CardnumberToken),
+    UnmarshalledCardNumberData = cds_card_data:unmarshal_card_data(CardNumberData),
+    case CardDataToken of
+        undefined ->
+            UnmarshalledCardNumberData;
+        CardDataToken ->
+            {_, CardData} = cds:get_cardholder_data(CardDataToken),
+            UnmarshaledCardData = cds_card_data:unmarshal_cardholder_data(CardData),
+            maps:merge(UnmarshalledCardNumberData, UnmarshaledCardData)
+    end.
 
 put_card_data(CardholderData, SessionData) ->
     cds:put_card_data(
