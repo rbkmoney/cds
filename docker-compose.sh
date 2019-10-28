@@ -19,7 +19,7 @@ services:
         condition: service_healthy
 
   riakdb:
-    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
+    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.2.3
     environment:
       - CLUSTER_NAME=riakkv
     labels:
@@ -32,7 +32,7 @@ services:
       timeout: 5s
       retries: 20
   member:
-    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.1.4-1
+    image: dr.rbkmoney.com/basho/riak-kv:ubuntu-2.2.3
     labels:
       - "com.basho.riak.cluster.name=riakkv"
     links:
