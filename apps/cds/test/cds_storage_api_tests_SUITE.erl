@@ -92,7 +92,8 @@ groups() ->
         {all_groups, [], [
             {group, riak_storage_backend},
             {group, ets_storage_backend},
-            {group, keyring_errors}
+            {group, keyring_errors},
+            {group, token_check}
         ]},
         {riak_storage_backend, [], [
             {group, general_flow},
@@ -142,8 +143,6 @@ groups() ->
             rotate,
             get_card_data_3ds,
             get_session_data_3ds,
-            same_card_number_has_same_token,
-            same_card_data_has_same_token,
             {group, hash_collision_check}
         ]},
         {keyring_errors, [sequence], [
@@ -188,6 +187,11 @@ groups() ->
         {error_map_ddos, [parallel], [
             put_card_data_no_member,
             put_card_data_no_member
+        ]},
+        {token_check, [sequence], [
+            init,
+            same_card_number_has_same_token,
+            same_card_data_has_same_token
         ]}
     ].
 %%
@@ -268,6 +272,10 @@ init_per_group(error_map, C) ->
     cds_ct_utils:start_clear([{storage_config, StorageConfigNew} | C]);
 init_per_group(error_map_ddos, C) ->
     C;
+
+init_per_group(token_check, C) ->
+    C1 = cds_ct_utils:set_riak_storage(C),
+    cds_ct_utils:start_clear(C1);
 
 init_per_group(_, C) ->
     ok = cds_ct_utils:start_stash(),
