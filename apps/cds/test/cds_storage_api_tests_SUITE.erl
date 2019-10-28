@@ -142,8 +142,8 @@ groups() ->
             rotate,
             get_card_data_3ds,
             get_session_data_3ds,
-            same_card_data_has_same_token,
             same_card_number_has_same_token,
+            same_card_data_has_same_token,
             {group, hash_collision_check}
         ]},
         {keyring_errors, [sequence], [
