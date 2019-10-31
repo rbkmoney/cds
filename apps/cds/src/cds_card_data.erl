@@ -19,8 +19,8 @@
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
-    exp_date   := exp_date() | undefined,
-    cardholder := cardholder()  | undefined
+    exp_date   => exp_date(),
+    cardholder => cardholder()
 }.
 
 -type cvv() :: #{

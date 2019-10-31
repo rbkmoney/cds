@@ -137,11 +137,9 @@ decode_auth_data({card_security_code, #cds_CardSecurityCode{value = Value}}) ->
 decode_auth_data({auth_3ds, #cds_Auth3DS{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
-encode_cardholder_data(#{
-    cardnumber := PAN,
-    exp_date   := ExpDate,
-    cardholder := CardholderName
-}) ->
+encode_cardholder_data(CardData = #{cardnumber := PAN}) ->
+    ExpDate = maps:get(exp_date, CardData, undefined),
+    CardholderName = maps:get(cardholder, CardData, undefined),
     #cds_CardData{
         pan             = PAN,
         exp_date        = encode_exp_date(ExpDate),
