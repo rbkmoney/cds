@@ -11,7 +11,6 @@
 -export([marshal_session_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
--export([unique/1]).
 -export([cardnumber/1]).
 
 -type cardnumber() :: binary().
@@ -120,13 +119,6 @@ detect_payment_system(Size, CardNumber) when Size > 0 ->
     end;
 detect_payment_system(0, _) ->
     {error, unrecognized}.
-
--spec unique(cds:plaintext()) -> binary().
-
-unique({Data, _Meta}) ->
-    Data;
-unique(Bin) when is_binary(Bin) ->
-    Bin.
 
 -spec cardnumber(cardholder_data()) -> cardnumber().
 cardnumber(#{cardnumber := CN}) ->

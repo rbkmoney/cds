@@ -142,9 +142,9 @@ put_card(CardNumber, MarshalledCardholderData, {KeyID, Key} = CurrentKey, Meta) 
     CardNumberCurrentHash = cds_hash:hash(CardNumber, Key, scrypt_options(Meta)),
     {CardNumberToken, CardNumberHash} = find_or_create_card_number_token(CardNumber, CardNumberCurrentHash, OtherKeys),
 
-    UniqueCardData = cds_card_data:unique(MarshalledCardholderData),
-    CardDataCurrentHash = cds_hash:hash(UniqueCardData, Key, scrypt_options(Meta)),
-    {CardDataToken, CardDataHash} = find_or_create_card_data_token(UniqueCardData, CardDataCurrentHash, OtherKeys),
+    CardData = get_data(MarshalledCardholderData),
+    CardDataCurrentHash = cds_hash:hash(CardData, Key, scrypt_options(Meta)),
+    {CardDataToken, CardDataHash} = find_or_create_card_data_token(CardData, CardDataCurrentHash, OtherKeys),
 
     Token = cds_utils:merge_tokens(CardNumberToken, CardDataToken),
     EncryptedCardData = encrypt(MarshalledCardholderData, CurrentKey),
@@ -176,7 +176,7 @@ get_session_data(Session) ->
 -spec update_cardholder_data(token(), plaintext()) -> ok.
 update_cardholder_data(Token, CardData) ->
     {{KeyID, Key} = CurrentKey, Meta} = cds_keyring:get_current_key_with_meta(),
-    CardDataHash = cds_hash:hash(cds_card_data:unique(CardData), Key, scrypt_options(Meta)),
+    CardDataHash = cds_hash:hash(get_data(CardData), Key, scrypt_options(Meta)),
 
     CardNumber = cds_card_data:cardnumber(cds_card_data:unmarshal_cardholder_data(CardData)),
     CardNumberHash = cds_hash:hash(CardNumber, Key, scrypt_options(Meta)),
@@ -302,15 +302,20 @@ is_card_number_equal([Token | OtherTokens]) ->
 
 is_card_data_equal([Token | OtherTokens]) ->
     {_, FirstData} = get_cardholder_data(Token),
-    FirstUniqueData = cds_card_data:unique(FirstData),
     lists:all(
         fun(T) ->
               {_, OtherData} = get_cardholder_data(T),
-              OtherUniqueData = cds_card_data:unique(OtherData),
-              FirstUniqueData =:= OtherUniqueData
+            get_data(FirstData) =:= get_data(OtherData)
         end,
         OtherTokens
     ).
 
 scrypt_options(Meta) ->
     cds_keyring:deduplication_hash_opts(Meta).
+
+-spec get_data(cds:plaintext()) -> binary().
+
+get_data({Data, _Meta}) ->
+    Data;
+get_data(BinData) ->
+    BinData.
