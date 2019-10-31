@@ -12,7 +12,7 @@
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
 -export([unique/1]).
--export([card_number/1]).
+-export([cardnumber/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
@@ -128,8 +128,8 @@ unique({Data, _Meta}) ->
 unique(Bin) when is_binary(Bin) ->
     Bin.
 
--spec card_number(cardholder_data()) -> cardnumber().
-card_number(#{cardnumber := CN}) ->
+-spec cardnumber(cardholder_data()) -> cardnumber().
+cardnumber(#{cardnumber := CN}) ->
     CN.
 
 %%
