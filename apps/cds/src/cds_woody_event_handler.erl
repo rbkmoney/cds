@@ -4,7 +4,7 @@
 
 -include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 -include_lib("cds_proto/include/cds_proto_storage_thrift.hrl").
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("damsel/include/dmsl_cds_thrift.hrl").
 -include_lib("tds_proto/include/tds_proto_storage_thrift.hrl").
 -include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
 -include_lib("woody/src/woody_defs.hrl").

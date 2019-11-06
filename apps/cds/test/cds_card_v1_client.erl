@@ -1,7 +1,7 @@
 -module(cds_card_v1_client).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
--include_lib("dmsl/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_cds_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([get_card_data/2]).
 -export([get_session_card_data/3]).
