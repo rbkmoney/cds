@@ -109,25 +109,8 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %% Internals
 %%
 
-decode_card_data(#cds_CardData{
-    pan             = PAN,
-    exp_date        = ExpDate,
-    cardholder_name = CardholderName
-}) ->
-    #{
-        cardnumber => PAN,
-        exp_date   => decode_exp_date(ExpDate),
-        cardholder => CardholderName
-    }.
-
-decode_exp_date(undefined) ->
-    undefined;
-decode_exp_date(
-    #cds_ExpDate{
-        month = Month,
-        year = Year
-    }) ->
-    {Month, Year}.
+decode_card_data(#cds_PutCardData{pan = PAN}) ->
+    #{cardnumber => PAN}.
 
 decode_session_data(#cds_SessionData{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
@@ -137,21 +120,9 @@ decode_auth_data({card_security_code, #cds_CardSecurityCode{value = Value}}) ->
 decode_auth_data({auth_3ds, #cds_Auth3DS{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
-encode_cardholder_data(CardData = #{cardnumber := PAN}) ->
-    ExpDate = maps:get(exp_date, CardData, undefined),
-    CardholderName = maps:get(cardholder, CardData, undefined),
+encode_cardholder_data(#{cardnumber := PAN}) ->
     #cds_CardData{
-        pan             = PAN,
-        exp_date        = encode_exp_date(ExpDate),
-        cardholder_name = CardholderName
-    }.
-
-encode_exp_date(undefined) ->
-    undefined;
-encode_exp_date({Month, Year}) ->
-    #cds_ExpDate{
-        month = Month,
-        year = Year
+        pan = PAN
     }.
 
 encode_session_data(#{auth_data := AuthData}) ->
@@ -166,21 +137,17 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    {_, CardNumberData} = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshal_cardholder_data(CardNumberData).
+    {_, CardholderData} = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshal_card_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data(
-        cds_card_data:cardnumber(CardholderData),
-        cds_card_data:marshal_cardholder_data(CardholderData),
+    cds:put_card_data({
+        cds_card_data:marshal_card_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
-    ).
+    }).
 
 put_card(CardholderData) ->
-    cds:put_card(
-        cds_card_data:cardnumber(CardholderData),
-        cds_card_data:marshal_cardholder_data(CardholderData)
-    ).
+    cds:put_card(cds_card_data:marshal_card_data(CardholderData)).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).

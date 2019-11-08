@@ -76,7 +76,7 @@
 
 all() ->
     [
-        {group, cds_client_v1},
+%%        {group, cds_client_v1},
         {group, cds_client_v2}
     ].
 
@@ -84,10 +84,10 @@ all() ->
 
 groups() ->
     [
-        {cds_client_v1, [], [
-            {group, all_groups},
-            {group, backward_compatibility}
-        ]},
+%%        {cds_client_v1, [], [
+%%            {group, all_groups},
+%%            {group, backward_compatibility}
+%%        ]},
         {cds_client_v2, [], [{group, all_groups}]},
         {all_groups, [], [
             {group, riak_storage_backend},
@@ -443,11 +443,10 @@ same_card_number_has_same_token(C) ->
             token := Token2
         }
     } = CDSCardClient:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
-    {CardNumberToken1, CardDataToken1} = cds_utils:split_token(cds_utils:decode_token(Token1)),
-    {CardNumberToken2, CardDataToken2} = cds_utils:split_token(cds_utils:decode_token(Token2)),
+    CardDataToken1 = cds_utils:exrtract_token(cds_utils:decode_token(Token1)),
+    CardDataToken2 = cds_utils:exrtract_token(cds_utils:decode_token(Token2)),
 
-    ?assertEqual(CardNumberToken1, CardNumberToken2),
-    ?assertNotEqual(CardDataToken1, CardDataToken2).
+    ?assertEqual(CardDataToken1, CardDataToken2).
 
 -spec put_session(config()) -> _.
 
@@ -699,25 +698,23 @@ recrypt(C) ->
         cardholder => <<"Tony Stark">>
     },
     SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
-    {TokenCVV, SessionCVV} = cds:put_card_data(
-        cds_card_data:cardnumber(CardholderData),
-        cds_card_data:marshal_cardholder_data(CardholderData),
+    {TokenCVV, SessionCVV} = cds:put_card_data({
+        cds_card_data:marshal_card_data(CardholderData),
         cds_card_data:marshal_session_data(SessionDataCVV)
-    ),
+    }),
 
     SessionData3DS = #{auth_data => #{type => '3ds', cryptogram => <<"cryptogram">>, eci => <<"5">>}},
-    {Token3DS, Session3DS} = cds:put_card_data(
-        cds_card_data:cardnumber(CardholderData),
-        cds_card_data:marshal_cardholder_data(CardholderData),
+    {Token3DS, Session3DS} = cds:put_card_data({
+        cds_card_data:marshal_card_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData3DS)
-    ),
+    }),
 
     {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
-    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedCardDataCVV0,
+    <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
 
     {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
-    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedCardData3DS0,
+    <<KeyID0, _/binary>> = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
 
 
@@ -732,11 +729,11 @@ recrypt(C) ->
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
-    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedCardDataCVV,
+    <<KeyID, _/binary>> = EncryptedCardDataCVV,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
 
     {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
-    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedCardData3DS,
+    <<KeyID, _/binary>> = EncryptedCardData3DS,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
 
 %%

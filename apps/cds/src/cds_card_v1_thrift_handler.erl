@@ -28,11 +28,14 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
+                ExpDate = maps:get(exp_date, OwnCardData, undefined),
                 BankCard = #'domain_BankCard'{
                     token          = cds_utils:encode_token(Token),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    masked_pan     = maps:get(last_digits   , CardInfo),
+                    exp_date       = encode_exp_date(ExpDate),
+                    cardholder_name = maps:get(cardholder, OwnCardData, undefined)
                 },
                 {ok, #'PutCardDataResult'{
                     bank_card      = BankCard,
@@ -176,21 +179,17 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    {_, CardNumberData} = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshal_cardholder_data(CardNumberData).
+    {_, CardholderData} = cds:get_cardholder_data(Token),
+    cds_card_data:unmarshal_card_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data(
-        cds_card_data:cardnumber(CardholderData),
-        cds_card_data:marshal_cardholder_data(CardholderData),
+    cds:put_card_data({
+        cds_card_data:marshal_card_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
-    ).
+    }).
 
 put_card(CardholderData) ->
-    cds:put_card(
-        cds_card_data:cardnumber(CardholderData),
-        cds_card_data:marshal_cardholder_data(CardholderData)
-    ).
+    cds:put_card(cds_card_data:marshal_card_data(CardholderData)).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).
@@ -214,3 +213,11 @@ define_session_data(undefined, #'CardData'{cvv = CVV}) ->
     #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
 define_session_data(#'SessionData'{} = SessionData, _CardData) ->
     SessionData.
+
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date({Month, Year}) ->
+    #domain_BankCardExpDate{
+        month = Month,
+        year = Year
+    }.

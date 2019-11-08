@@ -10,19 +10,19 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([get_session_data/1]).
--export([put_card/5]).
+-export([put_card_data/7]).
+-export([put_card/4]).
 -export([put_session/4]).
 -export([delete_session/1]).
 -export([get_sessions_created_between/4]).
 -export([get_sessions_by_key_id_between/4]).
--export([update_cardholder_data/5]).
+-export([update_cardholder_data/4]).
 -export([update_session_data/3]).
 -export([refresh_session_created_at/1]).
 -export([get_sessions/2]).
 -export([get_sessions_info/2]).
 -export([get_tokens/2]).
 -export([get_tokens_by_hash/1]).
--export([get_number_tokens_by_hash/1]).
 -export([get_tokens_by_key_id_between/4]).
 
 %% TODO Those names looks so shitty for backward compatibility
@@ -32,7 +32,6 @@
 -define(CREATED_AT_INDEX, {integer_index, "created_at"}).
 -define(KEY_ID_INDEX, {integer_index, "encoding_key_id"}).
 -define(CARD_DATA_HASH_INDEX, {binary_index, "card_data_salted_hash"}).
--define(CARD_NUMBER_HASH_INDEX, {binary_index, "card_number_salted_hash"}).
 
 -spec get_namespaces() -> [cds_storage:namespace()].
 get_namespaces() ->
@@ -43,19 +42,10 @@ get_tokens_by_hash(Hash) ->
     {Tokens, _} = cds_storage:search_by_index_value(?TOKEN_NS, ?CARD_DATA_HASH_INDEX, Hash, undefined, undefined),
     Tokens.
 
--spec get_number_tokens_by_hash(cds:hash()) -> [cds:token()] | no_return().
-get_number_tokens_by_hash(Hash) ->
-    {Tokens, _} = cds_storage:search_by_index_value(?TOKEN_NS, ?CARD_NUMBER_HASH_INDEX, Hash, undefined, undefined),
-    Tokens.
-
 -spec get_cardholder_data(cds:token()) -> cds:ciphertext() | no_return().
 get_cardholder_data(Token) ->
-    case cds_storage:get(?TOKEN_NS, Token) of
-        {Data, undefined, _} ->
-            Data;
-        {Data, Meta, _} ->
-            {Data, Meta}
-    end.
+    {CardData, _, _} = cds_storage:get(?TOKEN_NS, Token),
+    CardData.
 
 -spec get_session_data(cds:session()) -> cds:ciphertext() | no_return().
 get_session_data(Session) ->
@@ -69,27 +59,30 @@ get_session_data(Session) ->
 -spec get_session_card_data(cds:token(), cds:session()) ->
     {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
 get_session_card_data(Token, Session) ->
-    CardData = get_cardholder_data(Token),
-    SessionData = get_session_data(Session),
-    {CardData, SessionData}.
+    {get_cardholder_data(Token), get_session_data(Session)}.
 
--spec put_card(cds:token(), cds:hash(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
+-spec put_card_data(
+    cds:token(),
+    cds:session(),
+    cds:hash(),
+    CardData :: cds:ciphertext(),
+    SessionData :: cds:ciphertext(),
+    cds_keyring:key_id(),
+    timestamp()
+) -> ok | no_return().
+put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
+    ok = put_card(Token, Hash, CardData, KeyID),
+    ok = put_session(Session, SessionData, KeyID, CreatedAt).
+
+-spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
     ok | no_return().
-put_card(Token, CardDataHash, CardNumberHash, {CardData, CardMeta}, KeyID) ->
-    ok = cds_storage:put(
-        ?TOKEN_NS,
-        Token,
-        CardData,
-        CardMeta,
-        prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID)
-    );
-put_card(Token, CardDataHash, CardNumberHash, CardData, KeyID) ->
+put_card(Token, Hash, CardData, KeyID) ->
     ok = cds_storage:put(
         ?TOKEN_NS,
         Token,
         CardData,
         undefined,
-        prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID)
+        prepare_card_data_indexes(Hash, KeyID)
     ).
 
 -spec put_session(cds:session(), cds:ciphertext(), cds_keyring:key_id(), timestamp()) ->
@@ -174,23 +167,14 @@ get_sessions_info(Limit, Continuation) ->
 get_tokens(Limit, Continuation) ->
     cds_storage:get_keys(?TOKEN_NS, Limit, Continuation).
 
--spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds:hash(), cds_keyring:key_id()) -> ok.
-
-update_cardholder_data(Token, {Data, Meta}, CardDataHash, CardNumberHash, KeyID) ->
+-spec update_cardholder_data(cds:token(), cds:ciphertext(), cds:hash(), cds_keyring:key_id()) -> ok.
+update_cardholder_data(Token, CardData, Hash, KeyID) ->
     ok = cds_storage:update(
         ?TOKEN_NS,
         Token,
-        Data,
-        Meta,
-        prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID)
-    );
-update_cardholder_data(Token, Data, CardDataHash, CardNumberHash, KeyID) ->
-    ok = cds_storage:update(
-        ?TOKEN_NS,
-        Token,
-        Data,
+        CardData,
         undefined,
-        prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID)
+        prepare_card_data_indexes(Hash, KeyID)
     ).
 
 -spec update_session_data(
@@ -211,9 +195,5 @@ update_session_data(Session, {SessionData, SessionMeta}, KeyID) ->
 %% Internals
 %%
 
-prepare_card_data_indexes(CardDataHash, CardNumberHash, KeyID) ->
-    [
-        {?CARD_DATA_HASH_INDEX, CardDataHash},
-        {?CARD_NUMBER_HASH_INDEX, CardNumberHash},
-        {?KEY_ID_INDEX, KeyID}
-    ].
+prepare_card_data_indexes(Hash, KeyID) ->
+    [{?CARD_DATA_HASH_INDEX, Hash}, {?KEY_ID_INDEX, KeyID}].
