@@ -515,9 +515,8 @@ get_session_card_data_backward_compatibilty(C) ->
 %% This test emulates old card data structure for
 %% test backward compatibility with new code
 get_card_data_backward_compatibilty(C) ->
-    CN = <<"5321301234567894">>,
     CardData = #{
-        pan => CN,
+        pan => <<"5321301234567894">>,
         exp_date => #{month => 12,year => 3000},
         cardholder_name => <<"Tony Stark">>,
         cvv => <<>>
@@ -526,13 +525,11 @@ get_card_data_backward_compatibilty(C) ->
     {{KeyId, Key} = CurrentKey, CurrentKeyMeta} = cds_keyring:get_current_key_with_meta(),
     UniqueCardData = unique_card_data(MarshalledCardData),
     CardDataHash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
-    CardNumberHash = cds_hash:hash(CN, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
     Token = crypto:strong_rand_bytes(16),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
         CardDataHash,
-        CardNumberHash,
         EncryptedCardData,
         KeyId
     ),
