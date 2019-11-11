@@ -166,11 +166,10 @@ encode_card_data(CardData, #{auth_data := AuthData}) ->
     end.
 
 encode_cardholder_data(#{
-        cardnumber := PAN,
-        exp_date   := {Month, Year},
-        cardholder := CardholderName
-    }
-) ->
+    cardnumber := PAN,
+    exp_date   := {Month, Year},
+    cardholder := CardholderName
+}) ->
     #'CardData'{
         pan             = PAN,
         exp_date        = #'ExpDate'{month = Month, year = Year},
