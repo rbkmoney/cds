@@ -137,17 +137,20 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    {_, CardholderData} = cds:get_cardholder_data(Token),
+    {_, CardholderData} = cds:get_cardholder_data(cds_utils:extract_token(Token)),
     cds_card_data:unmarshal_card_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data({
-        cds_card_data:marshal_card_data(CardholderData),
-        cds_card_data:marshal_session_data(SessionData)
-    }).
+    {Token, Session} =
+        cds:put_card_data({
+            cds_card_data:marshal_card_data(CardholderData),
+            cds_card_data:marshal_session_data(SessionData)
+        }),
+    {cds_utils:add_payload(Token, CardholderData), Session}.
 
 put_card(CardholderData) ->
-    cds:put_card(cds_card_data:marshal_card_data(CardholderData)).
+    Token = cds:put_card(cds_card_data:marshal_card_data(CardholderData)),
+    cds_utils:add_payload(Token, CardholderData).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).

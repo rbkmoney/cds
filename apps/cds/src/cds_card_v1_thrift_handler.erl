@@ -53,7 +53,12 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
 
 handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
-        CardData = get_cardholder_data(cds_utils:decode_token(Token)),
+        DecodedToken = cds_utils:decode_token(Token),
+        CardDataToken = cds_utils:extract_token(DecodedToken),
+        CardData = maps:merge(
+            get_cardholder_data(CardDataToken),
+            cds_utils:extract_payload(DecodedToken)
+        ),
         SessionData = try_get_session_data(Session),
         {ok, encode_card_data(CardData, SessionData)}
     catch
@@ -69,11 +74,14 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
+                ExpDate = maps:get(exp_date, OwnCardData, undefined),
                 BankCard = #'domain_BankCard'{
                     token          = cds_utils:encode_token(Token),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    masked_pan     = maps:get(last_digits   , CardInfo),
+                    exp_date       = encode_exp_date(ExpDate),
+                    cardholder_name = maps:get(cardholder, OwnCardData, undefined)
                 },
                 {ok, #'PutCardResult'{
                     bank_card = BankCard
@@ -90,11 +98,13 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        {ok, encode_cardholder_data(
-            get_cardholder_data(
-                cds_utils:decode_token(Token)
-            )
-        )}
+        DecodedToken = cds_utils:decode_token(Token),
+        CardDataToken = cds_utils:extract_token(DecodedToken),
+        CardData = maps:merge(
+            get_cardholder_data(CardDataToken),
+            cds_utils:extract_payload(DecodedToken)
+        ),
+        {ok, encode_cardholder_data(CardData)}
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
@@ -156,10 +166,11 @@ encode_card_data(CardData, #{auth_data := AuthData}) ->
     end.
 
 encode_cardholder_data(#{
-    cardnumber := PAN,
-    exp_date   := {Month, Year},
-    cardholder := CardholderName
-}) ->
+        cardnumber := PAN,
+        exp_date   := {Month, Year},
+        cardholder := CardholderName
+    }
+) ->
     #'CardData'{
         pan             = PAN,
         exp_date        = #'ExpDate'{month = Month, year = Year},
@@ -183,13 +194,15 @@ get_cardholder_data(Token) ->
     cds_card_data:unmarshal_card_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data({
+    {Token, Session} = cds:put_card_data({
         cds_card_data:marshal_card_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
-    }).
+    }),
+    {cds_utils:add_payload(Token, CardholderData), Session}.
 
 put_card(CardholderData) ->
-    cds:put_card(cds_card_data:marshal_card_data(CardholderData)).
+    Token = cds:put_card(cds_card_data:marshal_card_data(CardholderData)),
+    cds_utils:add_payload(Token, CardholderData).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).

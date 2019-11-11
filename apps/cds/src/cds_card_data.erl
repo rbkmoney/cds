@@ -11,6 +11,7 @@
 -export([marshal_session_data/1]).
 -export([unmarshal_card_data/1]).
 -export([unmarshal_session_data/1]).
+-export([unmarshal_payload/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
@@ -18,6 +19,11 @@
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
+    exp_date   => exp_date(),
+    cardholder => cardholder()
+}.
+
+-type payload_data() :: #{
     exp_date   => exp_date(),
     cardholder => cardholder()
 }.
@@ -51,6 +57,7 @@
 -export_type([card_info/0]).
 -export_type([cardholder_data/0]).
 -export_type([reason/0]).
+-export_type([payload_data/0]).
 
 %%
 
@@ -153,18 +160,21 @@ marshal(metadata, #{content_type := ContentType, vsn := VSN}) ->
 
 -spec unmarshal_card_data(marshalled()) -> cardholder_data().
 
-unmarshal_card_data(<<CNSize, CN:CNSize/binary, Rest/binary >>) ->
-    {ExpDate, Cardholder} = decode_rest(Rest),
-    #{
-        cardnumber => CN,
-        exp_date   => ExpDate,
-        cardholder => unmarshal(cardholder, Cardholder)
+unmarshal_card_data(<<CNSize, CN:CNSize/binary, Payload/binary >>) ->
+    PayloadData = unmarshal_payload(Payload),
+    PayloadData#{
+        cardnumber => CN
     }.
 
-decode_rest(<< Month:8, Year:16, Cardholder/binary >>) ->
-    {{Month, Year}, Cardholder};
-decode_rest(<<>>) ->
-    {undefined, <<>>}.
+-spec unmarshal_payload(marshalled()) -> payload_data().
+
+unmarshal_payload(<< Month:8, Year:16, Cardholder/binary >>) ->
+    #{
+        exp_date   => {Month, Year},
+        cardholder => unmarshal(cardholder, Cardholder)
+    };
+unmarshal_payload(<<>>) ->
+    #{}.
 
 -spec unmarshal_session_data(marshalled()) -> session_data().
 

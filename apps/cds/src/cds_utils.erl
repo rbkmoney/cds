@@ -7,7 +7,9 @@
 -export([encode_token/1]).
 -export([decode_session/1]).
 -export([encode_session/1]).
--export([exrtract_token/1]).
+-export([extract_token/1]).
+-export([extract_payload/1]).
+-export([add_payload/2]).
 
 -spec current_time() -> pos_integer().
 current_time() ->
@@ -37,10 +39,43 @@ base62_encode(Data) ->
     genlib_format:format_int_base(binary:decode_unsigned(Data), 62).
 
 base62_decode(Data) ->
-    genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
+    DecodedData = binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)),
+    case binary:split(DecodedData, <<".">>) of
+        [Token] ->
+            genlib_string:pad_left(Token, 0, 16);
+        [Token, Rest] ->
+            PaddedToken = genlib_string:pad_left(Token, 0, 16),
+            << PaddedToken/binary, $., Rest/binary >>
+    end.
 
--spec exrtract_token(binary()) -> cds:token() | no_return().
-exrtract_token(<< Token:16/binary, _/binary >>) ->
+-spec extract_token(binary()) -> cds:token() | no_return().
+extract_token(<< Token:16/binary, $., _/binary >>) ->
+    Token;
+extract_token(<< Token:16/binary >>) ->
+    Token.
+
+-spec extract_payload(binary()) -> cds_card_data:payload_data() | no_return().
+extract_payload(<< _Token:16/binary, $., Payload/binary >>) ->
+    cds_card_data:unmarshal_payload(Payload);
+extract_payload(<< _Token:16/binary >>) ->
+    cds_card_data:unmarshal_payload(<<>>).
+
+-spec add_payload(cds:token(), cds_card_data:cardholder_data()) -> binary().
+add_payload(
+    Token,
+    #{
+        exp_date   := {Month, Year},
+        cardholder := undefined
+}) ->
+    << Token/binary, $., Month:8, Year:16 >>;
+add_payload(
+    Token,
+    #{
+        exp_date   := {Month, Year},
+        cardholder := CardholderName
+}) ->
+    << Token/binary, $., Month:8, Year:16, CardholderName/binary >>;
+add_payload(Token, _) ->
     Token.
 
 % test
