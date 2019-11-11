@@ -190,7 +190,7 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 
 get_cardholder_data(Token) ->
     {_, CardholderData} = cds:get_cardholder_data(Token),
-    cds_card_data:unmarshal_card_data(CardholderData).
+    cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
     {Token, Session} = cds:put_card_data({

@@ -9,7 +9,7 @@
 
 -export([marshal_card_data/1]).
 -export([marshal_session_data/1]).
--export([unmarshal_card_data/1]).
+-export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
 -export([unmarshal_payload/1]).
 
@@ -158,9 +158,9 @@ marshal(auth_data, #{type := '3ds', cryptogram := Cryptogram} = Data) ->
 marshal(metadata, #{content_type := ContentType, vsn := VSN}) ->
     #{<<"content_type">> => ContentType, <<"vsn">> => integer_to_binary(VSN)}.
 
--spec unmarshal_card_data(marshalled()) -> cardholder_data().
+-spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
-unmarshal_card_data(<<CNSize, CN:CNSize/binary, Payload/binary >>) ->
+unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Payload/binary >>) ->
     PayloadData = unmarshal_payload(Payload),
     PayloadData#{
         cardnumber => CN
