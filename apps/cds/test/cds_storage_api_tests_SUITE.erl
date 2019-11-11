@@ -696,13 +696,13 @@ recrypt(C) ->
     },
     SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
     {TokenCVV, SessionCVV} = cds:put_card_data({
-        cds_card_data:marshal_card_data(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionDataCVV)
     }),
 
     SessionData3DS = #{auth_data => #{type => '3ds', cryptogram => <<"cryptogram">>, eci => <<"5">>}},
     {Token3DS, Session3DS} = cds:put_card_data({
-        cds_card_data:marshal_card_data(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData3DS)
     }),
 

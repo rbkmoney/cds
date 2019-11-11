@@ -194,13 +194,13 @@ get_cardholder_data(Token) ->
 
 put_card_data(CardholderData, SessionData) ->
     {Token, Session} = cds:put_card_data({
-        cds_card_data:marshal_card_data(CardholderData),
+        cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
     }),
     {cds_utils:add_payload(Token, CardholderData), Session}.
 
 put_card(CardholderData) ->
-    Token = cds:put_card(cds_card_data:marshal_card_data(CardholderData)),
+    Token = cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)),
     cds_utils:add_payload(Token, CardholderData).
 
 put_session(Session, SessionData) ->

@@ -7,7 +7,7 @@
 -export([validate/1]).
 -export([validate/2]).
 
--export([marshal_card_data/1]).
+-export([marshal_cardholder_data/1]).
 -export([marshal_session_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
@@ -134,9 +134,9 @@ detect_payment_system(0, _) ->
 
 -type marshalled() :: binary() | {binary(), marshalled_metadata()}.
 
--spec marshal_card_data(cardholder_data()) -> marshalled().
+-spec marshal_cardholder_data(cardholder_data()) -> marshalled().
 
-marshal_card_data(#{cardnumber := CN}) ->
+marshal_cardholder_data(#{cardnumber := CN}) ->
     CNSize = byte_size(CN),
     << CNSize, CN/binary >>.
 
