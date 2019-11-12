@@ -191,11 +191,10 @@ get_cardholder_data(Token) ->
     cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
-    {Token, Session} = cds:put_card_data({
+    cds:put_card_data({
         cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
-    }),
-    {Token, Session}.
+    }).
 
 put_card(CardholderData) ->
     cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).
