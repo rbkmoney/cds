@@ -443,8 +443,8 @@ same_card_number_has_same_token(C) ->
             token := Token2
         }
     } = CDSCardClient:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
-    CardDataToken1 = cds_utils:extract_token(cds_utils:decode_token(Token1)),
-    CardDataToken2 = cds_utils:extract_token(cds_utils:decode_token(Token2)),
+    {CardDataToken1, _} = cds_utils:decode_token(Token1),
+    {CardDataToken2, _} = cds_utils:decode_token(Token2),
 
     ?assertEqual(CardDataToken1, CardDataToken2).
 

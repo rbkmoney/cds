@@ -30,7 +30,7 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
                 ExpDate = maps:get(exp_date, OwnCardData, undefined),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token(Token),
+                    token          = cds_utils:encode_token({Token, OwnCardData}),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
                     masked_pan     = maps:get(last_digits   , CardInfo),
@@ -53,11 +53,10 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
 
 handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
-        DecodedToken = cds_utils:decode_token(Token),
-        CardDataToken = cds_utils:extract_token(DecodedToken),
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token(Token),
         CardData = maps:merge(
-            get_cardholder_data(CardDataToken),
-            cds_utils:extract_payload(DecodedToken)
+            get_cardholder_data(DecodedToken),
+            DecodedPayload
         ),
         SessionData = try_get_session_data(Session),
         {ok, encode_card_data(CardData, SessionData)}
@@ -76,7 +75,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
                 Token = put_card(OwnCardData),
                 ExpDate = maps:get(exp_date, OwnCardData, undefined),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token(Token),
+                    token          = cds_utils:encode_token({Token, OwnCardData}),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
                     masked_pan     = maps:get(last_digits   , CardInfo),
@@ -98,11 +97,10 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        DecodedToken = cds_utils:decode_token(Token),
-        CardDataToken = cds_utils:extract_token(DecodedToken),
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token(Token),
         CardData = maps:merge(
-            get_cardholder_data(CardDataToken),
-            cds_utils:extract_payload(DecodedToken)
+            get_cardholder_data(DecodedToken),
+            DecodedPayload
         ),
         {ok, encode_cardholder_data(CardData)}
     catch
@@ -167,9 +165,9 @@ encode_card_data(CardData, #{auth_data := AuthData}) ->
 
 encode_cardholder_data(#{
     cardnumber := PAN,
-    exp_date   := {Month, Year},
-    cardholder := CardholderName
-}) ->
+    exp_date   := {Month, Year}
+} = Data) ->
+    CardholderName = maps:get(cardholder, Data, undefined),
     #'CardData'{
         pan             = PAN,
         exp_date        = #'ExpDate'{month = Month, year = Year},
@@ -197,11 +195,10 @@ put_card_data(CardholderData, SessionData) ->
         cds_card_data:marshal_cardholder_data(CardholderData),
         cds_card_data:marshal_session_data(SessionData)
     }),
-    {cds_utils:add_payload(Token, CardholderData), Session}.
+    {Token, Session}.
 
 put_card(CardholderData) ->
-    Token = cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)),
-    cds_utils:add_payload(Token, CardholderData).
+    cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).

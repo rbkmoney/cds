@@ -28,7 +28,7 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
                 BankCard = #cds_BankCard{
-                    token       = cds_utils:encode_token(Token),
+                    token       = cds_utils:encode_token({Token, OwnCardData}),
                     bin         = maps:get(iin           , CardInfo),
                     last_digits = maps:get(last_digits   , CardInfo)
                 },
@@ -53,7 +53,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token(Token),
+                    token          = cds_utils:encode_token({Token, OwnCardData}),
                     bin            = maps:get(iin           , CardInfo),
                     last_digits    = maps:get(last_digits   , CardInfo)
                 },
@@ -72,13 +72,8 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        DecodedToken = cds_utils:decode_token(Token),
-        CardDataToken = cds_utils:extract_token(DecodedToken),
-        {ok, encode_cardholder_data(
-            get_cardholder_data(
-                cds_utils:decode_token(CardDataToken)
-            )
-        )}
+        {DecodedToken, _DecodedPayload} = cds_utils:decode_token(Token),
+        {ok, encode_cardholder_data(get_cardholder_data(DecodedToken))}
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#cds_CardDataNotFound{});
@@ -139,7 +134,7 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 %
 
 get_cardholder_data(Token) ->
-    {_, CardholderData} = cds:get_cardholder_data(cds_utils:extract_token(Token)),
+    {_, CardholderData} = cds:get_cardholder_data(Token),
     cds_card_data:unmarshal_cardholder_data(CardholderData).
 
 put_card_data(CardholderData, SessionData) ->
@@ -148,11 +143,10 @@ put_card_data(CardholderData, SessionData) ->
             cds_card_data:marshal_cardholder_data(CardholderData),
             cds_card_data:marshal_session_data(SessionData)
         }),
-    {cds_utils:add_payload(Token, CardholderData), Session}.
+    {Token, Session}.
 
 put_card(CardholderData) ->
-    Token = cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)),
-    cds_utils:add_payload(Token, CardholderData).
+    cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).
 
 put_session(Session, SessionData) ->
     cds:put_session(Session, cds_card_data:marshal_session_data(SessionData)).
