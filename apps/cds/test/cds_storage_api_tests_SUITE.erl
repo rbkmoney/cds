@@ -525,7 +525,7 @@ get_card_data_backward_compatibilty(C) ->
     {{KeyId, Key} = CurrentKey, CurrentKeyMeta} = cds_keyring:get_current_key_with_meta(),
     UniqueCardData = unique_card_data(MarshalledCardData),
     CardDataHash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
-    Token = crypto:strong_rand_bytes(16),
+    Token = token(),
     EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
     ok = cds_card_storage:put_card(
         Token,
@@ -539,6 +539,11 @@ get_card_data_backward_compatibilty(C) ->
         CardData,
         CDSCardClient:get_card_data(cds_utils:encode_token(Token), root_url(C))
     ).
+
+-spec token() -> cds:token().
+
+token() ->
+    crypto:strong_rand_bytes(16).
 
 marshal_cardholder_data(#{
     pan := CN,

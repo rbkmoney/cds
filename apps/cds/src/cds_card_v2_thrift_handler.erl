@@ -106,8 +106,18 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %% Internals
 %%
 
-decode_card_data(#cds_PutCardData{pan = PAN}) ->
-    #{cardnumber => PAN}.
+decode_card_data(#'cds_PutCardData'{
+    pan             = PAN,
+    exp_date        = ExpDate,
+    cardholder_name = CardholderName
+}) ->
+    genlib_map:compact(
+        #{
+            cardnumber => PAN,
+            exp_date   => decode_exp_date(ExpDate),
+            cardholder => CardholderName
+        }
+    ).
 
 decode_session_data(#cds_SessionData{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
@@ -154,3 +164,8 @@ put_session(Session, SessionData) ->
 get_session_data(Session) ->
     {_, SessionData} = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
+
+decode_exp_date(undefined) ->
+    undefined;
+decode_exp_date(#'cds_ExpDate'{month = Month, year = Year}) ->
+    {Month, Year}.

@@ -26,7 +26,7 @@ decode_token(Token) ->
     end.
 
 -spec encode_token(Data) -> binary() when
-    Data :: {cds:token(), cds_card_data:payload_data()} | cds:token().
+    Data :: {cds:token(), cds_card_data:cardholder_data()} | cds:token().
 encode_token({Token, Payload}) when map_size(Payload) == 0 ->
     base62_encode(Token);
 encode_token({Token, Payload}) ->
@@ -34,8 +34,8 @@ encode_token({Token, Payload}) ->
         (base62_encode(Token))/binary, $.,
         (marshal_payload(Payload))/binary
     >>;
-encode_token(Token) when is_binary(Token) ->
-    encode_token({Token, #{}}).
+encode_token(Token) ->
+    base62_encode(Token).
 
 -spec decode_session(binary()) -> cds:session().
 decode_session(Session) ->
