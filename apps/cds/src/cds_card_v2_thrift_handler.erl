@@ -72,9 +72,11 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
+        DecodedToken = cds_utils:decode_token(Token),
+        CardDataToken = cds_utils:extract_token(DecodedToken),
         {ok, encode_cardholder_data(
             get_cardholder_data(
-                cds_utils:decode_token(Token)
+                cds_utils:decode_token(CardDataToken)
             )
         )}
     catch
