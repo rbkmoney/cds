@@ -25,7 +25,8 @@ decode_token(Token) ->
             {base62_decode(T), unmarshal_payload(P)}
     end.
 
--spec encode_token({cds:token(), cds_card_data:payload_data()}) -> binary().
+-spec encode_token(Data) -> binary() when
+    Data :: {cds:token(), cds_card_data:payload_data()} | cds:token().
 encode_token({Token, Payload}) when map_size(Payload) == 0 ->
     base62_encode(Token);
 encode_token({Token, Payload}) ->
