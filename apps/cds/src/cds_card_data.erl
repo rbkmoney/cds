@@ -11,7 +11,6 @@
 -export([marshal_session_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
--export([unmarshal_payload/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
