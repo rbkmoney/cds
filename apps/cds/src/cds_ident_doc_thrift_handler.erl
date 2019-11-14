@@ -31,7 +31,7 @@ handle_function_('Put', [IdentityDocument], _Context, _Opts) ->
     end;
 handle_function_('Get', [IdentityDocumentToken], _Context, _Opts) ->
     try
-        {DToken, _} = cds_utils:decode_token(IdentityDocumentToken),
+        DToken = cds_utils:decode_token(IdentityDocumentToken),
         Doc = cds_ident_doc_storage:get_identity_document(DToken),
         {ok, encode(Doc)}
     catch

@@ -28,7 +28,7 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
                 BankCard = #cds_BankCard{
-                    token       = cds_utils:encode_token({Token, OwnCardData}),
+                    token       = cds_utils:encode_token_with_payload(Token, OwnCardData),
                     bin         = maps:get(iin           , CardInfo),
                     last_digits = maps:get(last_digits   , CardInfo)
                 },
@@ -53,7 +53,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token({Token, OwnCardData}),
+                    token          = cds_utils:encode_token_with_payload(Token, OwnCardData),
                     bin            = maps:get(iin           , CardInfo),
                     last_digits    = maps:get(last_digits   , CardInfo)
                 },
@@ -72,7 +72,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        {DecodedToken, _DecodedPayload} = cds_utils:decode_token(Token),
+        {DecodedToken, _DecodedPayload} = cds_utils:decode_token_with_payload(Token),
         {ok, encode_cardholder_data(get_cardholder_data(DecodedToken))}
     catch
         not_found ->

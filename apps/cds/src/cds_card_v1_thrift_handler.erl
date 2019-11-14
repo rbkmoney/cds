@@ -30,7 +30,7 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
                 ExpDate = maps:get(exp_date, OwnCardData, undefined),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token({Token, OwnCardData}),
+                    token          = cds_utils:encode_token_with_payload(Token, OwnCardData),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
                     masked_pan     = maps:get(last_digits   , CardInfo),
@@ -53,7 +53,7 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
 
 handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
-        {DecodedToken, DecodedPayload} = cds_utils:decode_token(Token),
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
         CardData = maps:merge(
             get_cardholder_data(DecodedToken),
             DecodedPayload
@@ -75,7 +75,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
                 Token = put_card(OwnCardData),
                 ExpDate = maps:get(exp_date, OwnCardData, undefined),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token({Token, OwnCardData}),
+                    token          = cds_utils:encode_token_with_payload(Token, OwnCardData),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
                     masked_pan     = maps:get(last_digits   , CardInfo),
@@ -97,7 +97,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        {DecodedToken, DecodedPayload} = cds_utils:decode_token(Token),
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
         CardData = maps:merge(
             get_cardholder_data(DecodedToken),
             DecodedPayload
