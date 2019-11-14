@@ -230,10 +230,10 @@ find_tokens(CardData, [{Key, Meta} | OtherKeys]) ->
     Hash = cds_hash:hash(CardData, Key, scrypt_options(Meta)),
     find_tokens(CardData, Hash, OtherKeys).
 
-find_tokens(UniqueCardData, Hash, OtherKeys) ->
+find_tokens(CardData, Hash, OtherKeys) ->
     case cds_card_storage:get_tokens_by_hash(Hash) of
         [] ->
-            find_tokens(UniqueCardData, OtherKeys);
+            find_tokens(CardData, OtherKeys);
         NotEmptyList ->
             {NotEmptyList, Hash}
     end.
