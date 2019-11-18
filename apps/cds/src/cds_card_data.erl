@@ -136,7 +136,7 @@ detect_payment_system(0, _) ->
 -spec marshal_cardholder_data(cardholder_data()) -> marshalled().
 
 %% NOTE: New CDS store card number only, expiration date and cardholder name
-%% will store elsewhere. This design allows reduce amount of data
+%% will be stored elsewhere. This design allows to reduce amount of data
 %% stored for the card with the same card number but different (or unknown)
 %% expiration date and cardholder name.
 %% Data format designed to be backward compatible with previous one.
