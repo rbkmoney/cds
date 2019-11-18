@@ -129,13 +129,13 @@ get_card_data_samples() ->
 -spec pan_only_card_data_validation(config()) -> _.
 
 pan_only_card_data_validation(_C) ->
-    SD_CVV = #{auth_data => #{cvv => <<"345">>}},
-    MC = #{
+    AuthData = #{auth_data => #{cvv => <<"345">>}},
+    CardData = #{
         cardnumber => <<"5321301234567892">>
     },
     {ok, #{
         payment_system := mastercard,
         iin            := <<"532130">>,
         last_digits    := <<"7892">>
-    }} = cds_card_data:validate(MC, SD_CVV),
+    }} = cds_card_data:validate(CardData, AuthData),
     ok.
