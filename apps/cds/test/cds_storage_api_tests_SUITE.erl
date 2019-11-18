@@ -143,6 +143,7 @@ groups() ->
             rotate,
             get_card_data_3ds,
             get_session_data_3ds,
+            rotate,
             {group, hash_collision_check}
         ]},
         {keyring_errors, [sequence], [
