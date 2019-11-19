@@ -101,7 +101,10 @@ groups() ->
         ]},
         {ets_storage_backend, [], [{group, general_flow}]},
         {backward_compatibility, [], [
-            {riak_storage_backend, [], [{group, backward_compatibility_basic_lifecycle}]},
+            {riak_storage_backend, [], [
+                {group, backward_compatibility_basic_lifecycle},
+                {group, backward_compatibilty_data_storage}
+            ]},
             {ets_storage_backend, [], [{group, backward_compatibility_basic_lifecycle}]},
             {keyring_errors, [], [
                 init,
@@ -115,11 +118,11 @@ groups() ->
                 {basic_lifecycle, [sequence], [
                     init,
                     put_card_data,
-                    get_session_card_data_backward_compatibilty,
-                    get_card_data_backward_compatibilty
+                    get_session_card_data_backward_compatibilty
                 ]}
             ]}
         ]},
+        {backward_compatibilty_data_storage, [], [get_card_data_backward_compatibilty]},
         {general_flow, [], [
             {group, basic_lifecycle},
             {group, session_management}
@@ -513,57 +516,19 @@ get_session_card_data_backward_compatibilty(C) ->
 
 -spec get_card_data_backward_compatibilty(config()) -> _.
 
-%% This test emulates old card data structure for
-%% test backward compatibility with new code
 get_card_data_backward_compatibilty(C) ->
     CardData = #{
-        pan => <<"5321301234567894">>,
+        pan => <<"4242424242424648">>,
         exp_date => #{month => 12,year => 3000},
         cardholder_name => <<"Tony Stark">>,
         cvv => <<>>
     },
-    MarshalledCardData = marshal_cardholder_data(CardData),
-    {{KeyId, Key} = CurrentKey, CurrentKeyMeta} = cds_keyring:get_current_key_with_meta(),
-    UniqueCardData = unique_card_data(MarshalledCardData),
-    CardDataHash = cds_hash:hash(UniqueCardData, Key, cds_keyring:deduplication_hash_opts(CurrentKeyMeta)),
-    Token = token(),
-    EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
-    ok = cds_card_storage:put_card(
-        Token,
-        CardDataHash,
-        EncryptedCardData,
-        KeyId
-    ),
-
+    #{bank_card := #{token := Token}} = cds_old_cds_client:put_card(CardData, oldcds_url(C)),
     CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CardData,
-        CDSCardClient:get_card_data(cds_utils:encode_token(Token), root_url(C))
+        CDSCardClient:get_test_card(CardData, <<>>),
+        CDSCardClient:get_card_data(Token, root_url(C))
     ).
-
--spec token() -> cds:token().
-
-token() ->
-    crypto:strong_rand_bytes(16).
-
-marshal_cardholder_data(#{
-    pan := CN,
-    exp_date := #{month := Month, year := Year},
-    cardholder_name := Cardholder
-}) ->
-    <<
-        (byte_size(CN)),
-        CN/binary,
-        Month:8, Year:16,
-        Cardholder/binary
-    >>.
-
-unique_card_data(<< CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary >>) ->
-    << CNSize, CN/binary, Month:8, Year:16 >>.
-
-encrypt(Plain, {KeyID, Key}) ->
-    Cipher = cds_crypto:encrypt(Key, Plain),
-    <<KeyID, Cipher/binary>>.
 
 -spec get_card_data_unavailable(config()) -> _.
 
@@ -765,3 +730,6 @@ update_config(Key, Config, NewVal) ->
 
 root_url(C) ->
     config(root_url, C).
+
+oldcds_url(C) ->
+    config(oldcds_root_url, C).
