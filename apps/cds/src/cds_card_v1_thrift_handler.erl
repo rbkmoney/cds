@@ -29,8 +29,9 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
                 ExpDate = maps:get(exp_date, OwnCardData, undefined),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token_with_payload(Token, OwnCardData),
+                    token          = cds_utils:encode_token_with_payload(Token, Payload),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
                     masked_pan     = maps:get(last_digits   , CardInfo),
@@ -74,8 +75,9 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
                 ExpDate = maps:get(exp_date, OwnCardData, undefined),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token_with_payload(Token, OwnCardData),
+                    token          = cds_utils:encode_token_with_payload(Token, Payload),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
                     masked_pan     = maps:get(last_digits   , CardInfo),

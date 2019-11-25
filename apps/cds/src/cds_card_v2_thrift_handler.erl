@@ -27,8 +27,9 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #cds_BankCard{
-                    token       = cds_utils:encode_token_with_payload(Token, OwnCardData),
+                    token       = cds_utils:encode_token_with_payload(Token, Payload),
                     bin         = maps:get(iin           , CardInfo),
                     last_digits = maps:get(last_digits   , CardInfo)
                 },
@@ -52,8 +53,9 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token_with_payload(Token, OwnCardData),
+                    token          = cds_utils:encode_token_with_payload(Token, Payload),
                     bin            = maps:get(iin           , CardInfo),
                     last_digits    = maps:get(last_digits   , CardInfo)
                 },
