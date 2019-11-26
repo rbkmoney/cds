@@ -24,7 +24,7 @@
 -export([get_session_data_backward_compatibilty/1]).
 -export([get_session_card_data_backward_compatibilty/1]).
 -export([get_card_data_backward_compatibilty/1]).
--export([no_dot_in_token/1]).
+-export([no_last_dot_in_token/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
 -export([refresh_sessions/1]).
@@ -89,7 +89,10 @@ groups() ->
             {group, all_groups},
             {group, backward_compatibility}
         ]},
-        {cds_client_v2, [], [{group, all_groups}]},
+        {cds_client_v2, [], [
+            {group, all_groups},
+            {group, backward_compatibility}
+        ]},
         {all_groups, [], [
             {group, riak_storage_backend},
             {group, ets_storage_backend},
@@ -125,7 +128,7 @@ groups() ->
         ]},
         {backward_compatibilty_data_storage, [], [
             get_card_data_backward_compatibilty,
-            no_dot_in_token
+            no_last_dot_in_token
         ]},
         {general_flow, [], [
             {group, basic_lifecycle},
@@ -534,9 +537,9 @@ get_card_data_backward_compatibilty(C) ->
         CDSCardClient:get_card_data(Token, root_url(C))
     ).
 
--spec no_dot_in_token(config()) -> _.
+-spec no_last_dot_in_token(config()) -> _.
 
-no_dot_in_token(C) ->
+no_last_dot_in_token(C) ->
     CardData = #{
         pan => <<"4242424242424648">>,
         exp_date => #{month => 12,year => 3000},
@@ -544,7 +547,10 @@ no_dot_in_token(C) ->
         cvv => <<>>
     },
     CDSCardClient = config(cds_storage_client, C),
-    #{bank_card := #{token := Token}} = CDSCardClient:put_card(CardData, oldcds_url(C)),
+    #{bank_card := #{token := Token}} =
+        CDSCardClient:put_card(
+            CDSCardClient:get_test_card(CardData, <<>>),
+            root_url(C)),
     LastByte = binary:part(Token, {byte_size(Token), -1}),
     ?assertNotEqual(<<".">>, LastByte).
 

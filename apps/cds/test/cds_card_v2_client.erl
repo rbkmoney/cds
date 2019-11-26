@@ -6,6 +6,7 @@
 -export([get_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
+-export([get_session_card_data/3]).
 -export([put_card/2]).
 -export([put_session/3]).
 -export([get_test_card/1]).
@@ -103,6 +104,17 @@ put_card(CardData, RootUrl) ->
     ok.
 put_session(SessionID, SessionData, RootUrl) ->
     call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
+
+-spec get_session_card_data(cds:token(), cds:session(), woody:url()) ->
+    card_data() | {error, card_data_not_found}.
+%% NOTE: This method added for backward compatibility with client v1 tests.
+get_session_card_data(Token, _Session, RootUrl) ->
+    try
+        get_card_data(Token, RootUrl)
+    catch
+        _:_ ->
+            {error, session_data_not_found}
+    end.
 
 encode_card_data(#{pan := Pan}) ->
     #cds_PutCardData{
