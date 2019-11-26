@@ -543,7 +543,8 @@ no_dot_in_token(C) ->
         cardholder_name => <<"Tony Stark">>,
         cvv => <<>>
     },
-    #{bank_card := #{token := Token}} = cds_old_cds_client:put_card(CardData, oldcds_url(C)),
+    CDSCardClient = config(cds_storage_client, C),
+    #{bank_card := #{token := Token}} = CDSCardClient:put_card(CardData, oldcds_url(C)),
     LastByte = binary:part(Token, {byte_size(Token), -1}),
     ?assertNotEqual(<<".">>, LastByte).
 
