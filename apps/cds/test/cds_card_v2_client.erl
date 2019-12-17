@@ -4,11 +4,13 @@
 -include_lib("cds_proto/include/cds_proto_base_thrift.hrl").
 
 -export([get_card_data/2]).
--export([put_card_data/2]).
 -export([put_card_data/3]).
 -export([get_session_data/2]).
+-export([get_session_card_data/3]).
 -export([put_card/2]).
 -export([put_session/3]).
+-export([get_test_card/1]).
+-export([get_test_card/2]).
 
 %%
 %% Internal types
@@ -20,8 +22,7 @@
         month := integer(),
         year := integer()
     },
-    cardholder_name => binary() | undefined,
-    cvv => binary() | undefined
+    cardholder_name => binary() | undefined
 }.
 
 -type session_data() :: #{
@@ -59,11 +60,6 @@ get_card_data(Token, RootUrl) ->
         #cds_CardDataNotFound{} ->
             {error, card_data_not_found}
     end.
-
--spec put_card_data(card_data(), woody:url()) ->
-    put_card_data_result() | {error, {invalid_card_data, binary()}}.
-put_card_data(CardData, RootUrl) ->
-    put_card_data(CardData, undefined, RootUrl).
 
 -spec put_card_data(card_data(), session_data() | undefined, woody:url()) ->
     put_card_data_result() | {error, {invalid_card_data, binary()}}.
@@ -109,22 +105,20 @@ put_card(CardData, RootUrl) ->
 put_session(SessionID, SessionData, RootUrl) ->
     call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
 
-encode_card_data(
-    #{
-        pan := Pan,
-        exp_date := #{
-            month := ExpDateMonth,
-            year := ExpDateYear
-        }
-    } = CardData) ->
-    #cds_CardData{
-        pan = Pan,
-        exp_date = #cds_ExpDate{
-            month = ExpDateMonth,
-            year = ExpDateYear
-        },
-        cardholder_name = maps:get(cardholder_name, CardData, undefined),
-        cvv = maps:get(cvv, CardData, undefined)
+-spec get_session_card_data(cds:token(), cds:session(), woody:url()) ->
+    card_data() | {error, card_data_not_found}.
+%% NOTE: This method added for backward compatibility with client v1 tests.
+get_session_card_data(Token, _Session, RootUrl) ->
+    try
+        get_card_data(Token, RootUrl)
+    catch
+        _:_ ->
+            {error, session_data_not_found}
+    end.
+
+encode_card_data(#{pan := Pan}) ->
+    #cds_PutCardData{
+        pan = Pan
     }.
 
 encode_session_data(undefined) ->
@@ -168,22 +162,10 @@ decode_bank_card(
 
 decode_card_data(
     #cds_CardData{
-        pan = Pan,
-        exp_date = #cds_ExpDate{
-            month = ExpDateMonth,
-            year = ExpDateYear
-        },
-        cardholder_name = CardHolderName,
-        cvv = CVV
+        pan = Pan
     }) ->
     DecodedCardData = #{
-        pan => Pan,
-        exp_date => #{
-            month => ExpDateMonth,
-            year => ExpDateYear
-        },
-        cardholder_name => CardHolderName,
-        cvv => CVV
+        pan => Pan
     },
     genlib_map:compact(DecodedCardData).
 
@@ -214,3 +196,16 @@ decode_session_data(
 
 call(Service, Method, Args, RootUrl) ->
     cds_ct_utils:call(Service, Method, Args, RootUrl).
+
+-spec get_test_card(binary() | undefined) -> card_data().
+
+get_test_card(CVV) ->
+    get_test_card(
+    #{
+        pan => <<"5321301234567892">>
+    }, CVV).
+
+-spec get_test_card(card_data(), binary() | undefined) -> card_data().
+
+get_test_card(#{pan := PAN}, _CVV) ->
+    #{pan => PAN}.

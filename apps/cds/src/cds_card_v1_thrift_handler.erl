@@ -1,7 +1,7 @@
 -module(cds_card_v1_thrift_handler).
 -behaviour(woody_server_thrift_handler).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("damsel/include/dmsl_cds_thrift.hrl").
 
 %% woody_server_thrift_handler callbacks
 -export([handle_function/4]).
@@ -28,11 +28,15 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
+                ExpDate = maps:get(exp_date, OwnCardData, undefined),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token(Token),
+                    token          = cds_utils:encode_token_with_payload(Token, Payload),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    masked_pan     = maps:get(last_digits   , CardInfo),
+                    exp_date       = encode_exp_date(ExpDate),
+                    cardholder_name = maps:get(cardholder, OwnCardData, undefined)
                 },
                 {ok, #'PutCardDataResult'{
                     bank_card      = BankCard,
@@ -50,7 +54,11 @@ handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
 
 handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
-        CardData = get_cardholder_data(cds_utils:decode_token(Token)),
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
+        CardData = maps:merge(
+            get_cardholder_data(DecodedToken),
+            DecodedPayload
+        ),
         SessionData = try_get_session_data(Session),
         {ok, encode_card_data(CardData, SessionData)}
     catch
@@ -66,11 +74,15 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
+                ExpDate = maps:get(exp_date, OwnCardData, undefined),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token(Token),
+                    token          = cds_utils:encode_token_with_payload(Token, Payload),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo)
+                    masked_pan     = maps:get(last_digits   , CardInfo),
+                    exp_date       = encode_exp_date(ExpDate),
+                    cardholder_name = maps:get(cardholder, OwnCardData, undefined)
                 },
                 {ok, #'PutCardResult'{
                     bank_card = BankCard
@@ -87,11 +99,12 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        {ok, encode_cardholder_data(
-            get_cardholder_data(
-                cds_utils:decode_token(Token)
-            )
-        )}
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
+        CardData = maps:merge(
+            get_cardholder_data(DecodedToken),
+            DecodedPayload
+        ),
+        {ok, encode_cardholder_data(CardData)}
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#'CardDataNotFound'{});
@@ -154,9 +167,9 @@ encode_card_data(CardData, #{auth_data := AuthData}) ->
 
 encode_cardholder_data(#{
     cardnumber := PAN,
-    exp_date   := {Month, Year},
-    cardholder := CardholderName
-}) ->
+    exp_date   := {Month, Year}
+} = Data) ->
+    CardholderName = maps:get(cardholder, Data, undefined),
     #'CardData'{
         pan             = PAN,
         exp_date        = #'ExpDate'{month = Month, year = Year},
@@ -210,3 +223,11 @@ define_session_data(undefined, #'CardData'{cvv = CVV}) ->
     #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
 define_session_data(#'SessionData'{} = SessionData, _CardData) ->
     SessionData.
+
+encode_exp_date(undefined) ->
+    undefined;
+encode_exp_date({Month, Year}) ->
+    #domain_BankCardExpDate{
+        month = Month,
+        year = Year
+    }.

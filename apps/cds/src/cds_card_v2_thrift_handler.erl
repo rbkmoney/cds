@@ -22,15 +22,14 @@ handle_function(OperationID, Args, Context, Opts) ->
 
 handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
-    OwnSessionData = decode_session_data(
-        define_session_data(SessionData, CardData)
-    ),
+    OwnSessionData = decode_session_data(SessionData),
     try
         case cds_card_data:validate(OwnCardData, OwnSessionData) of
             {ok, CardInfo} ->
                 {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #cds_BankCard{
-                    token       = cds_utils:encode_token(Token),
+                    token       = cds_utils:encode_token_with_payload(Token, Payload),
                     bin         = maps:get(iin           , CardInfo),
                     last_digits = maps:get(last_digits   , CardInfo)
                 },
@@ -54,8 +53,9 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
+                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token(Token),
+                    token          = cds_utils:encode_token_with_payload(Token, Payload),
                     bin            = maps:get(iin           , CardInfo),
                     last_digits    = maps:get(last_digits   , CardInfo)
                 },
@@ -74,11 +74,8 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        {ok, encode_cardholder_data(
-            get_cardholder_data(
-                cds_utils:decode_token(Token)
-            )
-        )}
+        {DecodedToken, _DecodedPayload} = cds_utils:decode_token_with_payload(Token),
+        {ok, encode_cardholder_data(get_cardholder_data(DecodedToken))}
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#cds_CardDataNotFound{});
@@ -111,16 +108,18 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %% Internals
 %%
 
-decode_card_data(#cds_CardData{
+decode_card_data(#'cds_PutCardData'{
     pan             = PAN,
-    exp_date        = #cds_ExpDate{month = Month, year = Year},
+    exp_date        = ExpDate,
     cardholder_name = CardholderName
 }) ->
-    #{
-        cardnumber => PAN,
-        exp_date   => {Month, Year},
-        cardholder => CardholderName
-    }.
+    genlib_map:compact(
+        #{
+            cardnumber => PAN,
+            exp_date   => decode_exp_date(ExpDate),
+            cardholder => CardholderName
+        }
+    ).
 
 decode_session_data(#cds_SessionData{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
@@ -130,16 +129,9 @@ decode_auth_data({card_security_code, #cds_CardSecurityCode{value = Value}}) ->
 decode_auth_data({auth_3ds, #cds_Auth3DS{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
-encode_cardholder_data(#{
-    cardnumber := PAN,
-    exp_date   := {Month, Year},
-    cardholder := CardholderName
-}) ->
+encode_cardholder_data(#{cardnumber := PAN}) ->
     #cds_CardData{
-        pan             = PAN,
-        exp_date        = #cds_ExpDate{month = Month, year = Year},
-        cardholder_name = CardholderName,
-        cvv             = <<>>
+        pan = PAN
     }.
 
 encode_session_data(#{auth_data := AuthData}) ->
@@ -173,7 +165,7 @@ get_session_data(Session) ->
     {_, SessionData} = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
 
-define_session_data(undefined, #cds_CardData{cvv = CVV}) ->
-    #cds_SessionData{auth_data = {card_security_code, #cds_CardSecurityCode{value = CVV}}};
-define_session_data(#cds_SessionData{} = SessionData, _CardData) ->
-    SessionData.
+decode_exp_date(undefined) ->
+    undefined;
+decode_exp_date(#'cds_ExpDate'{month = Month, year = Year}) ->
+    {Month, Year}.

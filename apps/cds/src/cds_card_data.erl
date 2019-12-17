@@ -11,16 +11,20 @@
 -export([marshal_session_data/1]).
 -export([unmarshal_cardholder_data/1]).
 -export([unmarshal_session_data/1]).
--export([unique/1]).
 
 -type cardnumber() :: binary().
 -type exp_date()   :: {1..12, pos_integer()}.
--type cardholder() :: binary() | undefined.
+-type cardholder() :: binary().
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
-    exp_date   := exp_date(),
-    cardholder := cardholder()
+    exp_date   => exp_date(),
+    cardholder => cardholder()
+}.
+
+-type payload_data() :: #{
+    exp_date   => exp_date(),
+    cardholder => cardholder()
 }.
 
 -type cvv() :: #{
@@ -52,6 +56,7 @@
 -export_type([card_info/0]).
 -export_type([cardholder_data/0]).
 -export_type([reason/0]).
+-export_type([payload_data/0]).
 
 %%
 
@@ -130,17 +135,15 @@ detect_payment_system(0, _) ->
 
 -spec marshal_cardholder_data(cardholder_data()) -> marshalled().
 
-marshal_cardholder_data(#{
-    cardnumber := CN,
-    exp_date   := {Month, Year},
-    cardholder := Cardholder
-}) ->
-    <<
-        (byte_size(CN)),
-        CN/binary,
-        Month:8, Year:16,
-        (marshal(cardholder, Cardholder))/binary
-    >>.
+%% NOTE: New CDS store card number only, expiration date and cardholder name
+%% will be stored elsewhere. This design allows to reduce amount of data
+%% stored for the card with the same card number but different (or unknown)
+%% expiration date and cardholder name.
+%% Data format designed to be backward compatible with previous one.
+
+marshal_cardholder_data(#{cardnumber := CN}) ->
+    CNSize = byte_size(CN),
+    << CNSize, CN/binary >>.
 
 -spec marshal_session_data(session_data()) -> marshalled().
 
@@ -150,10 +153,6 @@ marshal_session_data(SessionData) ->
         marshal(metadata, #{content_type => <<"application/msgpack">>, vsn => 1})
     }.
 
-marshal(cardholder, V) when is_binary(V) ->
-    V;
-marshal(cardholder, undefined) ->
-    <<>>;
 marshal(session_data, #{auth_data := AuthData}) ->
     #{<<"auth_data">> => marshal(auth_data, AuthData)};
 marshal(auth_data, #{type := cvv, value := Value}) ->
@@ -166,12 +165,21 @@ marshal(metadata, #{content_type := ContentType, vsn := VSN}) ->
 
 -spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
 
-unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Month:8, Year:16, Cardholder/binary>>) ->
+unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Payload/binary >>) ->
+    PayloadData = unmarshal_payload(Payload),
+    PayloadData#{
+        cardnumber => CN
+    }.
+
+-spec unmarshal_payload(marshalled()) -> payload_data().
+
+unmarshal_payload(<< Month:8, Year:16, Cardholder/binary >>) ->
     #{
-        cardnumber => CN,
         exp_date   => {Month, Year},
         cardholder => unmarshal(cardholder, Cardholder)
-    }.
+    };
+unmarshal_payload(<<>>) ->
+    #{}.
 
 -spec unmarshal_session_data(marshalled()) -> session_data().
 
@@ -197,11 +205,6 @@ unmarshal(auth_data, #{<<"type">> := <<"3ds">>, <<"cryptogram">> := Cryptogram} 
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI});
 unmarshal(metadata, #{<<"content_type">> := ContentType, <<"vsn">> := VSN}) ->
     #{content_type => ContentType, vsn => binary_to_integer(VSN)}.
-
--spec unique(binary()) -> binary().
-
-unique(<<CNSize, CN:CNSize/binary, Month:8, Year:16, _/binary>>) ->
-    <<CNSize, CN:CNSize/binary, Month:8, Year:16>>.
 
 %%
 

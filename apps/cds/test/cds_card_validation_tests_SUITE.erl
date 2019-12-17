@@ -1,11 +1,12 @@
 -module(cds_card_validation_tests_SUITE).
 
--include_lib("dmsl/include/dmsl_cds_thrift.hrl").
+-include_lib("damsel/include/dmsl_cds_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
 -export([full_card_data_validation/1]).
 -export([payment_system_detection/1]).
+-export([pan_only_card_data_validation/1]).
 
 %%
 
@@ -30,7 +31,8 @@ groups() ->
     [
         {card_data_validation, [parallel], [
             full_card_data_validation,
-            payment_system_detection
+            payment_system_detection,
+            pan_only_card_data_validation
         ]}
     ].
 
@@ -123,3 +125,17 @@ get_card_data_samples() ->
         }
         end
     || {Target, CN, SD} <- Samples].
+
+-spec pan_only_card_data_validation(config()) -> _.
+
+pan_only_card_data_validation(_C) ->
+    AuthData = #{auth_data => #{cvv => <<"345">>}},
+    CardData = #{
+        cardnumber => <<"5321301234567892">>
+    },
+    {ok, #{
+        payment_system := mastercard,
+        iin            := <<"532130">>,
+        last_digits    := <<"7892">>
+    }} = cds_card_data:validate(CardData, AuthData),
+    ok.

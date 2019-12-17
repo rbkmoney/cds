@@ -173,7 +173,7 @@ update_cardholder_data(Token, CardData, Hash, KeyID) ->
         ?TOKEN_NS,
         Token,
         CardData,
-        <<"">>,
+        undefined,
         prepare_card_data_indexes(Hash, KeyID)
     ).
 
