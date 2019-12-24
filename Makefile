@@ -34,7 +34,7 @@ $(SUBTARGETS): %/.git: %
 submodules: $(SUBTARGETS)
 
 compile: submodules
-	$(REBAR) compile
+	DEBUG=1 $(REBAR) compile
 
 xref: submodules
 	$(REBAR) xref
