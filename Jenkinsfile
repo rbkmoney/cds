@@ -6,7 +6,7 @@ def finalHook = {
   }
 }
 
-build('cds', 'docker-host', finalHook) {
+build('cds', 'conrunner4', finalHook) {
   checkoutRepo()
   loadBuildUtils()
 
