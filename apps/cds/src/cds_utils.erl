@@ -51,7 +51,7 @@ encode_token_with_payload(Token, Payload) when map_size(Payload) == 0 ->
 encode_token_with_payload(Token, Payload) ->
     <<
         (base62_encode(Token))/binary, $.,
-        (encode_payload(Payload))/binary
+        (encrypt_payload(Token, encode_payload(Payload)))/binary
     >>.
 
 -spec decode_token_with_payload(binary()) -> {cds:token(), cds_card_data:payload_data()}.
@@ -60,7 +60,7 @@ decode_token_with_payload(Token) ->
         [T] ->
             {base62_decode(T), #{}};
         [T, P] ->
-            {base62_decode(T), decode_payload(P)}
+            {base62_decode(T), decode_payload(decrypt_payload(P))}
     end.
 
 -spec decode_payload(binary()) -> cds_card_data:payload_data().
@@ -75,6 +75,18 @@ decode_payload(<< Month:8, Year:16, Cardholder/binary >>) ->
     };
 decode_payload(<<>>) ->
     #{}.
+
+encrypt_payload(Token, EncodedPayload) ->
+    % Use Token as Ivec and first 4 Token bytes as AAD
+    % for generate the same Cipher for the same CardData
+    <<AAD:4/binary, _/binary>> = Token,
+    {KeyID, Key} = cds_keyring:get_current_key(),
+    Cipher = cds_crypto:encrypt(Key, EncodedPayload, Token, AAD),
+    <<KeyID, Cipher/binary>>.
+
+decrypt_payload(<<KeyID, Cipher/binary>>) ->
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
+    cds_crypto:decrypt(Key, Cipher).
 
 encode_payload(
     #{
