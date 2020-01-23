@@ -53,10 +53,9 @@ encode_token_with_payload(Token, Payload) when map_size(Payload) == 0 ->
     base62_encode(Token);
 encode_token_with_payload(Token, Payload) ->
     EncryptedPayload = encrypt_payload(Token, encode_payload(Payload)),
-    EncryptedPayloadLength = byte_size(EncryptedPayload),
-    %% Use EncryptedPayloadLength as a way to protect EncryptedPayload from
+    %% Use '1' as a way to protect EncryptedPayload from
     %% removing zeroes from start
-    Data = <<EncryptedPayloadLength, EncryptedPayload/binary>>,
+    Data = <<1, EncryptedPayload/binary>>,
     <<
         (base62_encode(Token))/binary, $.,
         (base62_encode(Data))/binary
@@ -68,7 +67,7 @@ decode_token_with_payload(Token) ->
         [T] ->
             {base62_decode(T), #{}};
         [T, P] ->
-            <<_L, DecodedPayload/binary>> = base62_decode_(P),
+            <<1, DecodedPayload/binary>> = base62_decode_(P),
             {base62_decode(T), decode_payload(decrypt_payload(DecodedPayload))}
     end.
 
