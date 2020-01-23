@@ -82,7 +82,7 @@ encrypt_payload(Token, EncodedPayload) ->
     <<AAD:4/binary, _/binary>> = Token,
     {KeyID, Key} = cds_keyring:get_current_key(),
     Cipher = cds_crypto:encrypt(Key, EncodedPayload, Token, AAD),
-    <<KeyID, Cipher/binary>>.
+    <<KeyID:4/integer-unit:8, Cipher/binary>>.
 
 decrypt_payload(<<KeyID, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
