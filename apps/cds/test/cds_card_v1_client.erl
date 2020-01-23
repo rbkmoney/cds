@@ -4,8 +4,8 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 
 -export([get_card_data/2]).
+-export([put_card_and_session/3]).
 -export([get_session_card_data/3]).
--export([put_card_data/3]).
 -export([get_session_data/2]).
 -export([put_card/2]).
 -export([put_session/3]).
@@ -48,7 +48,7 @@
     is_cvv_empty => boolean() | undefined
 }.
 
--type put_card_data_result() :: #{
+-type put_card_and_session_result() :: #{
     bank_card := bank_card(),
     session_id := dmsl_domain_thrift:'PaymentSessionID'()
 }.
@@ -79,19 +79,16 @@ get_session_card_data(Token, Session, RootUrl) ->
             {error, session_data_not_found}
     end.
 
--spec put_card_data(card_data(), session_data() | undefined, woody:url()) ->
-    put_card_data_result() | {error, {invalid_card_data, binary()}}.
-put_card_data(CardData, SessionData, RootUrl) ->
-    try call(card, 'PutCardData',
-        [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
-        #'PutCardDataResult'{bank_card = BankCard, session_id = PaymentSessionId} ->
-            #{
-                bank_card => decode_bank_card(BankCard),
-                session_id => PaymentSessionId
-            }
-    catch
-        #'InvalidCardData'{reason = Reason} ->
-            {error, {invalid_card_data, Reason}}
+-spec put_card_and_session(card_data(), session_data() | undefined, woody:url()) ->
+    put_card_and_session_result() | {error, {invalid_card_data, binary()}}.
+put_card_and_session(CardData, SessionData, RootUrl) ->
+    case put_card(CardData, RootUrl) of
+        Result when is_map(Result) ->
+            SessionId = genlib:unique(),
+            ok = put_session(SessionId, SessionData, RootUrl),
+            maps:merge(#{session_id => SessionId}, Result);
+        Error ->
+            Error
     end.
 
 -spec get_session_data(cds:session(), woody:url()) ->

@@ -20,33 +20,6 @@ handle_function(OperationID, Args, Context, Opts) ->
         cds_thrift_handler_utils:filter_fun_exceptions(fun() -> handle_function_(OperationID, Args, Context, Opts) end)
     ).
 
-handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
-    OwnCardData = decode_card_data(CardData),
-    OwnSessionData = decode_session_data(SessionData),
-    try
-        case cds_card_data:validate(OwnCardData, OwnSessionData) of
-            {ok, CardInfo} ->
-                {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
-                Payload = maps:without([cardnumber], OwnCardData),
-                BankCard = #cds_BankCard{
-                    token       = cds_utils:encode_token_with_payload(Token, Payload),
-                    bin         = maps:get(iin           , CardInfo),
-                    last_digits = maps:get(last_digits   , CardInfo)
-                },
-                {ok, #cds_PutCardDataResult{
-                    bank_card   = BankCard,
-                    session_id  = Session
-                }};
-            {error, ValidationError} ->
-                cds_thrift_handler_utils:raise(#cds_InvalidCardData{
-                    reason      = cds_thrift_handler_utils:map_validation_error(ValidationError)
-                })
-        end
-    catch
-        no_keyring ->
-            cds_thrift_handler_utils:raise_keyring_unavailable()
-    end;
-
 handle_function_('PutCard', [CardData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
     try
@@ -148,12 +121,6 @@ encode_auth_data(#{type := '3ds', cryptogram := Cryptogram} = Data) ->
 get_cardholder_data(Token) ->
     {_, CardholderData} = cds:get_cardholder_data(Token),
     cds_card_data:unmarshal_cardholder_data(CardholderData).
-
-put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data({
-        cds_card_data:marshal_cardholder_data(CardholderData),
-        cds_card_data:marshal_session_data(SessionData)
-    }).
 
 put_card(CardholderData) ->
     cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).

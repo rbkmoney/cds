@@ -4,7 +4,7 @@
 -include_lib("cds_proto/include/cds_proto_base_thrift.hrl").
 
 -export([get_card_data/2]).
--export([put_card_data/3]).
+-export([put_card_and_session/3]).
 -export([get_session_data/2]).
 -export([get_session_card_data/3]).
 -export([put_card/2]).
@@ -41,7 +41,7 @@
     last_digits := binary()
 }.
 
--type put_card_data_result() :: #{
+-type put_card_and_session_result() :: #{
     bank_card := bank_card(),
     session_id := cds_proto_base_thrift:'PaymentSessionID'()
 }.
@@ -61,19 +61,16 @@ get_card_data(Token, RootUrl) ->
             {error, card_data_not_found}
     end.
 
--spec put_card_data(card_data(), session_data() | undefined, woody:url()) ->
-    put_card_data_result() | {error, {invalid_card_data, binary()}}.
-put_card_data(CardData, SessionData, RootUrl) ->
-    try call(card_v2, 'PutCardData',
-        [encode_card_data(CardData), encode_session_data(SessionData)], RootUrl) of
-        #cds_PutCardDataResult{bank_card = BankCard, session_id = PaymentSessionId} ->
-            #{
-                bank_card => decode_bank_card(BankCard),
-                session_id => PaymentSessionId
-            }
-    catch
-        #cds_InvalidCardData{reason = Reason} ->
-            {error, {invalid_card_data, Reason}}
+-spec put_card_and_session(card_data(), session_data() | undefined, woody:url()) ->
+    put_card_and_session_result() | {error, {invalid_card_data, binary()}}.
+put_card_and_session(CardData, SessionData, RootUrl) ->
+    case put_card(CardData, RootUrl) of
+        Result when is_map(Result) ->
+            SessionId = genlib:unique(),
+            ok = put_session(SessionId, SessionData, RootUrl),
+            maps:merge(#{session_id => SessionId}, Result);
+        Error ->
+            Error
     end.
 
 -spec get_session_data(cds:session(), woody:url()) ->

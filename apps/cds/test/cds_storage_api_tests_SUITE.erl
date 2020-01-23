@@ -352,7 +352,7 @@ put_card_data(C) ->
             year => 3000
         }
     },
-    #{} = CDSCardClient:put_card_data(
+    #{} = CDSCardClient:put_card_and_session(
         CardData,
         ?SESSION_DATA(?CARD_SEC_CODE(<<"123">>)),
         root_url(C)
@@ -363,7 +363,7 @@ put_card_data(C) ->
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_data(
+    } = CDSCardClient:put_card_and_session(
         CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(?CVV)),
         root_url(C)
@@ -477,7 +477,7 @@ put_card_data_3ds(C) ->
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_data(
+    } = CDSCardClient:put_card_and_session(
         CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?AUTH_3DS),
         root_url(C)
@@ -575,7 +575,7 @@ get_session_card_data_unavailable(C) ->
 put_card_data_unavailable(C) ->
     CDSCardClient = config(cds_storage_client, C),
     try
-        CDSCardClient:put_card_data(
+        CDSCardClient:put_card_and_session(
             CDSCardClient:get_test_card(undefined),
             ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
         )
@@ -589,7 +589,7 @@ put_card_data_unavailable(C) ->
 put_card_data_3ds_unavailable(C) ->
     CDSCardClient = config(cds_storage_client, C),
     try
-        CDSCardClient:put_card_data(
+        CDSCardClient:put_card_and_session(
             CDSCardClient:get_test_card(undefined),
             ?SESSION_DATA(?AUTH_3DS), root_url(C)
         )
@@ -603,7 +603,7 @@ put_card_data_3ds_unavailable(C) ->
 put_card_data_no_member(C) ->
     CDSCardClient = config(cds_storage_client, C),
     try
-        CDSCardClient:put_card_data(
+        CDSCardClient:put_card_and_session(
             CDSCardClient:get_test_card(undefined),
             ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
         )
@@ -621,7 +621,7 @@ session_cleaning(C) ->
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_data(
+    } = CDSCardClient:put_card_and_session(
         CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
     ),
@@ -652,7 +652,7 @@ refresh_sessions(C) ->
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_data(
+    } = CDSCardClient:put_card_and_session(
         CDSCardClient:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(<<"345">>)), root_url(C)
     ),
@@ -690,25 +690,23 @@ recrypt(C) ->
         cardholder => <<"Tony Stark">>
     },
     SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
-    {TokenCVV, SessionCVV} = cds:put_card_data({
-        cds_card_data:marshal_cardholder_data(CardholderData),
-        cds_card_data:marshal_session_data(SessionDataCVV)
-    }),
+
+    Token      = cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)),
+    SessionCVV = genlib:unique(),
+    ok = cds:put_session(SessionCVV, cds_card_data:marshal_session_data(SessionDataCVV)),
 
     SessionData3DS = #{auth_data => #{type => '3ds', cryptogram => <<"cryptogram">>, eci => <<"5">>}},
-    {Token3DS, Session3DS} = cds:put_card_data({
-        cds_card_data:marshal_cardholder_data(CardholderData),
-        cds_card_data:marshal_session_data(SessionData3DS)
-    }),
 
-    {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
+    Session3DS = genlib:unique(),
+    ok = cds:put_session(Session3DS, cds_card_data:marshal_session_data(SessionData3DS)),
+
+    {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(Token, SessionCVV),
     <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
 
-    {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
+    {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token, Session3DS),
     <<KeyID0, _/binary>> = EncryptedCardData3DS0,
     {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
-
 
     rotate(C),
     [{recrypting, #{
@@ -720,11 +718,11 @@ recrypt(C) ->
     _ = timer:sleep(Interval * 2 + KeyringFetchInterval * 2),
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
-    {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(TokenCVV, SessionCVV),
+    {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(Token, SessionCVV),
     <<KeyID, _/binary>> = EncryptedCardDataCVV,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
 
-    {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token3DS, Session3DS),
+    {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token, Session3DS),
     <<KeyID, _/binary>> = EncryptedCardData3DS,
     {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
 

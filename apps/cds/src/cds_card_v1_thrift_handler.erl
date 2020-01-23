@@ -19,39 +19,6 @@ handle_function(OperationID, Args, Context, Opts) ->
         cds_thrift_handler_utils:filter_fun_exceptions(fun() -> handle_function_(OperationID, Args, Context, Opts) end)
     ).
 
-handle_function_('PutCardData', [CardData, SessionData], _Context, _Opts) ->
-    OwnCardData = decode_card_data(CardData),
-    OwnSessionData = decode_session_data(
-        define_session_data(SessionData, CardData)
-    ),
-    try
-        case cds_card_data:validate(OwnCardData, OwnSessionData) of
-            {ok, CardInfo} ->
-                {Token, Session} = put_card_data(OwnCardData, OwnSessionData),
-                ExpDate = maps:get(exp_date, OwnCardData, undefined),
-                Payload = maps:without([cardnumber], OwnCardData),
-                BankCard = #'domain_BankCard'{
-                    token          = cds_utils:encode_token_with_payload(Token, Payload),
-                    payment_system = maps:get(payment_system, CardInfo),
-                    bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo),
-                    exp_date       = encode_exp_date(ExpDate),
-                    cardholder_name = maps:get(cardholder, OwnCardData, undefined)
-                },
-                {ok, #'PutCardDataResult'{
-                    bank_card      = BankCard,
-                    session_id     = cds_utils:encode_session(Session)
-                }};
-            {error, ValidationError} ->
-                cds_thrift_handler_utils:raise(#'InvalidCardData'{
-                    reason         = cds_thrift_handler_utils:map_validation_error(ValidationError)
-                })
-        end
-    catch
-        no_keyring ->
-            cds_thrift_handler_utils:raise_keyring_unavailable()
-    end;
-
 handle_function_('GetSessionCardData', [Token, Session], _Context, _Opts) ->
     try
         {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
@@ -192,12 +159,6 @@ get_cardholder_data(Token) ->
     {_, CardholderData} = cds:get_cardholder_data(Token),
     cds_card_data:unmarshal_cardholder_data(CardholderData).
 
-put_card_data(CardholderData, SessionData) ->
-    cds:put_card_data({
-        cds_card_data:marshal_cardholder_data(CardholderData),
-        cds_card_data:marshal_session_data(SessionData)
-    }).
-
 put_card(CardholderData) ->
     cds:put_card(cds_card_data:marshal_cardholder_data(CardholderData)).
 
@@ -218,11 +179,6 @@ try_get_session_data(Session0) ->
         not_found -> % same as before but for false positive decoding case
             get_session_data(Session0)
     end.
-
-define_session_data(undefined, #'CardData'{cvv = CVV}) ->
-    #'SessionData'{auth_data = {card_security_code, #'CardSecurityCode'{value = CVV}}};
-define_session_data(#'SessionData'{} = SessionData, _CardData) ->
-    SessionData.
 
 encode_exp_date(undefined) ->
     undefined;
