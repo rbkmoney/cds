@@ -47,7 +47,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
                     token          = cds_utils:encode_token_with_payload(Token, Payload),
                     payment_system = maps:get(payment_system, CardInfo),
                     bin            = maps:get(iin           , CardInfo),
-                    masked_pan     = maps:get(last_digits   , CardInfo),
+                    last_digits    = maps:get(last_digits   , CardInfo),
                     exp_date       = encode_exp_date(ExpDate),
                     cardholder_name = maps:get(cardholder, OwnCardData, undefined)
                 },
