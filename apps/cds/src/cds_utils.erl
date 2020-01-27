@@ -38,7 +38,10 @@ base62_encode(Data) ->
     genlib_format:format_int_base(binary:decode_unsigned(Data), 62).
 
 base62_decode(Data) ->
-    genlib_string:pad_left(binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)), 0, 16).
+    genlib_string:pad_left(base62_decode_(Data), 0, 16).
+
+base62_decode_(Data) ->
+    binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)).
 
 %% NOTE: The *_payload function family added for transition from old damsel based
 %% CDS protocol to new CDS protocol and will be removed shortly after adopting
@@ -49,9 +52,13 @@ base62_decode(Data) ->
 encode_token_with_payload(Token, Payload) when map_size(Payload) == 0 ->
     base62_encode(Token);
 encode_token_with_payload(Token, Payload) ->
+    EncryptedPayload = encrypt_payload(Token, encode_payload(Payload)),
+    %% Use '1' as a way to protect EncryptedPayload from
+    %% removing zeroes from start
+    Data = <<1, EncryptedPayload/binary>>,
     <<
         (base62_encode(Token))/binary, $.,
-        (encode_payload(Payload))/binary
+        (base62_encode(Data))/binary
     >>.
 
 -spec decode_token_with_payload(binary()) -> {cds:token(), cds_card_data:payload_data()}.
@@ -60,7 +67,8 @@ decode_token_with_payload(Token) ->
         [T] ->
             {base62_decode(T), #{}};
         [T, P] ->
-            {base62_decode(T), decode_payload(P)}
+            <<1, DecodedPayload/binary>> = base62_decode_(P),
+            {base62_decode(T), decode_payload(decrypt_payload(DecodedPayload))}
     end.
 
 -spec decode_payload(binary()) -> cds_card_data:payload_data().
@@ -75,6 +83,18 @@ decode_payload(<< Month:8, Year:16, Cardholder/binary >>) ->
     };
 decode_payload(<<>>) ->
     #{}.
+
+encrypt_payload(Token, EncodedPayload) ->
+    % Use Token as Ivec and first 4 Token bytes as AAD
+    % for generate the same Cipher for the same CardData
+    <<AAD:4/binary, _/binary>> = Token,
+    {KeyID, Key} = cds_keyring:get_current_key(),
+    Cipher = cds_crypto:encrypt(Key, EncodedPayload, Token, AAD),
+    <<KeyID:4/integer-unit:8, Cipher/binary>>.
+
+decrypt_payload(<<KeyID:4/integer-unit:8, Cipher/binary>>) ->
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
+    cds_crypto:decrypt(Key, Cipher).
 
 encode_payload(
     #{
