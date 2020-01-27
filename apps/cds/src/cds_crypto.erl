@@ -4,6 +4,7 @@
 -include_lib("jose/include/jose_jws.hrl").
 
 -export([encrypt/2]).
+-export([encrypt/4]).
 -export([decrypt/2]).
 -export([private_decrypt/2]).
 -export([sign/2]).
@@ -30,6 +31,10 @@
 encrypt(Key, Plain) ->
     IV = iv(),
     AAD = aad(),
+    encrypt(Key, Plain, IV, AAD).
+
+-spec encrypt(key(), binary(), iv(), aad()) -> binary().
+encrypt(Key, Plain, IV, AAD) ->
     try
         {Cipher, Tag} = crypto:block_encrypt(aes_gcm, Key, IV, {AAD, Plain}),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
