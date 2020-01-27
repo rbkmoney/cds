@@ -170,7 +170,7 @@ decode_bank_card(
         token = Token,
         payment_system = PaymentSystem,
         bin = Bin,
-        masked_pan = MaskedPan,
+        last_digits = MaskedPan,
         token_provider = TokenProvider,
         issuer_country = IssuerCountry,
         bank_name = BankName,
