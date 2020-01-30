@@ -30,7 +30,7 @@
        {ref,"f805a11f6e73faffb05656c5192fbe199df36f27"}},
   0},
  {<<"gproc">>,{pkg,<<"gproc">>,<<"0.8.0">>},1},
- {<<"hackney">>,{pkg,<<"hackney">>,<<"1.15.1">>},1},
+ {<<"hackney">>,{pkg,<<"hackney">>,<<"1.15.2">>},1},
  {<<"hamcrest">>,
   {git,"https://github.com/basho/hamcrest-erlang.git",
        {ref,"ad3dbab419762fc2d5821abb88b989da006b85c6"}},
@@ -93,7 +93,7 @@
   {git,"https://github.com/rbkmoney/snowflake.git",
        {ref,"0a598108f6582affe3b4ae550fc5b9f2062e318a"}},
   1},
- {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.4">>},2},
+ {<<"ssl_verify_fun">>,{pkg,<<"ssl_verify_fun">>,<<"1.1.5">>},2},
  {<<"tds_proto">>,
   {git,"git@github.com:rbkmoney/tds-proto.git",
        {ref,"f83510b8694f7ebe40a196ffacc00270482b5b4d"}},
@@ -105,7 +105,7 @@
  {<<"unicode_util_compat">>,{pkg,<<"unicode_util_compat">>,<<"0.4.1">>},3},
  {<<"woody">>,
   {git,"git@github.com:rbkmoney/woody_erlang.git",
-       {ref,"358ba355f670ea65fed24568952e6f8919c7293f"}},
+       {ref,"f2e56d8affcb57bdb603802362dc9d9058e2bddb"}},
   0}]}.
 [
 {pkg_hash,[
@@ -116,7 +116,7 @@
  {<<"cowboy">>, <<"4EF3AE066EE10FE01EA3272EDC8F024347A0D3EB95F6FBB9AED556DACBFC1337">>},
  {<<"cowlib">>, <<"8AA629F81A0FC189F261DC98A42243FA842625FEEA3C7EC56C48F4CCDB55490F">>},
  {<<"gproc">>, <<"CEA02C578589C61E5341FCE149EA36CCEF236CC2ECAC8691FBA408E7EA77EC2F">>},
- {<<"hackney">>, <<"9F8F471C844B8CE395F7B6D8398139E26DDCA9EBC171A8B91342EE15A19963F4">>},
+ {<<"hackney">>, <<"07E33C794F8F8964EE86CEBEC1A8ED88DB5070E52E904B8F12209773C1036085">>},
  {<<"idna">>, <<"689C46CBCDF3524C44D5F3DDE8001F364CD7608A99556D8FBD8239A5798D4C10">>},
  {<<"jose">>, <<"4167C5F6D06FFAEBFFD15CDB8DA61A108445EF5E85AB8F5A7AD926FDF3ADA154">>},
  {<<"jsx">>, <<"D2F6E5F069C00266CAD52FB15D87C428579EA4D7D73A33669E12679E203329DD">>},
@@ -127,6 +127,6 @@
  {<<"ranch">>, <<"6DB93C78F411EE033DBB18BA8234C5574883ACB9A75AF0FB90A9B82EA46AFA00">>},
  {<<"recon">>, <<"4444C879BE323B1B133EEC5241CB84BD3821EA194C740D75617E106BE4744318">>},
  {<<"rfc3339">>, <<"1552DF616ACA368D982E9F085A0E933B6688A3F4938A671798978EC2C0C58730">>},
- {<<"ssl_verify_fun">>, <<"F0EAFFF810D2041E93F915EF59899C923F4568F4585904D010387ED74988E77B">>},
+ {<<"ssl_verify_fun">>, <<"6EAF7AD16CB568BB01753DBBD7A95FF8B91C7979482B95F38443FE2C8852A79B">>},
  {<<"unicode_util_compat">>, <<"D869E4C68901DD9531385BB0C8C40444EBF624E60B6962D95952775CAC5E90CD">>}]}
 ].
