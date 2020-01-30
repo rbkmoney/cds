@@ -10,7 +10,6 @@
 -export([get_cardholder_data/1]).
 -export([get_session_card_data/2]).
 -export([get_session_data/1]).
--export([put_card_data/7]).
 -export([put_card/4]).
 -export([put_session/4]).
 -export([delete_session/1]).
@@ -60,19 +59,6 @@ get_session_data(Session) ->
     {CardData :: cds:ciphertext(), SessionData :: cds:ciphertext()} | no_return().
 get_session_card_data(Token, Session) ->
     {get_cardholder_data(Token), get_session_data(Session)}.
-
--spec put_card_data(
-    cds:token(),
-    cds:session(),
-    cds:hash(),
-    CardData :: cds:ciphertext(),
-    SessionData :: cds:ciphertext(),
-    cds_keyring:key_id(),
-    timestamp()
-) -> ok | no_return().
-put_card_data(Token, Session, Hash, CardData, SessionData, KeyID, CreatedAt) ->
-    ok = put_card(Token, Hash, CardData, KeyID),
-    ok = put_session(Session, SessionData, KeyID, CreatedAt).
 
 -spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
     ok | no_return().

@@ -11,7 +11,6 @@
 
 %% Storage operations
 -export([get_cardholder_data/1]).
--export([put_card_data/1]).
 -export([put_card/1]).
 -export([put_session/2]).
 -export([get_session_data/1]).
@@ -122,24 +121,6 @@ get_cardholder_data(Token) ->
     Encrypted = cds_card_storage:get_cardholder_data(Token),
     decrypt(Encrypted).
 
--spec put_card_data({plaintext(), plaintext()}) -> {token(), session()}.
-put_card_data({MarshalledCardData, MarshalledSessionData}) ->
-    {{KeyID, Key} = CurrentKey, Meta} = cds_keyring:get_current_key_with_meta(),
-    {Token, Hash} = find_or_create_token(KeyID, Key, Meta, MarshalledCardData),
-    Session = session(),
-    EncryptedCardData = encrypt(MarshalledCardData, CurrentKey),
-    EncryptedSessionData = encrypt(MarshalledSessionData, CurrentKey),
-    ok = cds_card_storage:put_card_data(
-        Token,
-        Session,
-        Hash,
-        EncryptedCardData,
-        EncryptedSessionData,
-        KeyID,
-        cds_utils:current_time()
-    ),
-    {Token, Session}.
-
 -spec put_card(plaintext()) -> token().
 put_card(MarshalledCardData) ->
     {{KeyID, Key} = CurrentKey, Meta} = cds_keyring:get_current_key_with_meta(),
@@ -241,10 +222,6 @@ find_tokens(CardData, Hash, OtherKeys) ->
 
 -spec token() -> token().
 token() ->
-    crypto:strong_rand_bytes(16).
-
--spec session() -> session().
-session() ->
     crypto:strong_rand_bytes(16).
 
 is_card_data_equal([Token | OtherTokens]) ->
