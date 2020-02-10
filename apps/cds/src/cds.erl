@@ -18,6 +18,8 @@
 -export([update_cardholder_data/2]).
 -export([update_session_data/2]).
 
+-export([find_or_create_token/4]).
+
 %%
 -export_type([hash/0]).
 -export_type([token/0]).
@@ -172,7 +174,7 @@ encrypt({Data, Metadata}, Key) ->
     {encrypt(Data, Key), encrypt(msgpack:pack(Metadata), Key)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
-    <<KeyID, Cipher/binary>>.
+    <<"version: 1", KeyID:4/integer-unit:8, Cipher/binary>>.
 
 -spec decrypt(ciphertext()) -> {cds_keyring:key_id(), plaintext()}.
 decrypt({Data, Metadata}) ->
@@ -180,6 +182,9 @@ decrypt({Data, Metadata}) ->
     {ok, UnpackedMetadata} = msgpack:unpack(DecryptedMetadata),
     {KeyID, DecryptedData} = decrypt(Data),
     {KeyID, {DecryptedData, UnpackedMetadata}};
+decrypt(<<"version: 1", KeyID:4/integer-unit:8, Cipher/binary>>) ->
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
+    {KeyID, cds_crypto:decrypt(Key, Cipher)};
 decrypt(<<KeyID, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     {KeyID, cds_crypto:decrypt(Key, Cipher)}.
