@@ -541,6 +541,7 @@ get_card_data_backward_compatibility(C) ->
 
 -spec get_card_data_key_id_backward_compatibility(config()) -> _.
 
+%% This is a dirty test that uses details of `PutCardData` realisation
 get_card_data_key_id_backward_compatibility(C) ->
     CardData = #{
         cardnumber => <<"4242424242424648">>,
