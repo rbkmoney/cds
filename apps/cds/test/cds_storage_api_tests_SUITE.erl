@@ -548,22 +548,22 @@ get_card_data_key_id_backward_compatibility(C) ->
         cardholder => <<"Tony Stark">>
     },
     CardHolderData = cds_card_data:marshal_cardholder_data(CardData),
-    {{KeyID, Key} = CurrentKey, Meta} = cds_keyring:get_current_key_with_meta(),
+    {{KeyID, Key}, Meta} = cds_keyring:get_current_key_with_meta(),
     {Token, Hash} = cds:find_or_create_token(KeyID, Key, Meta, CardHolderData),
-    Cipher = cds_crypto:encrypt(CurrentKey, CardHolderData),
-    EncryptedCardData = <<KeyID, Cipher/binary>>,
+    Cipher0 = cds_crypto:encrypt(Key, CardHolderData),
+    EncryptedCardholderData = <<KeyID, Cipher0/binary>>,
     ok = cds_card_storage:put_card(
         Token,
         Hash,
-        EncryptedCardData,
+        EncryptedCardholderData,
         KeyID
     ),
     Payload = maps:without([cardnumber], CardData),
     TokenWithPayload = cds_utils:encode_token_with_payload(Token, Payload),
 
     CDSCardClient = config(cds_storage_client, C),
-    ?assertEqual(
-        CDSCardClient:get_test_card(CardData, <<>>),
+    ?assertMatch(
+        #{pan := <<"4242424242424648">>},
         CDSCardClient:get_card_data(TokenWithPayload, root_url(C))
     ).
 
