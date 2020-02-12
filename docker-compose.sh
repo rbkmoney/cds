@@ -40,7 +40,7 @@ services:
       retries: 10
 
   riakdb:
-    image: dr2.rbkmoney.com/rbkmoney/riak-base:435a7fac7ee2e216e914240289933f4b3dc3de26
+    image: dr2.rbkmoney.com/rbkmoney/riak-base:b61e6fcc5ba7e7378548d0e0b8d4d8a464b27c67
     environment:
       - CLUSTER_NAME=riakkv
     labels:
@@ -53,7 +53,7 @@ services:
       timeout: 5s
       retries: 20
   member:
-    image: dr2.rbkmoney.com/rbkmoney/riak-base:435a7fac7ee2e216e914240289933f4b3dc3de26
+    image: dr2.rbkmoney.com/rbkmoney/riak-base:b61e6fcc5ba7e7378548d0e0b8d4d8a464b27c67
     labels:
       - "com.basho.riak.cluster.name=riakkv"
     links:
