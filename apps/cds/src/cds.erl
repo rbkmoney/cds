@@ -176,7 +176,7 @@ encrypt({Data, Metadata}, Key) ->
     {encrypt(Data, Key), encrypt(msgpack:pack(Metadata), Key)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
-    <<?VERSION_1, KeyID:8/integer-unit:8, Cipher/binary>>.
+    <<?VERSION_1, KeyID:8/integer-big-unsigned-unit:8, Cipher/binary>>.
 
 -spec decrypt(ciphertext()) -> {cds_keyring:key_id(), plaintext()}.
 decrypt({Data, Metadata}) ->
@@ -184,7 +184,7 @@ decrypt({Data, Metadata}) ->
     {ok, UnpackedMetadata} = msgpack:unpack(DecryptedMetadata),
     {KeyID, DecryptedData} = decrypt(Data),
     {KeyID, {DecryptedData, UnpackedMetadata}};
-decrypt(<<?VERSION_1, KeyID:8/integer-unit:8, Cipher/binary>>) ->
+decrypt(<<?VERSION_1, KeyID:8/integer-big-unsigned-unit:8, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     {KeyID, cds_crypto:decrypt(Key, Cipher)};
 decrypt(<<KeyID, Cipher/binary>>) ->

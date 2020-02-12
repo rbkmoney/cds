@@ -703,12 +703,14 @@ recrypt(C) ->
     ok = cds:put_session(Session3DS, cds_card_data:marshal_session_data(SessionData3DS)),
 
     {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(Token, SessionCVV),
-    <<?ENCRYPT_VERSION, KeyID0:4/integer-unit:8, _/binary>> = EncryptedCardDataCVV0,
-    {<<?ENCRYPT_VERSION, KeyID0:4/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID0:4/integer-unit:8, _/binary>>} = EncryptedSessionDataCVV0,
+    <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>> = EncryptedCardDataCVV0,
+    {<<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>,
+        <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>} = EncryptedSessionDataCVV0,
 
     {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token, Session3DS),
-    <<?ENCRYPT_VERSION, KeyID0:4/integer-unit:8, _/binary>> = EncryptedCardData3DS0,
-    {<<?ENCRYPT_VERSION, KeyID0:4/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID0:4/integer-unit:8, _/binary>>} = EncryptedSessionData3DS0,
+    <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>> = EncryptedCardData3DS0,
+    {<<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>,
+        <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>} = EncryptedSessionData3DS0,
 
     rotate(C),
     [{recrypting, #{
@@ -721,12 +723,14 @@ recrypt(C) ->
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(Token, SessionCVV),
-    <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>> = EncryptedCardDataCVV,
-    {<<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>} = EncryptedSessionDataCVV,
+    <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>> = EncryptedCardDataCVV,
+    {<<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>,
+        <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>} = EncryptedSessionDataCVV,
 
     {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token, Session3DS),
-    <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>> = EncryptedCardData3DS,
-    {<<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>} = EncryptedSessionData3DS.
+    <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>> = EncryptedCardData3DS,
+    {<<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8,
+        _/binary>>, <<?ENCRYPT_VERSION, KeyID:8/integer-big-unsigned-unit:8, _/binary>>} = EncryptedSessionData3DS.
 
 %%
 %% helpers
