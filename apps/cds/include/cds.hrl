@@ -1,5 +1,5 @@
 -ifndef(__cds_hrl__).
--define(__cds__, included).
+-define(__cds_hrl__, included).
 
 -define(VERSION_1, 16#80).
 
