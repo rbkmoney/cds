@@ -2,6 +2,8 @@
 -behaviour(supervisor).
 -behaviour(application).
 
+-include("cds.hrl").
+
 %% Supervisor callbacks
 -export([init/1]).
 
@@ -34,8 +36,6 @@
 -type ciphermeta() :: binary().
 -type plaintext() :: binary() | {binary(), metadata()}.
 -type ciphertext() :: binary() | {binary(), ciphermeta()}. % <<KeyID/byte, EncryptedData/binary>>
-
--define(VERSION_1, 16#80).
 
 %%
 %% Supervisor callbacks
@@ -176,7 +176,7 @@ encrypt({Data, Metadata}, Key) ->
     {encrypt(Data, Key), encrypt(msgpack:pack(Metadata), Key)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
-    <<?VERSION_1, KeyID:8/integer-big-unsigned-unit:8, Cipher/binary>>.
+    <<?CURRENT_VERSION, KeyID:?KEYID_TS, Cipher/binary>>.
 
 -spec decrypt(ciphertext()) -> {cds_keyring:key_id(), plaintext()}.
 decrypt({Data, Metadata}) ->
@@ -184,7 +184,7 @@ decrypt({Data, Metadata}) ->
     {ok, UnpackedMetadata} = msgpack:unpack(DecryptedMetadata),
     {KeyID, DecryptedData} = decrypt(Data),
     {KeyID, {DecryptedData, UnpackedMetadata}};
-decrypt(<<?VERSION_1, KeyID:8/integer-big-unsigned-unit:8, Cipher/binary>>) ->
+decrypt(<<?VERSION_1, KeyID:?KEYID_TS, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     {KeyID, cds_crypto:decrypt(Key, Cipher)};
 decrypt(<<KeyID, Cipher/binary>>) ->
