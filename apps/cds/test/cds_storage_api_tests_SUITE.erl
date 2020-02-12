@@ -65,7 +65,7 @@
     auth_data := AuthData
 }).
 
--define(ENCRYPT_VERSION, "version: 1").
+-define(ENCRYPT_VERSION, 16#80).
 
 %%
 %% tests descriptions
@@ -721,12 +721,12 @@ recrypt(C) ->
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(Token, SessionCVV),
-    <<?ENCRYPT_VERSION, KeyID:4/integer-unit:8, _/binary>> = EncryptedCardDataCVV,
-    {<<?ENCRYPT_VERSION, KeyID:4/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID:4/integer-unit:8, _/binary>>} = EncryptedSessionDataCVV,
+    <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>> = EncryptedCardDataCVV,
+    {<<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>} = EncryptedSessionDataCVV,
 
     {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token, Session3DS),
-    <<?ENCRYPT_VERSION, KeyID:4/integer-unit:8, _/binary>> = EncryptedCardData3DS,
-    {<<?ENCRYPT_VERSION, KeyID:4/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID:4/integer-unit:8, _/binary>>} = EncryptedSessionData3DS.
+    <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>> = EncryptedCardData3DS,
+    {<<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>, <<?ENCRYPT_VERSION, KeyID:8/integer-unit:8, _/binary>>} = EncryptedSessionData3DS.
 
 %%
 %% helpers
