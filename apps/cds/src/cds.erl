@@ -2,6 +2,8 @@
 -behaviour(supervisor).
 -behaviour(application).
 
+-include("cds.hrl").
+
 %% Supervisor callbacks
 -export([init/1]).
 
@@ -17,6 +19,8 @@
 
 -export([update_cardholder_data/2]).
 -export([update_session_data/2]).
+
+-export([find_or_create_token/4]).
 
 %%
 -export_type([hash/0]).
@@ -172,7 +176,7 @@ encrypt({Data, Metadata}, Key) ->
     {encrypt(Data, Key), encrypt(msgpack:pack(Metadata), Key)};
 encrypt(Plain, {KeyID, Key}) ->
     Cipher = cds_crypto:encrypt(Key, Plain),
-    <<KeyID, Cipher/binary>>.
+    <<?CURRENT_VERSION, KeyID:?KEYID_TS, Cipher/binary>>.
 
 -spec decrypt(ciphertext()) -> {cds_keyring:key_id(), plaintext()}.
 decrypt({Data, Metadata}) ->
@@ -180,6 +184,9 @@ decrypt({Data, Metadata}) ->
     {ok, UnpackedMetadata} = msgpack:unpack(DecryptedMetadata),
     {KeyID, DecryptedData} = decrypt(Data),
     {KeyID, {DecryptedData, UnpackedMetadata}};
+decrypt(<<?VERSION_1, KeyID:?KEYID_TS, Cipher/binary>>) ->
+    {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
+    {KeyID, cds_crypto:decrypt(Key, Cipher)};
 decrypt(<<KeyID, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     {KeyID, cds_crypto:decrypt(Key, Cipher)}.

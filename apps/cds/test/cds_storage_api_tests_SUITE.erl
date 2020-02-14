@@ -2,6 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("eunit/include/eunit.hrl").
+-include("cds.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -21,9 +22,9 @@
 -export([put_card_data_3ds/1]).
 -export([get_card_data_3ds/1]).
 -export([get_session_data_3ds/1]).
--export([get_session_data_backward_compatibilty/1]).
--export([get_session_card_data_backward_compatibilty/1]).
--export([get_card_data_backward_compatibilty/1]).
+-export([get_session_data_backward_compatibility/1]).
+-export([get_session_card_data_backward_compatibility/1]).
+-export([get_card_data_backward_compatibility/1]).
 -export([no_last_dot_in_token/1]).
 -export([recrypt/1]).
 -export([session_cleaning/1]).
@@ -107,7 +108,7 @@ groups() ->
         {backward_compatibility, [], [
             {riak_storage_backend, [], [
                 {group, backward_compatibility_basic_lifecycle},
-                {group, backward_compatibilty_data_storage}
+                {group, backward_compatibility_data_storage}
             ]},
             {ets_storage_backend, [], [{group, backward_compatibility_basic_lifecycle}]},
             {keyring_errors, [], [
@@ -122,12 +123,12 @@ groups() ->
                 {basic_lifecycle, [sequence], [
                     init,
                     put_card_data,
-                    get_session_card_data_backward_compatibilty
+                    get_session_card_data_backward_compatibility
                 ]}
             ]}
         ]},
-        {backward_compatibilty_data_storage, [], [
-            get_card_data_backward_compatibilty,
+        {backward_compatibility_data_storage, [], [
+            get_card_data_backward_compatibility,
             no_last_dot_in_token
         ]},
         {general_flow, [], [
@@ -499,18 +500,18 @@ get_session_data_3ds(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?SESSION_DATA_MATCH(?AUTH_3DS_MATCH) = CDSCardClient:get_session_data(cds_ct_utils:lookup(session), root_url(C)).
 
--spec get_session_data_backward_compatibilty(config()) -> _.
+-spec get_session_data_backward_compatibility(config()) -> _.
 
-get_session_data_backward_compatibilty(C) ->
+get_session_data_backward_compatibility(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(
         cds_ct_utils:lookup(session),
         root_url(C)
     ).
 
--spec get_session_card_data_backward_compatibilty(config()) -> _.
+-spec get_session_card_data_backward_compatibility(config()) -> _.
 
-get_session_card_data_backward_compatibilty(C) ->
+get_session_card_data_backward_compatibility(C) ->
     CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
         CDSCardClient:get_test_card(?CVV),
@@ -521,9 +522,9 @@ get_session_card_data_backward_compatibilty(C) ->
         )
     ).
 
--spec get_card_data_backward_compatibilty(config()) -> _.
+-spec get_card_data_backward_compatibility(config()) -> _.
 
-get_card_data_backward_compatibilty(C) ->
+get_card_data_backward_compatibility(C) ->
     CardData = #{
         pan => <<"4242424242424648">>,
         exp_date => #{month => 12,year => 3000},
@@ -701,12 +702,14 @@ recrypt(C) ->
     ok = cds:put_session(Session3DS, cds_card_data:marshal_session_data(SessionData3DS)),
 
     {EncryptedCardDataCVV0, EncryptedSessionDataCVV0} = cds_card_storage:get_session_card_data(Token, SessionCVV),
-    <<KeyID0, _/binary>> = EncryptedCardDataCVV0,
-    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionDataCVV0,
+    <<?CURRENT_VERSION, KeyID0:?KEYID_TS, _/binary>> = EncryptedCardDataCVV0,
+    {<<?CURRENT_VERSION, KeyID0:?KEYID_TS, _/binary>>,
+        <<?CURRENT_VERSION, KeyID0:?KEYID_TS, _/binary>>} = EncryptedSessionDataCVV0,
 
     {EncryptedCardData3DS0, EncryptedSessionData3DS0} = cds_card_storage:get_session_card_data(Token, Session3DS),
-    <<KeyID0, _/binary>> = EncryptedCardData3DS0,
-    {<<KeyID0, _/binary>>, <<KeyID0, _/binary>>} = EncryptedSessionData3DS0,
+    <<?CURRENT_VERSION, KeyID0:?KEYID_TS, _/binary>> = EncryptedCardData3DS0,
+    {<<?CURRENT_VERSION, KeyID0:?KEYID_TS, _/binary>>,
+        <<?CURRENT_VERSION, KeyID0:?KEYID_TS, _/binary>>} = EncryptedSessionData3DS0,
 
     rotate(C),
     [{recrypting, #{
@@ -719,12 +722,14 @@ recrypt(C) ->
     {KeyID, _} = cds_keyring:get_current_key(),
     true = (KeyID0 =/= KeyID),
     {EncryptedCardDataCVV, EncryptedSessionDataCVV} = cds_card_storage:get_session_card_data(Token, SessionCVV),
-    <<KeyID, _/binary>> = EncryptedCardDataCVV,
-    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionDataCVV,
+    <<?CURRENT_VERSION, KeyID:?KEYID_TS, _/binary>> = EncryptedCardDataCVV,
+    {<<?CURRENT_VERSION, KeyID:?KEYID_TS, _/binary>>,
+        <<?CURRENT_VERSION, KeyID:?KEYID_TS, _/binary>>} = EncryptedSessionDataCVV,
 
     {EncryptedCardData3DS, EncryptedSessionData3DS} = cds_card_storage:get_session_card_data(Token, Session3DS),
-    <<KeyID, _/binary>> = EncryptedCardData3DS,
-    {<<KeyID, _/binary>>, <<KeyID, _/binary>>} = EncryptedSessionData3DS.
+    <<?CURRENT_VERSION, KeyID:?KEYID_TS, _/binary>> = EncryptedCardData3DS,
+    {<<?CURRENT_VERSION, KeyID:?KEYID_TS,
+        _/binary>>, <<?CURRENT_VERSION, KeyID:?KEYID_TS, _/binary>>} = EncryptedSessionData3DS.
 
 %%
 %% helpers
