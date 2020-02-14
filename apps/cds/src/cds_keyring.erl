@@ -73,6 +73,7 @@ get_key(KeyID) ->
         {ok, {KeyID, Key}}
     catch
         error:badarg ->
+            _ = logger:error("Could not get key with id: ~p", [KeyID]),
             {error, not_found}
     end.
 
