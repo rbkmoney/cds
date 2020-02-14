@@ -336,7 +336,7 @@ get_payment_system_map() ->
 
         nspkmir => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
+                cardnumber => [{length, [{range, 16, 19}]}, luhn],
                 cvv         => [{length, [3]}],
                 exp_date    => [expiration]
             },
