@@ -115,6 +115,7 @@ get_card_data_samples() ->
         {unionpay           , <<"6263242460178483">> , ?AUTH_CVV(<<"228">>)  },
         {dankort            , <<"5019717010103742">> , ?AUTH_CVV(<<"228">>)  },
         {nspkmir            , <<"2202243736741990">> , ?AUTH_CVV(<<"228">>)  },
+        {nspkmir            , <<"2200330595609485549">> , ?AUTH_CVV(<<"228">>)  },
         {forbrugsforeningen , <<"6007220000000004">> , ?AUTH_CVV(<<"228">>)  }
     ],
     [
