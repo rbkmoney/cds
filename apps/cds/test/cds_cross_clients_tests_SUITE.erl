@@ -53,11 +53,6 @@ init_per_group(v1_get_new_card_data, C) ->
 
 -spec end_per_group(atom(), config()) -> _.
 
-end_per_group(Group, C) when
-    Group =:= v1_get_new_card_data
-    ->
-    C;
-
 end_per_group(_, C) ->
     cds_ct_utils:stop_clear(C).
 
@@ -90,7 +85,7 @@ get_card_data_v1_encode_error(C) ->
     ?assertMatch(
         {'EXIT',
             {{woody_error, {external,result_unexpected,
-            <<"error:function_clause in call to cds_card_v1_thrift_handler:encode_cardholder_data('***')", _/binary>>}},
+            <<"error:function_clause in call to cds_card_v1_thrift_handler:encode_cardholder_data(#{cardnumber => '***'})", _/binary>>}},
             _ST}},
         (catch cds_card_v1_client:get_card_data(
             cds_ct_utils:lookup(token),
