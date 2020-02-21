@@ -246,11 +246,11 @@ get_test_card(CVV) ->
         #{
             pan => <<"5321301234567892">>,
             exp_date => #{
-            month => 12,
-            year => 3000
-        },
-        cardholder_name => <<"Tony Stark">> %% temporarily hardcoded instead of saved
-    }, CVV).
+                month => 12,
+                year => 3000
+            },
+            cardholder_name => <<"Tony Stark">> %% temporarily hardcoded instead of saved
+        }, CVV).
 
 -spec get_test_card(card_data(), binary() | undefined) -> card_data().
 

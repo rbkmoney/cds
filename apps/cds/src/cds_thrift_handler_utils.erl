@@ -21,7 +21,7 @@ filter_fun_exceptions(Fun) ->
             error:{woody_error, _} = WoodyError:Stacktrace ->
                 erlang:raise(error, WoodyError, Stacktrace);
             Class:Exception:Stacktrace ->
-                erlang:raise(Class, filter_error_reason(Exception), Stacktrace)
+                erlang:raise(Class, filter_error_reason(Exception), filter_stacktrace(Stacktrace))
         end
     end.
 
@@ -77,4 +77,43 @@ filter_error_reason(Reason) when
     Reason;
 % Other
 filter_error_reason(_Reason) ->
+    '***'.
+
+filter_stacktrace(Stacktrace) when is_list(Stacktrace) ->
+    [filter_stacktrace_item(ST) || ST <- Stacktrace];
+filter_stacktrace(_) ->
+    '***'.
+
+filter_stacktrace_item({Module, Function, Arity, Location}) when
+    is_atom(Module) andalso
+    is_atom(Function) andalso
+    is_integer(Arity) andalso
+    is_list(Location)
+->
+    {Module, Function, Arity, filter_stacktrace_location(Location)};
+filter_stacktrace_item({Module, Function, Args, Location}) when
+    is_atom(Module) andalso
+    is_atom(Function) andalso
+    is_list(Args) andalso
+    is_list(Location)
+->
+    {Module, Function, filter_stacktrace_args(Args), filter_stacktrace_location(Location)};
+filter_stacktrace_item(_) ->
+    '***'.
+
+filter_stacktrace_args(Args) when is_list(Args) ->
+    [filter_stacktrace_args(Arg) || Arg <- Args];
+filter_stacktrace_args(Arg) when
+    is_atom(Arg) orelse
+    is_number(Arg) orelse
+    is_reference(Arg) orelse
+    is_pid(Arg)
+->
+    Arg;
+filter_stacktrace_args(_) ->
+    '***'.
+
+filter_stacktrace_location([{file, _File}, {line, Line}] = Location) when is_integer(Line) ->
+    Location;
+filter_stacktrace_location(_) ->
     '***'.
