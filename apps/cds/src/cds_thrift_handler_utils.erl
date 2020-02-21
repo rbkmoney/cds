@@ -56,28 +56,8 @@ map_validation_check(Check) -> Check.
 % Known safe errors
 filter_error_reason({hash_collision_detected, _Hash} = Reason) ->
     Reason;
-% Generic safe errors
-filter_error_reason(Reason) when is_tuple(Reason) ->
-    erlang:list_to_tuple([filter_error_reason(R) || R <- erlang:tuple_to_list(Reason)]);
-filter_error_reason(Reason) when is_list(Reason) ->
-    [filter_error_reason(R) || R <- Reason];
-filter_error_reason(Reason) when is_map(Reason) ->
-    maps:map(
-        fun(_Key, Value) ->
-            filter_error_reason(Value)
-        end,
-        Reason
-    );
-filter_error_reason(Reason) when
-    is_atom(Reason) orelse
-    is_number(Reason) orelse
-    is_reference(Reason) orelse
-    is_pid(Reason)
-->
-    Reason;
-% Other
-filter_error_reason(_Reason) ->
-    '***'.
+filter_error_reason(Reason) ->
+    filter(Reason).
 
 filter_stacktrace(Stacktrace) when is_list(Stacktrace) ->
     [filter_stacktrace_item(ST) || ST <- Stacktrace].
@@ -100,4 +80,27 @@ filter_stacktrace_item(_) ->
     '***'.
 
 filter_stacktrace_args(Args) ->
-    filter_error_reason(Args).
+    filter(Args).
+
+% Generic filter
+filter(Reason) when is_tuple(Reason) ->
+    erlang:list_to_tuple([filter(R) || R <- erlang:tuple_to_list(Reason)]);
+filter(Reason) when is_list(Reason) ->
+    [filter(R) || R <- Reason];
+filter(Reason) when is_map(Reason) ->
+    maps:map(
+        fun(_Key, Value) ->
+            filter(Value)
+        end,
+        Reason
+    );
+filter(Reason) when
+    is_atom(Reason) orelse
+        is_number(Reason) orelse
+        is_reference(Reason) orelse
+        is_pid(Reason)
+    ->
+    Reason;
+% Other
+filter(_Reason) ->
+    '***'.
