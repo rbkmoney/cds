@@ -95,6 +95,9 @@ filter_stacktrace_item({Module, Function, Args, Location}) when
     is_list(Args) andalso
     is_list(Location)
 ->
-    {Module, Function, filter_error_reason(Args), Location};
+    {Module, Function, filter_stacktrace_args(Args), Location};
 filter_stacktrace_item(_) ->
     '***'.
+
+filter_stacktrace_args(Args) ->
+    filter_error_reason(Args).
