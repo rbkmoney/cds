@@ -21,7 +21,7 @@ filter_fun_exceptions(Fun) ->
             error:{woody_error, _} = WoodyError:Stacktrace ->
                 erlang:raise(error, WoodyError, Stacktrace);
             Class:Exception:Stacktrace ->
-                erlang:raise(Class, filter_error_reason(Exception), Stacktrace)
+                erlang:raise(Class, filter_error_reason(Exception), filter_stacktrace(Stacktrace))
         end
     end.
 
@@ -56,25 +56,51 @@ map_validation_check(Check) -> Check.
 % Known safe errors
 filter_error_reason({hash_collision_detected, _Hash} = Reason) ->
     Reason;
-% Generic safe errors
-filter_error_reason(Reason) when is_tuple(Reason) ->
-    erlang:list_to_tuple([filter_error_reason(R) || R <- erlang:tuple_to_list(Reason)]);
-filter_error_reason(Reason) when is_list(Reason) ->
-    [filter_error_reason(R) || R <- Reason];
-filter_error_reason(Reason) when is_map(Reason) ->
+filter_error_reason(Reason) ->
+    filter(Reason).
+
+filter_stacktrace(Stacktrace) when is_list(Stacktrace) ->
+    [filter_stacktrace_item(ST) || ST <- Stacktrace].
+
+filter_stacktrace_item({Module, Function, Arity, Location} = ST) when
+    is_atom(Module) andalso
+    is_atom(Function) andalso
+    is_integer(Arity) andalso
+    is_list(Location)
+->
+    ST;
+filter_stacktrace_item({Module, Function, Args, Location}) when
+    is_atom(Module) andalso
+    is_atom(Function) andalso
+    is_list(Args) andalso
+    is_list(Location)
+->
+    {Module, Function, filter_stacktrace_args(Args), Location};
+filter_stacktrace_item(_) ->
+    '***'.
+
+filter_stacktrace_args(Args) ->
+    filter(Args).
+
+% Generic filter
+filter(Reason) when is_tuple(Reason) ->
+    erlang:list_to_tuple([filter(R) || R <- erlang:tuple_to_list(Reason)]);
+filter(Reason) when is_list(Reason) ->
+    [filter(R) || R <- Reason];
+filter(Reason) when is_map(Reason) ->
     maps:map(
         fun(_Key, Value) ->
-            filter_error_reason(Value)
+            filter(Value)
         end,
         Reason
     );
-filter_error_reason(Reason) when
+filter(Reason) when
     is_atom(Reason) orelse
-    is_number(Reason) orelse
-    is_reference(Reason) orelse
-    is_pid(Reason)
-->
+        is_number(Reason) orelse
+        is_reference(Reason) orelse
+        is_pid(Reason)
+    ->
     Reason;
 % Other
-filter_error_reason(_Reason) ->
+filter(_Reason) ->
     '***'.

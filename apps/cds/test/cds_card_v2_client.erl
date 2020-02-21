@@ -18,7 +18,7 @@
 
 -type card_data() :: #{
     pan := binary(),
-    exp_date := #{
+    exp_date => #{
         month := integer(),
         year := integer()
     },
