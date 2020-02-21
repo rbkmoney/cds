@@ -80,9 +80,7 @@ filter_error_reason(_Reason) ->
     '***'.
 
 filter_stacktrace(Stacktrace) when is_list(Stacktrace) ->
-    [filter_stacktrace_item(ST) || ST <- Stacktrace];
-filter_stacktrace(_) ->
-    '***'.
+    [filter_stacktrace_item(ST) || ST <- Stacktrace].
 
 filter_stacktrace_item({Module, Function, Arity, Location}) when
     is_atom(Module) andalso
