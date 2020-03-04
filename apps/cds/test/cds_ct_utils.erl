@@ -98,7 +98,6 @@ start_clear(Config) ->
         {apps, lists:reverse(Apps)},
         {root_url, genlib:to_binary(RootUrl)},
         {kds_root_url, <<"http://kds:8022">>},
-        {oldcds_root_url, <<"http://oldcds:8022">>},
         {enc_private_keys, EncPrivateKeys},
         {sig_private_keys, SigPrivateKeys}
     ] ++ Config.

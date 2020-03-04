@@ -5,7 +5,6 @@
 
 -export([decode_token/1]).
 -export([encode_token/1]).
--export([decode_session/1]).
 -export([encode_session/1]).
 -export([encode_token_with_payload/2]).
 -export([decode_token_with_payload/1]).
@@ -25,10 +24,6 @@ decode_token(Token) ->
 -spec encode_token(cds:token()) -> binary().
 encode_token(Token) ->
     base62_encode(Token).
-
--spec decode_session(binary()) -> cds:session().
-decode_session(Session) ->
-    base62_decode(Session).
 
 -spec encode_session(cds:session()) -> binary().
 encode_session(Session) ->
