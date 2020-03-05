@@ -39,13 +39,7 @@ base62_decode_(Data) ->
 
 -spec decode_token_without_payload(binary()) -> cds:token().
 decode_token_without_payload(Token) ->
-    case binary:match(Token, <<".">>) of
-        nomatch ->
-            decode_token(Token);
-        _Match ->
-            EncodedToken = hd(binary:split(Token, <<".">>)),
-            decode_token(EncodedToken)
-    end.
+    decode_token(hd(binary:split(Token, <<".">>))).
 
 % test
 
