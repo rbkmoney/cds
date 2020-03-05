@@ -37,22 +37,14 @@ base62_decode(Data) ->
 base62_decode_(Data) ->
     binary:encode_unsigned(genlib_format:parse_int_base(Data, 62)).
 
-%% NOTE: The *_payload function family added for transition from old damsel based
-%% CDS protocol to new CDS protocol and will be removed shortly after adopting
-%% last one by adapters/core services.
-
 -spec decode_token_without_payload(binary()) -> cds:token().
 decode_token_without_payload(Token) ->
     case binary:match(Token, <<".">>) of
         nomatch ->
             decode_token(Token);
         _Match ->
-            case binary:split(Token, <<".">>) of
-                [T] ->
-                    decode_token(T);
-                [T, _] ->
-                    decode_token(T)
-            end
+            EncodedToken = hd(binary:split(Token, <<".">>)),
+            decode_token(EncodedToken)
     end.
 
 % test

@@ -80,14 +80,10 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %% Internals
 %%
 
-decode_card_data(#'cds_CardData'{
-    pan             = PAN
-}) ->
-    genlib_map:compact(
-        #{
-            cardnumber => PAN
-        }
-    ).
+decode_card_data(#'cds_CardData'{pan = PAN}) ->
+    #{
+        cardnumber => PAN
+    }.
 
 decode_session_data(#cds_SessionData{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.
