@@ -329,11 +329,7 @@ rotate(C) ->
 put_card_data(C) ->
     % check without cardholder
     CardData = #{
-        pan => <<"4242424242424242">>,
-        exp_date => #{
-            month => 12,
-            year => 3000
-        }
+        pan => <<"4242424242424242">>
     },
     #{} = cds_card_v2_client:put_card_and_session(
         CardData,
@@ -376,11 +372,7 @@ get_session_data(C) ->
 
 put_card(C) ->
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{
-            month => 11,
-            year => 3000
-        }
+        pan => <<"4242424242424648">>
     },
     #{
         bank_card := #{
@@ -394,11 +386,7 @@ put_card(C) ->
 
 same_card_data_has_same_token(C) ->
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{
-            month => 11,
-            year => 3000
-        }
+        pan => <<"4242424242424648">>
     },
     #{
         bank_card := #{
@@ -416,11 +404,7 @@ same_card_data_has_same_token(C) ->
 
 same_card_number_has_same_token(C) ->
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{
-            month => 11,
-            year => 3000
-        }
+        pan => <<"4242424242424648">>
     },
     #{
         bank_card := #{
@@ -431,9 +415,9 @@ same_card_number_has_same_token(C) ->
         bank_card := #{
             token := Token2
         }
-    } = cds_card_v2_client:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
-    {CardDataToken1, _} = cds_utils:decode_token_with_payload(Token1),
-    {CardDataToken2, _} = cds_utils:decode_token_with_payload(Token2),
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
+    CardDataToken1 = cds_utils:decode_token_without_payload(Token1),
+    CardDataToken2 = cds_utils:decode_token_without_payload(Token2),
 
     ?assertEqual(CardDataToken1, CardDataToken2).
 
@@ -512,10 +496,7 @@ get_card_data_backward_compatibility(C) ->
 
 no_last_dot_in_token(C) ->
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{month => 12,year => 3000},
-        cardholder_name => <<"Tony Stark">>,
-        cvv => <<>>
+        pan => <<"4242424242424648">>
     },
     #{bank_card := #{token := Token}} =
         cds_card_v2_client:put_card(
@@ -648,9 +629,7 @@ refresh_sessions(C) ->
 recrypt(C) ->
     {KeyID0, _} = cds_keyring:get_current_key(),
     CardholderData = #{
-        cardnumber => <<"5321301234567892">>,
-        exp_date => {12, 3000},
-        cardholder => <<"Tony Stark">>
+        cardnumber => <<"5321301234567892">>
     },
     SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
 
