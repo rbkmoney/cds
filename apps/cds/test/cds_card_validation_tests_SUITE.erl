@@ -1,7 +1,5 @@
 -module(cds_card_validation_tests_SUITE).
 
--include_lib("damsel/include/dmsl_cds_thrift.hrl").
-
 -export([all/0]).
 -export([groups/0]).
 -export([full_card_data_validation/1]).
@@ -45,9 +43,7 @@ groups() ->
 full_card_data_validation(_C) ->
     SD_CVV = #{auth_data => #{cvv => <<"345">>}},
     MC = #{
-        cardnumber => <<"5321301234567892">>,
-        exp_date   => {12, 3000},
-        cardholder => <<"Benedict Wizardcock">>
+        cardnumber => <<"5321301234567892">>
     },
     {ok, #{
         payment_system := mastercard,
@@ -56,14 +52,8 @@ full_card_data_validation(_C) ->
     }} = cds_card_data:validate(MC, SD_CVV),
     {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}, SD_CVV),
     {error, {invalid, cardnumber, luhn}}        = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}, SD_CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {1 , 2000}}, SD_CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {0 , 2241}}, SD_CVV),
-    {error, {invalid, exp_date, expiration}}    = cds_card_data:validate(MC#{exp_date   := {13, 2048}}, SD_CVV),
-    {error, {invalid, cvv, {length, _}}}        = cds_card_data:validate(MC, #{auth_data => #{cvv => <<"12">>}}),
     MIR = #{
-        cardnumber => <<"2204301234567891">>,
-        exp_date   => {12, 3000},
-        cardholder => <<"Benedict Wizardcock">>
+        cardnumber => <<"2204301234567891">>
     },
     {ok, #{
         payment_system := nspkmir,
@@ -122,7 +112,7 @@ get_card_data_samples() ->
         begin
         {
             Target,
-            {#{cardnumber => CN, exp_date => {1, 3000}, cardholder => undefined}, SD}
+            {#{cardnumber => CN}, SD}
         }
         end
     || {Target, CN, SD} <- Samples].

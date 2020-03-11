@@ -78,27 +78,19 @@
 
 all() ->
     [
-        {group, cds_client_v1},
-        {group, cds_client_v2}
+        {group, all_groups}
     ].
 
 -spec groups() -> [{atom(), list(), [atom()]}].
 
 groups() ->
     [
-        {cds_client_v1, [], [
-            {group, all_groups},
-            {group, backward_compatibility}
-        ]},
-        {cds_client_v2, [], [
-            {group, all_groups},
-            {group, backward_compatibility}
-        ]},
         {all_groups, [], [
             {group, riak_storage_backend},
             {group, ets_storage_backend},
             {group, keyring_errors},
-            {group, token_check}
+            {group, token_check},
+            {group, backward_compatibility}
         ]},
         {riak_storage_backend, [], [
             {group, general_flow},
@@ -128,7 +120,6 @@ groups() ->
             ]}
         ]},
         {backward_compatibility_data_storage, [], [
-            get_card_data_backward_compatibility,
             no_last_dot_in_token
         ]},
         {general_flow, [], [
@@ -211,12 +202,6 @@ groups() ->
 %%
 
 -spec init_per_group(atom(), config()) -> config().
-
-init_per_group(cds_client_v1, C) ->
-    [{cds_storage_client, cds_card_v1_client}] ++ C;
-
-init_per_group(cds_client_v2, C) ->
-    [{cds_storage_client, cds_card_v2_client}] ++ C;
 
 init_per_group(riak_storage_backend, C) ->
     cds_ct_utils:set_riak_storage(C);
@@ -301,8 +286,6 @@ end_per_group(Group, C) when
     Group =:= riak_storage_backend;
     Group =:= error_map_ddos;
     Group =:= all_groups;
-    Group =:= cds_client_v1;
-    Group =:= cds_client_v2;
     Group =:= backward_compatibility;
     Group =:= backward_compatibility_basic_lifecycle
     ->
@@ -344,16 +327,11 @@ rotate(C) ->
 -spec put_card_data(config()) -> _.
 
 put_card_data(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     % check without cardholder
     CardData = #{
-        pan => <<"4242424242424242">>,
-        exp_date => #{
-            month => 12,
-            year => 3000
-        }
+        pan => <<"4242424242424242">>
     },
-    #{} = CDSCardClient:put_card_and_session(
+    #{} = cds_card_v2_client:put_card_and_session(
         CardData,
         ?SESSION_DATA(?CARD_SEC_CODE(<<"123">>)),
         root_url(C)
@@ -364,8 +342,8 @@ put_card_data(C) ->
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_and_session(
-        CDSCardClient:get_test_card(undefined),
+    } = cds_card_v2_client:put_card_and_session(
+        cds_card_v2_client:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(?CVV)),
         root_url(C)
     ),
@@ -374,10 +352,9 @@ put_card_data(C) ->
 -spec get_card_data(config()) -> _.
 
 get_card_data(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_card(<<>>),
-        CDSCardClient:get_card_data(
+        cds_card_v2_client:get_test_card(<<>>),
+        cds_card_v2_client:get_card_data(
             cds_ct_utils:lookup(token),
             root_url(C)
         )
@@ -386,8 +363,7 @@ get_card_data(C) ->
 -spec get_session_data(config()) -> _.
 
 get_session_data(C) ->
-    CDSCardClient = config(cds_storage_client, C),
-    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(
+    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = cds_card_v2_client:get_session_data(
         cds_ct_utils:lookup(session),
         root_url(C)
     ).
@@ -395,91 +371,74 @@ get_session_data(C) ->
 -spec put_card(config()) -> _.
 
 put_card(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{
-            month => 11,
-            year => 3000
-        }
+        pan => <<"4242424242424648">>
     },
     #{
         bank_card := #{
             token := Token
         }
-    } = CDSCardClient:put_card(CardData, root_url(C)),
-    CardData2 = CDSCardClient:get_test_card(CardData, <<>>),
-    ?assertEqual(CardData2, CDSCardClient:get_card_data(Token, root_url(C))).
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
+    CardData2 = cds_card_v2_client:get_test_card(CardData, <<>>),
+    ?assertEqual(CardData2, cds_card_v2_client:get_card_data(Token, root_url(C))).
 
 -spec same_card_data_has_same_token(config()) -> _.
 
 same_card_data_has_same_token(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{
-            month => 11,
-            year => 3000
-        }
+        pan => <<"4242424242424648">>
     },
     #{
         bank_card := #{
             token := Token1
         }
-    } = CDSCardClient:put_card(CardData, root_url(C)),
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
     #{
         bank_card := #{
             token := Token2
         }
-    } = CDSCardClient:put_card(CardData, root_url(C)),
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
     ?assertEqual(Token1, Token2).
 
 -spec same_card_number_has_same_token(config()) -> _.
 
 same_card_number_has_same_token(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{
-            month => 11,
-            year => 3000
-        }
+        pan => <<"4242424242424648">>
     },
     #{
         bank_card := #{
             token := Token1
         }
-    } = CDSCardClient:put_card(CardData, root_url(C)),
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
     #{
         bank_card := #{
             token := Token2
         }
-    } = CDSCardClient:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
-    {CardDataToken1, _} = cds_utils:decode_token_with_payload(Token1),
-    {CardDataToken2, _} = cds_utils:decode_token_with_payload(Token2),
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
+    CardDataToken1 = cds_utils:decode_token_without_payload(Token1),
+    CardDataToken2 = cds_utils:decode_token_without_payload(Token2),
 
     ?assertEqual(CardDataToken1, CardDataToken2).
 
 -spec put_session(config()) -> _.
 
 put_session(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     SessionID = crypto:strong_rand_bytes(16),
     SessionData = ?SESSION_DATA(?CARD_SEC_CODE(?CVV)),
-    ok = CDSCardClient:put_session(SessionID, SessionData, root_url(C)),
-    SessionData = CDSCardClient:get_session_data(SessionID, root_url(C)).
+    ok = cds_card_v2_client:put_session(SessionID, SessionData, root_url(C)),
+    SessionData = cds_card_v2_client:get_session_data(SessionID, root_url(C)).
 
 -spec put_card_data_3ds(config()) -> _.
 
 put_card_data_3ds(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     #{
         bank_card := #{
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_and_session(
-        CDSCardClient:get_test_card(undefined),
+    } = cds_card_v2_client:put_card_and_session(
+        cds_card_v2_client:get_test_card(undefined),
         ?SESSION_DATA(?AUTH_3DS),
         root_url(C)
     ),
@@ -488,23 +447,20 @@ put_card_data_3ds(C) ->
 -spec get_card_data_3ds(config()) -> _.
 
 get_card_data_3ds(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_card(<<>>),
-        CDSCardClient:get_card_data(cds_ct_utils:lookup(token), root_url(C))
+        cds_card_v2_client:get_test_card(<<>>),
+        cds_card_v2_client:get_card_data(cds_ct_utils:lookup(token), root_url(C))
     ).
 
 -spec get_session_data_3ds(config()) -> _.
 
 get_session_data_3ds(C) ->
-    CDSCardClient = config(cds_storage_client, C),
-    ?SESSION_DATA_MATCH(?AUTH_3DS_MATCH) = CDSCardClient:get_session_data(cds_ct_utils:lookup(session), root_url(C)).
+    ?SESSION_DATA_MATCH(?AUTH_3DS_MATCH) = cds_card_v2_client:get_session_data(cds_ct_utils:lookup(session), root_url(C)).
 
 -spec get_session_data_backward_compatibility(config()) -> _.
 
 get_session_data_backward_compatibility(C) ->
-    CDSCardClient = config(cds_storage_client, C),
-    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(
+    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = cds_card_v2_client:get_session_data(
         cds_ct_utils:lookup(session),
         root_url(C)
     ).
@@ -512,10 +468,9 @@ get_session_data_backward_compatibility(C) ->
 -spec get_session_card_data_backward_compatibility(config()) -> _.
 
 get_session_card_data_backward_compatibility(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_card(?CVV),
-        CDSCardClient:get_session_card_data(
+        cds_card_v2_client:get_test_card(?CVV),
+        cds_card_v2_client:get_session_card_data(
             cds_ct_utils:lookup(token),
             cds_ct_utils:lookup(session),
             root_url(C)
@@ -532,25 +487,20 @@ get_card_data_backward_compatibility(C) ->
         cvv => <<>>
     },
     #{bank_card := #{token := Token}} = cds_old_cds_client:put_card(CardData, oldcds_url(C)),
-    CDSCardClient = config(cds_storage_client, C),
     ?assertEqual(
-        CDSCardClient:get_test_card(CardData, <<>>),
-        CDSCardClient:get_card_data(Token, root_url(C))
+        cds_card_v2_client:get_test_card(CardData, <<>>),
+        cds_card_v2_client:get_card_data(Token, root_url(C))
     ).
 
 -spec no_last_dot_in_token(config()) -> _.
 
 no_last_dot_in_token(C) ->
     CardData = #{
-        pan => <<"4242424242424648">>,
-        exp_date => #{month => 12,year => 3000},
-        cardholder_name => <<"Tony Stark">>,
-        cvv => <<>>
+        pan => <<"4242424242424648">>
     },
-    CDSCardClient = config(cds_storage_client, C),
     #{bank_card := #{token := Token}} =
-        CDSCardClient:put_card(
-            CDSCardClient:get_test_card(CardData, <<>>),
+        cds_card_v2_client:put_card(
+            cds_card_v2_client:get_test_card(CardData, <<>>),
             root_url(C)),
     LastByte = binary:part(Token, {byte_size(Token), -1}),
     ?assertNotEqual(<<".">>, LastByte).
@@ -558,26 +508,23 @@ no_last_dot_in_token(C) ->
 -spec get_card_data_unavailable(config()) -> _.
 
 get_card_data_unavailable(C) ->
-    CDSCardClient = config(cds_storage_client, C),
-    try CDSCardClient:get_card_data(<<"No matter what">>, root_url(C)) catch
+    try cds_card_v2_client:get_card_data(<<"No matter what">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
 
 -spec get_session_card_data_unavailable(config()) -> _.
 
 get_session_card_data_unavailable(C) ->
-    CDSCardClient = config(cds_storage_client, C),
-    try CDSCardClient:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
+    try cds_card_v2_client:get_session_card_data(<<"TOKEN">>, <<"SESSION">>, root_url(C)) catch
         error:{woody_error, {external, resource_unavailable, _}} -> ok
     end.
 
 -spec put_card_data_unavailable(config()) -> _.
 
 put_card_data_unavailable(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     try
-        CDSCardClient:put_card_and_session(
-            CDSCardClient:get_test_card(undefined),
+        cds_card_v2_client:put_card_and_session(
+            cds_card_v2_client:get_test_card(undefined),
             ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
         )
     catch
@@ -588,10 +535,9 @@ put_card_data_unavailable(C) ->
 -spec put_card_data_3ds_unavailable(config()) -> _.
 
 put_card_data_3ds_unavailable(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     try
-        CDSCardClient:put_card_and_session(
-            CDSCardClient:get_test_card(undefined),
+        cds_card_v2_client:put_card_and_session(
+            cds_card_v2_client:get_test_card(undefined),
             ?SESSION_DATA(?AUTH_3DS), root_url(C)
         )
     catch
@@ -602,10 +548,9 @@ put_card_data_3ds_unavailable(C) ->
 -spec put_card_data_no_member(config()) -> _.
 
 put_card_data_no_member(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     try
-        CDSCardClient:put_card_and_session(
-            CDSCardClient:get_test_card(undefined),
+        cds_card_v2_client:put_card_and_session(
+            cds_card_v2_client:get_test_card(undefined),
             ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
         )
     catch
@@ -616,22 +561,21 @@ put_card_data_no_member(C) ->
 -spec session_cleaning(config()) -> _.
 
 session_cleaning(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     #{
         bank_card := #{
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_and_session(
-        CDSCardClient:get_test_card(undefined),
+    } = cds_card_v2_client:put_card_and_session(
+        cds_card_v2_client:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(?CVV)), root_url(C)
     ),
 
     ?assertEqual(
-        CDSCardClient:get_test_card(<<>>),
-        CDSCardClient:get_card_data(Token, root_url(C))
+        cds_card_v2_client:get_test_card(<<>>),
+        cds_card_v2_client:get_card_data(Token, root_url(C))
     ),
-    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = CDSCardClient:get_session_data(Session, root_url(C)),
+    ?SESSION_DATA_MATCH(?CARD_SEC_CODE_MATCH(?CVV)) = cds_card_v2_client:get_session_data(Session, root_url(C)),
 
     [{session_cleaning, #{
         session_lifetime := Lifetime,
@@ -639,22 +583,21 @@ session_cleaning(C) ->
     }}] = config(session_cleaning_config, C),
 
     ok = timer:sleep(Lifetime * 1000 + Interval * 2),
-    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_data(Session, root_url(C))),
+    _ = ?assertEqual({error, session_data_not_found}, cds_card_v2_client:get_session_data(Session, root_url(C))),
     _ = ?assertEqual(
-        CDSCardClient:get_test_card(<<>>),
-        CDSCardClient:get_card_data(Token, root_url(C))).
+        cds_card_v2_client:get_test_card(<<>>),
+        cds_card_v2_client:get_card_data(Token, root_url(C))).
 
 -spec refresh_sessions(config()) -> _.
 
 refresh_sessions(C) ->
-    CDSCardClient = config(cds_storage_client, C),
     #{
         bank_card := #{
             token := Token
         },
         session_id := Session
-    } = CDSCardClient:put_card_and_session(
-        CDSCardClient:get_test_card(undefined),
+    } = cds_card_v2_client:put_card_and_session(
+        cds_card_v2_client:get_test_card(undefined),
         ?SESSION_DATA(?CARD_SEC_CODE(<<"345">>)), root_url(C)
     ),
 
@@ -671,13 +614,13 @@ refresh_sessions(C) ->
         || _ <- lists:seq(1, 6)],
 
     ok = timer:sleep(Interval),
-    _ = ?assertMatch(?SESSION_DATA_MATCH(_), CDSCardClient:get_session_data(Session, root_url(C))),
+    _ = ?assertMatch(?SESSION_DATA_MATCH(_), cds_card_v2_client:get_session_data(Session, root_url(C))),
     ok = timer:sleep(Lifetime * 1000 + Interval),
 
-    _ = ?assertEqual({error, session_data_not_found}, CDSCardClient:get_session_data(Session, root_url(C))),
+    _ = ?assertEqual({error, session_data_not_found}, cds_card_v2_client:get_session_data(Session, root_url(C))),
     _ = ?assertEqual(
-        CDSCardClient:get_test_card(<<>>),
-        CDSCardClient:get_card_data(Token, root_url(C))
+        cds_card_v2_client:get_test_card(<<>>),
+        cds_card_v2_client:get_card_data(Token, root_url(C))
     ).
 
 -spec recrypt(config()) -> _.
@@ -686,9 +629,7 @@ refresh_sessions(C) ->
 recrypt(C) ->
     {KeyID0, _} = cds_keyring:get_current_key(),
     CardholderData = #{
-        cardnumber => <<"5321301234567892">>,
-        exp_date => {12, 3000},
-        cardholder => <<"Tony Stark">>
+        cardnumber => <<"5321301234567892">>
     },
     SessionDataCVV = #{auth_data => #{type => cvv, value => <<"345">>}},
 
