@@ -4,6 +4,7 @@
 
 -include_lib("cds_proto/include/cds_proto_keyring_thrift.hrl").
 -include_lib("cds_proto/include/cds_proto_storage_thrift.hrl").
+-include_lib("damsel/include/dmsl_cds_thrift.hrl").
 -include_lib("tds_proto/include/tds_proto_storage_thrift.hrl").
 -include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
 -include_lib("woody/src/woody_defs.hrl").
@@ -62,6 +63,12 @@ filter(#cds_SessionData{} = V) -> V;
 filter(#cds_PutCardResult{} = V) -> V;
 filter(#cds_PutCardDataResult{} = V) -> V;
 
+%% damsel storage
+filter(#'CardData'{} = V) -> V;
+filter(#'SessionData'{} = V) -> V;
+filter(#'PutCardResult'{} = V) -> V;
+filter(#'PutCardDataResult'{} = V) -> V;
+
 %% identdocstore
 filter({russian_domestic_passport, #identdocstore_RussianDomesticPassport{}}) ->
     FilteredPassport = #identdocstore_RussianDomesticPassport{
@@ -92,6 +99,11 @@ filter(#cds_OperationAborted{} = V) -> V;
 filter(#cds_InvalidCardData{} = V) -> V;
 filter(#cds_CardDataNotFound{} = V) -> V;
 filter(#cds_SessionDataNotFound{} = V) -> V;
+
+%% damsel exceptions
+filter(#'InvalidCardData'{} = V) -> V;
+filter(#'CardDataNotFound'{} = V) -> V;
+filter(#'SessionDataNotFound'{} = V) -> V;
 
 %% identdocstore exceptions
 filter(#identdocstore_IdentityDocumentNotFound{} = V) -> V;
