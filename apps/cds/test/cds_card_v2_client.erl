@@ -17,7 +17,12 @@
 %%
 
 -type card_data() :: #{
-    pan := binary()
+    pan := binary(),
+    exp_date => #{
+        month := integer(),
+        year := integer()
+    },
+    cardholder_name => binary() | undefined
 }.
 
 -type session_data() :: #{
@@ -109,7 +114,7 @@ get_session_card_data(Token, _Session, RootUrl) ->
     end.
 
 encode_card_data(#{pan := Pan}) ->
-    #cds_CardData{
+    #cds_PutCardData{
         pan = Pan
     }.
 
