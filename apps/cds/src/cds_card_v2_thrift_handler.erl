@@ -26,11 +26,10 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
-                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token_with_payload(Token, Payload),
-                    bin            = maps:get(iin           , CardInfo),
-                    last_digits    = maps:get(last_digits   , CardInfo)
+                    token          = cds_utils:encode_token(Token),
+                    bin            = maps:get(iin        , CardInfo),
+                    last_digits    = maps:get(last_digits, CardInfo)
                 },
                 {ok, #cds_PutCardResult{
                     bank_card = BankCard
@@ -82,15 +81,11 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %%
 
 decode_card_data(#'cds_PutCardData'{
-    pan             = PAN,
-    exp_date        = ExpDate,
-    cardholder_name = CardholderName
+    pan = PAN
 }) ->
     genlib_map:compact(
         #{
-            cardnumber => PAN,
-            exp_date   => decode_exp_date(ExpDate),
-            cardholder => CardholderName
+            cardnumber => PAN
         }
     ).
 
@@ -102,9 +97,11 @@ decode_auth_data({card_security_code, #cds_CardSecurityCode{value = Value}}) ->
 decode_auth_data({auth_3ds, #cds_Auth3DS{cryptogram = Cryptogram, eci = ECI}}) ->
     genlib_map:compact(#{type => '3ds', cryptogram => Cryptogram, eci => ECI}).
 
-encode_cardholder_data(#{cardnumber := PAN}) ->
+encode_cardholder_data(#{cardnumber := PAN} = CardData) ->
     #cds_CardData{
-        pan = PAN
+        pan = PAN,
+        exp_date = encode_exp_date(genlib_map:get(exp_date, CardData)),
+        cardholder_name = genlib_map:get(cardholder, CardData)
     }.
 
 encode_session_data(#{auth_data := AuthData}) ->
@@ -132,7 +129,7 @@ get_session_data(Session) ->
     {_, SessionData} = cds:get_session_data(Session),
     cds_card_data:unmarshal_session_data(SessionData).
 
-decode_exp_date(undefined) ->
+encode_exp_date(undefined) ->
     undefined;
-decode_exp_date(#'cds_ExpDate'{month = Month, year = Year}) ->
-    {Month, Year}.
+encode_exp_date({Month, Year}) ->
+    #'cds_ExpDate'{month = Month, year = Year}.

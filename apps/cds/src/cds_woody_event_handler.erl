@@ -61,7 +61,6 @@ filter(#cds_KeyringMetaDiff{} = V) -> V;
 filter(#cds_CardData{} = V) -> V;
 filter(#cds_SessionData{} = V) -> V;
 filter(#cds_PutCardResult{} = V) -> V;
-filter(#cds_PutCardDataResult{} = V) -> V;
 
 %% damsel storage
 filter(#'CardData'{} = V) -> V;
