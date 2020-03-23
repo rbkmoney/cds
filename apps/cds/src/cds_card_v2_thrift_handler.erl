@@ -46,7 +46,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        {DecodedToken, _DecodedPayload} = cds_utils:decode_token_with_payload(Token),
+        DecodedToken = cds_utils:decode_token_without_payload(Token),
         {ok, encode_cardholder_data(get_cardholder_data(DecodedToken))}
     catch
         not_found ->
