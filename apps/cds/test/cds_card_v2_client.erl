@@ -159,12 +159,27 @@ decode_bank_card(
 
 decode_card_data(
     #cds_CardData{
-        pan = Pan
+        pan = Pan,
+        exp_date = ExpDate,
+        cardholder_name = CardholderName
     }) ->
     DecodedCardData = #{
-        pan => Pan
+        pan => Pan,
+        exp_date => decode_exp_date(ExpDate),
+        cardholder_name => CardholderName
     },
     genlib_map:compact(DecodedCardData).
+
+decode_exp_date(undefined) ->
+    undefined;
+decode_exp_date(#cds_ExpDate{
+    month = Month,
+    year = Year
+}) ->
+    #{
+        month => Month,
+        year => Year
+    }.
 
 decode_session_data(
     #cds_SessionData{

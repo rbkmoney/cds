@@ -455,8 +455,8 @@ same_card_number_has_same_token(C) ->
             token := Token2
         }
     } = CDSCardClient:put_card(CardData#{cardholder_name => <<"Tony Stark">>}, root_url(C)),
-    {CardDataToken1, _} = cds_utils:decode_token_with_payload(Token1),
-    {CardDataToken2, _} = cds_utils:decode_token_with_payload(Token2),
+    CardDataToken1 = cds_utils:decode_token_without_payload(Token1),
+    CardDataToken2 = cds_utils:decode_token_without_payload(Token2),
 
     ?assertEqual(CardDataToken1, CardDataToken2).
 
@@ -533,8 +533,12 @@ get_card_data_backward_compatibility(C) ->
     },
     #{bank_card := #{token := Token}} = cds_old_cds_client:put_card(CardData, oldcds_url(C)),
     CDSCardClient = config(cds_storage_client, C),
-    ?assertEqual(
-        CDSCardClient:get_test_card(CardData, <<>>),
+    ?assertMatch(
+        #{
+            pan := <<"4242424242424648">>,
+            exp_date := #{month := 12,year := 3000},
+            cardholder_name := <<"Tony Stark">>
+        },
         CDSCardClient:get_card_data(Token, root_url(C))
     ).
 
