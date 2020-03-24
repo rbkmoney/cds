@@ -46,8 +46,12 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
 
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
-        DecodedToken = cds_utils:decode_token_without_payload(Token),
-        {ok, encode_cardholder_data(get_cardholder_data(DecodedToken))}
+        {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
+        CardData = maps:merge(
+            get_cardholder_data(DecodedToken),
+            DecodedPayload
+        ),
+        {ok, encode_cardholder_data(CardData)}
     catch
         not_found ->
             cds_thrift_handler_utils:raise(#cds_CardDataNotFound{});

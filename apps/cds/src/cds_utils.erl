@@ -9,7 +9,6 @@
 -export([encode_session/1]).
 -export([encode_token_with_payload/2]).
 -export([decode_token_with_payload/1]).
--export([decode_token_without_payload/1]).
 
 -spec current_time() -> pos_integer().
 current_time() ->
@@ -71,10 +70,6 @@ decode_token_with_payload(Token) ->
             <<1, DecodedPayload/binary>> = base62_decode_(P),
             {base62_decode(T), decode_payload(decrypt_payload(DecodedPayload))}
     end.
-
--spec decode_token_without_payload(binary()) -> cds:token().
-decode_token_without_payload(Token) ->
-    decode_token(hd(binary:split(Token, <<".">>))).
 
 -spec decode_payload(binary()) -> cds_card_data:payload_data().
 decode_payload(<< Month:8, Year:16 >>) ->
