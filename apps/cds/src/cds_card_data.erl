@@ -5,7 +5,6 @@
 -module(cds_card_data).
 
 -export([validate/1]).
--export([validate/2]).
 
 -export([marshal_cardholder_data/1]).
 -export([marshal_session_data/1]).
@@ -62,28 +61,16 @@
 
 -type reason() ::
     unrecognized |
-    {invalid, cardnumber | cvv | exp_date, check()}.
+    {invalid, cardnumber, check()}.
 
 -spec validate(cardholder_data()) ->
     {ok, card_info()} | {error, reason()}.
 
-validate(CardData) ->
-    validate(CardData, undefined, #{now => calendar:universal_time()}).
-
--spec validate(cardholder_data(), session_data() | undefined) ->
-    {ok, card_info()} | {error, reason()}.
-
-validate(CardData, SessionData) ->
-    validate(CardData, SessionData, #{now => calendar:universal_time()}).
-
--spec validate(cardholder_data(), session_data() | undefined, Env :: #{now := calendar:datetime()}) ->
-    {ok, card_info()} | {error, reason()}.
-
-validate(CardData = #{cardnumber := CardNumber}, SessionData, Env) ->
+validate(CardData = #{cardnumber := CardNumber}) ->
     case detect_payment_system(CardNumber) of
         {ok, PaymentSystem} ->
             #{PaymentSystem := Ruleset} = get_payment_system_map(),
-            case validate_card_data(merge_data(CardData, SessionData), Ruleset, Env) of
+            case validate_card_data(CardData, Ruleset) of
                 ok ->
                     {ok, get_card_info(CardData, PaymentSystem, Ruleset)};
                 {error, Reason} ->
@@ -92,11 +79,6 @@ validate(CardData = #{cardnumber := CardNumber}, SessionData, Env) ->
         {error, Reason} ->
             {error, Reason}
     end.
-
-merge_data(CardData, undefined) ->
-    CardData;
-merge_data(CardData, #{auth_data := AuthData}) ->
-    maps:merge(CardData, AuthData).
 
 get_card_info(CardData, PaymentSystem, Ruleset) ->
     #{
@@ -208,34 +190,30 @@ unmarshal(metadata, #{<<"content_type">> := ContentType, <<"vsn">> := VSN}) ->
 
 %%
 
-validate_card_data(CardData, #{assertions := Assertions}, Env) ->
-    try run_assertions(CardData, Assertions, Env) catch
+validate_card_data(CardData, #{assertions := Assertions}) ->
+    try run_assertions(CardData, Assertions) catch
         Reason ->
             {error, Reason}
     end.
 
-run_assertions(CardData, Assertions, Env) ->
+run_assertions(CardData, Assertions) ->
     genlib_map:foreach(
         fun (K, Checks) ->
             V = maps:get(K, CardData, undefined),
             lists:foreach(
-                fun (C) -> check_value(V, C, Env) orelse throw({invalid, K, C}) end,
+                fun (C) -> check_value(V, C) orelse throw({invalid, K, C}) end,
                 Checks
             )
         end,
         Assertions
     ).
 
-check_value(undefined, _, _) ->
+check_value(undefined, _) ->
     true;
-check_value(V, {length, Ls}, _) ->
+check_value(V, {length, Ls}) ->
     lists:any(fun (L) -> check_length(V, L) end, Ls);
-check_value(V, luhn, _) ->
-    check_luhn(V, 0);
-check_value({M, Y}, expiration, #{now := {{Y0, M0, _DD}, _Time}}) ->
-    M >=  1 andalso
-    M =< 12 andalso
-    {Y, M} >= {Y0, M0}.
+check_value(V, luhn) ->
+    check_luhn(V, 0).
 
 check_length(V, {range, L, U}) ->
     L =< byte_size(V) andalso byte_size(V) =< U;
@@ -277,17 +255,14 @@ check_luhn(<<N, Rest/binary>>, Sum) ->
 
 -type check() ::
     {length, [pos_integer() | {range, pos_integer(), pos_integer()}]} |
-    luhn |
-    expiration.
+    luhn.
 
 get_payment_system_map() ->
     #{
 
         visa => #{
             assertions => #{
-                cardnumber => [{length, [13, 16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [13, 16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -295,9 +270,7 @@ get_payment_system_map() ->
 
         mastercard => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -305,9 +278,7 @@ get_payment_system_map() ->
 
         visaelectron => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -326,9 +297,7 @@ get_payment_system_map() ->
         %% by the ISO Registration Authority, and must be unique.
         maestro => #{
             assertions => #{
-                cardnumber => [{length, [{range, 12, 19}]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [{range, 12, 19}]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -336,9 +305,7 @@ get_payment_system_map() ->
 
         nspkmir => #{
             assertions => #{
-                cardnumber => [{length, [{range, 16, 19}]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [{range, 16, 19}]}, luhn]
             },
             iin_length     => 8,
             exposed_length => 2
@@ -346,9 +313,7 @@ get_payment_system_map() ->
 
         amex => #{
             assertions => #{
-                cardnumber => [{length, [15]}, luhn],
-                cvv         => [{length, [3, 4]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [15]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -356,9 +321,7 @@ get_payment_system_map() ->
 
         dinersclub => #{
             assertions => #{
-                cardnumber => [{length, [{range, 14, 19}]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [{range, 14, 19}]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -366,9 +329,7 @@ get_payment_system_map() ->
 
         discover => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -376,9 +337,7 @@ get_payment_system_map() ->
 
         unionpay => #{
             assertions => #{
-                cardnumber => [{length, [{range, 16, 19}]}],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [{range, 16, 19}]}]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -386,9 +345,7 @@ get_payment_system_map() ->
 
         jcb => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -396,9 +353,7 @@ get_payment_system_map() ->
 
         forbrugsforeningen => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4
@@ -406,9 +361,7 @@ get_payment_system_map() ->
 
         dankort => #{
             assertions => #{
-                cardnumber => [{length, [16]}, luhn],
-                cvv         => [{length, [3]}],
-                exp_date    => [expiration]
+                cardnumber => [{length, [16]}, luhn]
             },
             iin_length     => 6,
             exposed_length => 4

@@ -26,9 +26,8 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         case cds_card_data:validate(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
-                Payload = maps:without([cardnumber], OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token_with_payload(Token, Payload),
+                    token          = cds_utils:encode_token(Token),
                     bin            = maps:get(iin        , CardInfo),
                     last_digits    = maps:get(last_digits, CardInfo)
                 },
@@ -85,23 +84,12 @@ handle_function_('GetSessionData', [Session], _Context, _Opts) ->
 %% Internals
 %%
 
-decode_card_data(#'cds_CardData'{
-    pan = PAN,
-    exp_date = ExpDate,
-    cardholder_name = Cardholder
+decode_card_data(#'cds_PutCardData'{
+    pan = PAN
 }) ->
-    genlib_map:compact(
-        #{
-            cardnumber => PAN,
-            exp_date => decode_exp_date(ExpDate),
-            cardholder => Cardholder
-        }
-    ).
-
-decode_exp_date(undefined) ->
-    undefined;
-decode_exp_date(#'cds_ExpDate'{month = Month, year = Year}) ->
-    {Month, Year}.
+    #{
+        cardnumber => PAN
+    }.
 
 decode_session_data(#cds_SessionData{auth_data = AuthData}) ->
     #{auth_data => decode_auth_data(AuthData)}.

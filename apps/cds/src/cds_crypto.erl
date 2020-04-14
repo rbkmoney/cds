@@ -4,7 +4,6 @@
 -include_lib("jose/include/jose_jws.hrl").
 
 -export([encrypt/2]).
--export([encrypt/4]).
 -export([decrypt/2]).
 -export([private_decrypt/2]).
 -export([sign/2]).
