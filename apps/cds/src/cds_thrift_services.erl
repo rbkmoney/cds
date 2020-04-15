@@ -66,8 +66,6 @@ handler_module(token) ->
     {cds_token_thrift_handler, []};
 handler_module(keyring_v2) ->
     {cds_keyring_v2_thrift_handler, []};
-handler_module(card) ->
-    {cds_card_v1_thrift_handler, []};
 handler_module(card_v2) ->
     {cds_card_v2_thrift_handler, []};
 handler_module(ident_doc) ->

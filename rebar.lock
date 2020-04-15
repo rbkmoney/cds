@@ -4,7 +4,7 @@
  {<<"cache">>,{pkg,<<"cache">>,<<"2.2.0">>},1},
  {<<"cds_proto">>,
   {git,"git@github.com:rbkmoney/cds-proto.git",
-       {ref,"36e9c0485276e6e8184e4802be9694b2b7b4ff5f"}},
+       {ref,"530875f4888d553b02411b981a1d2a06308ce3d8"}},
   0},
  {<<"certifi">>,{pkg,<<"certifi">>,<<"2.5.1">>},2},
  {<<"cg_mon">>,
