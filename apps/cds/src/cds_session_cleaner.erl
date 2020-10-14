@@ -22,18 +22,15 @@
 -type continuation() :: undefined | term().
 
 -spec start_link() -> {ok, pid()} | {error, Reason :: any()}.
-
 start_link() ->
     cds_periodic_job:start_link(?MODULE, []).
 
 -spec init(_) -> {ok, non_neg_integer(), state()}.
-
 init(_Args) ->
     _ = logger:info("Starting session cleaner...", []),
     {ok, get_interval(), #{continuation => undefined}}.
 
 -spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
-
 handle_timeout(State = #{continuation := Continuation0}) ->
     _ = logger:info("Starting session cleaning", []),
 
@@ -54,7 +51,6 @@ handle_timeout(State = #{continuation := Continuation0}) ->
 
 -spec clean_sessions(non_neg_integer(), non_neg_integer(), non_neg_integer() | undefined, continuation()) ->
     {ok, done} | {ok, more, continuation()} | {error, Reason :: any()}.
-
 clean_sessions(From, To, BatchSize, Continuation0) ->
     try
         {Sessions, Continuation} = cds_card_storage:get_sessions_created_between(From, To, BatchSize, Continuation0),
@@ -62,10 +58,11 @@ clean_sessions(From, To, BatchSize, Continuation0) ->
         _ = logger:info("Got ~p sessions to clean", [SessionsSize]),
         _ = [
             begin
-            _ = cds_card_storage:delete_session(ID),
-            logger:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
+                _ = cds_card_storage:delete_session(ID),
+                logger:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
             end
-        || ID <- Sessions],
+            || ID <- Sessions
+        ],
         case BatchSize of
             undefined ->
                 {ok, done};

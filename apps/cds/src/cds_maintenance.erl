@@ -8,16 +8,16 @@
 
 -define(REFRESH_BATCH, 500).
 
-
 %% api
 
 -spec refresh_sessions_created_at() -> ok.
-
 refresh_sessions_created_at() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
     Refresher = fun(Key) ->
-        try cds_card_storage:refresh_session_created_at(Key) catch
+        try
+            cds_card_storage:refresh_session_created_at(Key)
+        catch
             throw:not_found ->
                 ok
         end
@@ -25,7 +25,6 @@ refresh_sessions_created_at() ->
     refresh(Getter, Refresher).
 
 -spec refresh_session_data_encryption() -> ok.
-
 refresh_session_data_encryption() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_sessions(?REFRESH_BATCH, Continuation) end,
@@ -41,7 +40,6 @@ refresh_session_data_encryption() ->
     refresh(Getter, Refresher).
 
 -spec refresh_cardholder_encryption() -> ok.
-
 refresh_cardholder_encryption() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_tokens(?REFRESH_BATCH, Continuation) end,
@@ -52,7 +50,6 @@ refresh_cardholder_encryption() ->
     refresh(Getter, Refresher).
 
 -spec get_sessions_info() -> ok.
-
 get_sessions_info() ->
     ok = assert_keyring_available(),
     Getter = fun(Continuation) -> cds_card_storage:get_sessions_info(?REFRESH_BATCH, Continuation) end,

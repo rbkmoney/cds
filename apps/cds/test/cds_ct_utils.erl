@@ -47,53 +47,61 @@ start_clear(Config) ->
         genlib_app:start_application_with(scoper, [
             {storage, scoper_storage_logger}
         ]) ++
-        genlib_app:start_application_with(kernel, [
-            {logger_sasl_compatible, false},
-            {logger_level, debug},
-            {logger, [
-                {handler, default, logger_std_h, #{
-                    formatter => {logger_logstash_formatter, #{
-                        message_redaction_regex_list => [
-                            "[0-9]{12,19}", %% pan
-                            "[0-9]{2}.[0-9]{2,4}", %% expiration date
-                            "[0-9]{3,4}", %% cvv
-                            "^ey[JI]([a-zA-Z0-9_-]*.?){1,6}" %% JWS and JWE compact representation
-                        ]
+            genlib_app:start_application_with(kernel, [
+                {logger_sasl_compatible, false},
+                {logger_level, debug},
+                {logger, [
+                    {handler, default, logger_std_h, #{
+                        formatter =>
+                            {logger_logstash_formatter, #{
+                                message_redaction_regex_list => [
+                                    %% pan
+                                    "[0-9]{12,19}",
+                                    %% expiration date
+                                    "[0-9]{2}.[0-9]{2,4}",
+                                    %% cvv
+                                    "[0-9]{3,4}",
+                                    %% JWS and JWE compact representation
+                                    "^ey[JI]([a-zA-Z0-9_-]*.?){1,6}"
+                                ]
+                            }}
                     }}
-                }}
-            ]}
-        ]) ++
-        genlib_app:start_application_with(cds, [
-            {ip, IP},
-            {port, Port},
-            {transport_opts, #{}},
-            {protocol_opts, #{
-                request_timeout => 60000
-            }},
-            {shutdown_timeout, 0},
-            {keyring, #{
-                url => <<"https://kds:8023">>,
-                ssl_options => [
-                    {server_name_indication, "Test Server"},
-                    {verify, verify_peer},
-                    {cacertfile, ?file_path(Config, "ca.crt")},
-                    {certfile, ?file_path(Config, "client.pem")}
-                ],
-                transport_opts => #{
-                    recv_timeout => 10000,
-                    connect_timeout => 1000
-                },
-                timeout => 10000
-            }},
-            {keyring_fetch_interval, 1000},
-            {health_check, #{
-                disk    => {erl_health, disk     , ["/", 99]  },
-                memory  => {erl_health, cg_memory, [99]       },
-                service => {erl_health, service  , [<<"cds">>]},
-                keyring => {cds_health, keyring,   []         }
-            }}
-        ] ++ StorageConfig ++ CleanConfig ++ Recrypting)
-    ,
+                ]}
+            ]) ++
+            genlib_app:start_application_with(
+                cds,
+                [
+                    {ip, IP},
+                    {port, Port},
+                    {transport_opts, #{}},
+                    {protocol_opts, #{
+                        request_timeout => 60000
+                    }},
+                    {shutdown_timeout, 0},
+                    {keyring, #{
+                        url => <<"https://kds:8023">>,
+                        ssl_options => [
+                            {server_name_indication, "Test Server"},
+                            {verify, verify_peer},
+                            {cacertfile, ?file_path(Config, "ca.crt")},
+                            {certfile, ?file_path(Config, "client.pem")}
+                        ],
+                        transport_opts => #{
+                            recv_timeout => 10000,
+                            connect_timeout => 1000
+                        },
+                        timeout => 10000
+                    }},
+                    {keyring_fetch_interval, 1000},
+                    {health_check, #{
+                        disk => {erl_health, disk, ["/", 99]},
+                        memory => {erl_health, cg_memory, [99]},
+                        service => {erl_health, service, [<<"cds">>]},
+                        keyring => {cds_health, keyring, []}
+                    }}
+                ] ++ StorageConfig ++ CleanConfig ++ Recrypting
+            ),
+
     [
         {apps, lists:reverse(Apps)},
         {root_url, genlib:to_binary(RootUrl)},
@@ -123,10 +131,10 @@ set_riak_storage(C) ->
             },
             timeout => 5000,
             pool_params => #{
-                max_count     => 100,
-                init_count    => 20,
+                max_count => 100,
+                init_count => 20,
                 cull_interval => {0, min},
-                pool_timeout  => {1, sec}
+                pool_timeout => {1, sec}
             }
         }}
     ],
@@ -196,10 +204,12 @@ clean_storage(CdsEnv) ->
 clean_riak_storage(CdsEnv) ->
     _ = application:start(riakc),
     _ = application:set_env(riakc, allow_listing, true),
-    #{conn_params := #{
-        host := Host,
-        port := Port
-    }} = genlib_opts:get(cds_storage_riak, CdsEnv),
+    #{
+        conn_params := #{
+            host := Host,
+            port := Port
+        }
+    } = genlib_opts:get(cds_storage_riak, CdsEnv),
     {ok, Client} = riakc_pb_socket:start_link(Host, Port),
     {ok, Buckets} = riakc_pb_socket:list_buckets(Client),
     lists:foreach(
@@ -207,7 +217,7 @@ clean_riak_storage(CdsEnv) ->
             {ok, Keys} = riakc_pb_socket:list_keys(Client, B),
             [
                 ok = riakc_pb_socket:delete(Client, B, K)
-                    || K <- Keys
+                || K <- Keys
             ]
         end,
         Buckets

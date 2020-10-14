@@ -12,17 +12,17 @@
 -export([unmarshal_session_data/1]).
 
 -type cardnumber() :: binary().
--type exp_date()   :: {1..12, pos_integer()}.
+-type exp_date() :: {1..12, pos_integer()}.
 -type cardholder() :: binary().
 
 -type cardholder_data() :: #{
     cardnumber := cardnumber(),
-    exp_date   => exp_date(),
+    exp_date => exp_date(),
     cardholder => cardholder()
 }.
 
 -type payload_data() :: #{
-    exp_date   => exp_date(),
+    exp_date => exp_date(),
     cardholder => cardholder()
 }.
 
@@ -43,8 +43,8 @@
 
 -type card_info() :: #{
     payment_system := payment_system(),
-    iin            := binary(),
-    last_digits    := binary()
+    iin := binary(),
+    last_digits := binary()
 }.
 
 -export_type([cardnumber/0]).
@@ -60,12 +60,10 @@
 %%
 
 -type reason() ::
-    unrecognized |
-    {invalid, cardnumber, check()}.
+    unrecognized
+    | {invalid, cardnumber, check()}.
 
--spec validate(cardholder_data()) ->
-    {ok, card_info()} | {error, reason()}.
-
+-spec validate(cardholder_data()) -> {ok, card_info()} | {error, reason()}.
 validate(CardData = #{cardnumber := CardNumber}) ->
     case detect_payment_system(CardNumber) of
         {ok, PaymentSystem} ->
@@ -83,8 +81,8 @@ validate(CardData = #{cardnumber := CardNumber}) ->
 get_card_info(CardData, PaymentSystem, Ruleset) ->
     #{
         payment_system => PaymentSystem,
-        iin            => get_card_iin(CardData, Ruleset),
-        last_digits    => get_last_digits(CardData, Ruleset)
+        iin => get_card_iin(CardData, Ruleset),
+        last_digits => get_last_digits(CardData, Ruleset)
     }.
 
 get_card_iin(#{cardnumber := CardNumber}, #{iin_length := IINLength}) ->
@@ -116,7 +114,6 @@ detect_payment_system(0, _) ->
 -type marshalled() :: binary() | {binary(), marshalled_metadata()}.
 
 -spec marshal_cardholder_data(cardholder_data()) -> marshalled().
-
 %% NOTE: New CDS store card number only, expiration date and cardholder name
 %% will be stored elsewhere. This design allows to reduce amount of data
 %% stored for the card with the same card number but different (or unknown)
@@ -125,10 +122,9 @@ detect_payment_system(0, _) ->
 
 marshal_cardholder_data(#{cardnumber := CN}) ->
     CNSize = byte_size(CN),
-    << CNSize, CN/binary >>.
+    <<CNSize, CN/binary>>.
 
 -spec marshal_session_data(session_data()) -> marshalled().
-
 marshal_session_data(SessionData) ->
     {
         msgpack:pack(marshal(session_data, SessionData)),
@@ -146,25 +142,22 @@ marshal(metadata, #{content_type := ContentType, vsn := VSN}) ->
     #{<<"content_type">> => ContentType, <<"vsn">> => integer_to_binary(VSN)}.
 
 -spec unmarshal_cardholder_data(marshalled()) -> cardholder_data().
-
-unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Payload/binary >>) ->
+unmarshal_cardholder_data(<<CNSize, CN:CNSize/binary, Payload/binary>>) ->
     PayloadData = unmarshal_payload(Payload),
     PayloadData#{
         cardnumber => CN
     }.
 
 -spec unmarshal_payload(marshalled()) -> payload_data().
-
-unmarshal_payload(<< Month:8, Year:16, Cardholder/binary >>) ->
+unmarshal_payload(<<Month:8, Year:16, Cardholder/binary>>) ->
     #{
-        exp_date   => {Month, Year},
+        exp_date => {Month, Year},
         cardholder => unmarshal(cardholder, Cardholder)
     };
 unmarshal_payload(<<>>) ->
     #{}.
 
 -spec unmarshal_session_data(marshalled()) -> session_data().
-
 unmarshal_session_data(CVV) when is_binary(CVV) ->
     #{auth_data => #{type => cvv, value => CVV}};
 unmarshal_session_data({SessionData, Metadata}) ->
@@ -191,17 +184,19 @@ unmarshal(metadata, #{<<"content_type">> := ContentType, <<"vsn">> := VSN}) ->
 %%
 
 validate_card_data(CardData, #{assertions := Assertions}) ->
-    try run_assertions(CardData, Assertions) catch
+    try
+        run_assertions(CardData, Assertions)
+    catch
         Reason ->
             {error, Reason}
     end.
 
 run_assertions(CardData, Assertions) ->
     genlib_map:foreach(
-        fun (K, Checks) ->
+        fun(K, Checks) ->
             V = maps:get(K, CardData, undefined),
             lists:foreach(
-                fun (C) -> check_value(V, C) orelse throw({invalid, K, C}) end,
+                fun(C) -> check_value(V, C) orelse throw({invalid, K, C}) end,
                 Checks
             )
         end,
@@ -211,7 +206,7 @@ run_assertions(CardData, Assertions) ->
 check_value(undefined, _) ->
     true;
 check_value(V, {length, Ls}) ->
-    lists:any(fun (L) -> check_length(V, L) end, Ls);
+    lists:any(fun(L) -> check_length(V, L) end, Ls);
 check_value(V, luhn) ->
     check_luhn(V, 0).
 
@@ -240,31 +235,30 @@ check_luhn(<<N, Rest/binary>>, Sum) ->
 % config
 
 -type payment_system() ::
-    visa               |
-    mastercard         |
-    visaelectron       |
-    nspkmir            |
-    amex               |
-    dinersclub         |
-    discover           |
-    unionpay           |
-    jcb                |
-    maestro            |
-    forbrugsforeningen |
-    dankort            .
+    visa
+    | mastercard
+    | visaelectron
+    | nspkmir
+    | amex
+    | dinersclub
+    | discover
+    | unionpay
+    | jcb
+    | maestro
+    | forbrugsforeningen
+    | dankort.
 
 -type check() ::
-    {length, [pos_integer() | {range, pos_integer(), pos_integer()}]} |
-    luhn.
+    {length, [pos_integer() | {range, pos_integer(), pos_integer()}]}
+    | luhn.
 
 get_payment_system_map() ->
     #{
-
         visa => #{
             assertions => #{
                 cardnumber => [{length, [13, 16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -272,7 +266,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -280,7 +274,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -299,7 +293,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [{range, 12, 19}]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -307,7 +301,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [{range, 16, 19}]}, luhn]
             },
-            iin_length     => 8,
+            iin_length => 8,
             exposed_length => 2
         },
 
@@ -315,7 +309,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [15]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -323,7 +317,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [{range, 14, 19}]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -331,7 +325,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -339,7 +333,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [{range, 16, 19}]}]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -347,7 +341,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -355,7 +349,7 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         },
 
@@ -363,21 +357,20 @@ get_payment_system_map() ->
             assertions => #{
                 cardnumber => [{length, [16]}, luhn]
             },
-            iin_length     => 6,
+            iin_length => 6,
             exposed_length => 4
         }
-
     }.
 
 get_inn_map() ->
     #{
-        <<"4026">>   => visaelectron,
+        <<"4026">> => visaelectron,
         <<"417500">> => visaelectron,
-        <<"4405">>   => visaelectron,
-        <<"4508">>   => visaelectron,
-        <<"4844">>   => visaelectron,
-        <<"4913">>   => visaelectron,
-        <<"4917">>   => visaelectron,
+        <<"4405">> => visaelectron,
+        <<"4508">> => visaelectron,
+        <<"4844">> => visaelectron,
+        <<"4913">> => visaelectron,
+        <<"4917">> => visaelectron,
 
         %% Maestro Global Rules
         %% https://www.mastercard.com/hr/merchants/_assets/Maestro_rules.pdf
@@ -387,17 +380,17 @@ get_inn_map() ->
         %% The IIN appears in the first six (6) digits of the PAN and must be assigned
         %% by the ISO Registration Authority, and must be unique. This prefix will
         %% start with 50XXXX, 560000 through 589999, or 6XXXXX, but not 59XXXX.
-        <<"50">>     => maestro,
-        <<"56">>     => maestro,
-        <<"57">>     => maestro,
-        <<"58">>     => maestro,
-        <<"6">>      => maestro,
+        <<"50">> => maestro,
+        <<"56">> => maestro,
+        <<"57">> => maestro,
+        <<"58">> => maestro,
+        <<"6">> => maestro,
 
-        <<"600">>    => forbrugsforeningen,
+        <<"600">> => forbrugsforeningen,
 
-        <<"5019">>   => dankort,
+        <<"5019">> => dankort,
 
-        <<"4">>      => visa,
+        <<"4">> => visa,
 
         %% Mastercard Rules
         %% https://www.mastercard.us/content/dam/mccom/global/documents/mastercard-rules.pdf
@@ -405,50 +398,51 @@ get_inn_map() ->
         %% Any type of account (credit, debit, prepaid, commercial, etc.) identified
         %% as a Mastercard Account with a primary account number (PAN) that begins with
         %% a BIN in the range of 222100 to 272099 or 510000 to 559999.
-        <<"51">>     => mastercard,
-        <<"52">>     => mastercard,
-        <<"53">>     => mastercard,
-        <<"54">>     => mastercard,
-        <<"55">>     => mastercard,
-        <<"2221">>   => mastercard,
-        <<"2222">>   => mastercard,
-        <<"2223">>   => mastercard,
-        <<"2224">>   => mastercard,
-        <<"2225">>   => mastercard,
-        <<"2226">>   => mastercard,
-        <<"2227">>   => mastercard,
-        <<"2228">>   => mastercard,
-        <<"2229">>   => mastercard,
-        <<"23">>     => mastercard,
-        <<"24">>     => mastercard,
-        <<"25">>     => mastercard,
-        <<"26">>     => mastercard,
-        <<"270">>    => mastercard,
-        <<"271">>    => mastercard,
-        <<"2720">>   => mastercard,
-        <<"500000">> => mastercard, %% needed for tinkoff test card
+        <<"51">> => mastercard,
+        <<"52">> => mastercard,
+        <<"53">> => mastercard,
+        <<"54">> => mastercard,
+        <<"55">> => mastercard,
+        <<"2221">> => mastercard,
+        <<"2222">> => mastercard,
+        <<"2223">> => mastercard,
+        <<"2224">> => mastercard,
+        <<"2225">> => mastercard,
+        <<"2226">> => mastercard,
+        <<"2227">> => mastercard,
+        <<"2228">> => mastercard,
+        <<"2229">> => mastercard,
+        <<"23">> => mastercard,
+        <<"24">> => mastercard,
+        <<"25">> => mastercard,
+        <<"26">> => mastercard,
+        <<"270">> => mastercard,
+        <<"271">> => mastercard,
+        <<"2720">> => mastercard,
+        %% needed for tinkoff test card
+        <<"500000">> => mastercard,
 
-        <<"34">>     => amex,
-        <<"37">>     => amex,
+        <<"34">> => amex,
+        <<"37">> => amex,
 
-        <<"30">>     => dinersclub,
-        <<"36">>     => dinersclub,
-        <<"38">>     => dinersclub,
-        <<"39">>     => dinersclub,
+        <<"30">> => dinersclub,
+        <<"36">> => dinersclub,
+        <<"38">> => dinersclub,
+        <<"39">> => dinersclub,
 
-        <<"60">>     => discover,
-        <<"64">>     => discover,
-        <<"65">>     => discover,
-        <<"622">>    => discover,
+        <<"60">> => discover,
+        <<"64">> => discover,
+        <<"65">> => discover,
+        <<"622">> => discover,
 
-        <<"62">>     => unionpay,
-        <<"88">>     => unionpay,
+        <<"62">> => unionpay,
+        <<"88">> => unionpay,
 
-        <<"35">>     => jcb,
+        <<"35">> => jcb,
 
-        <<"2200">>   => nspkmir,
-        <<"2201">>   => nspkmir,
-        <<"2202">>   => nspkmir,
-        <<"2203">>   => nspkmir,
-        <<"2204">>   => nspkmir
+        <<"2200">> => nspkmir,
+        <<"2201">> => nspkmir,
+        <<"2202">> => nspkmir,
+        <<"2203">> => nspkmir,
+        <<"2204">> => nspkmir
     }.

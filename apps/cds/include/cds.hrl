@@ -5,6 +5,6 @@
 
 -define(CURRENT_VERSION, ?VERSION_1).
 
--define(KEYID_TS, 8/integer-big-unsigned-unit:8).
+-define(KEYID_TS, 8 / integer - big - unsigned - unit:8).
 
 -endif.

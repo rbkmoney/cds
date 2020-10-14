@@ -54,13 +54,13 @@ decode_token_with_payload(Token) ->
     end.
 
 -spec decode_payload(binary()) -> cds_card_data:payload_data().
-decode_payload(<< Month:8, Year:16 >>) ->
+decode_payload(<<Month:8, Year:16>>) ->
     #{
-        exp_date   => {Month, Year}
+        exp_date => {Month, Year}
     };
-decode_payload(<< Month:8, Year:16, Cardholder/binary >>) ->
+decode_payload(<<Month:8, Year:16, Cardholder/binary>>) ->
     #{
-        exp_date   => {Month, Year},
+        exp_date => {Month, Year},
         cardholder => Cardholder
     };
 decode_payload(<<>>) ->

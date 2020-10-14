@@ -14,6 +14,7 @@
     birth_date := binary(),
     birth_place := binary()
 }.
+
 -type russian_retiree_insurance_certificate() :: #{
     type := russian_retiree_insurance_certificate,
     number := binary()
@@ -24,15 +25,11 @@
 -export([marshal/1]).
 -export([unmarshal/1]).
 
--spec marshal(identity_document()) ->
-    binary().
-
+-spec marshal(identity_document()) -> binary().
 marshal(Doc) ->
     msgpack:pack(marshal_(Doc)).
 
--spec unmarshal(binary()) ->
-    identity_document().
-
+-spec unmarshal(binary()) -> identity_document().
 unmarshal(Bin) ->
     {ok, Doc} = msgpack:unpack(Bin),
     unmarshal_(Doc).

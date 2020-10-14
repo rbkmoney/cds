@@ -8,12 +8,13 @@
 %% Types
 %%
 
--type storage_code() :: keyring_v2
-                      | keyring_storage
-                      | token
-                      | card
-                      | card_v2
-                      | ident_doc.
+-type storage_code() ::
+    keyring_v2
+    | keyring_storage
+    | token
+    | card
+    | card_v2
+    | ident_doc.
 
 -export_type([storage_code/0]).
 

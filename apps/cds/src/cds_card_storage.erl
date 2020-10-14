@@ -60,8 +60,7 @@ get_session_data(Session) ->
 get_session_card_data(Token, Session) ->
     {get_cardholder_data(Token), get_session_data(Session)}.
 
--spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) ->
-    ok | no_return().
+-spec put_card(cds:token(), cds:hash(), CardData :: cds:ciphertext(), cds_keyring:key_id()) -> ok | no_return().
 put_card(Token, Hash, CardData, KeyID) ->
     ok = cds_storage:put(
         ?TOKEN_NS,
@@ -71,8 +70,7 @@ put_card(Token, Hash, CardData, KeyID) ->
         prepare_card_data_indexes(Hash, KeyID)
     ).
 
--spec put_session(cds:session(), cds:ciphertext(), cds_keyring:key_id(), timestamp()) ->
-    ok | no_return().
+-spec put_session(cds:session(), cds:ciphertext(), cds_keyring:key_id(), timestamp()) -> ok | no_return().
 put_session(Session, {SessionData, SessionMeta}, KeyID, CreatedAt) ->
     ok = cds_storage:put(
         ?SESSION_NS,

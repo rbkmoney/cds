@@ -8,6 +8,7 @@
 -export([start_scrypt_port/0]).
 
 -export_type([scrypt_options/0]).
+
 -type scrypt_options() :: {
     N :: integer(),
     R :: integer(),
@@ -28,12 +29,13 @@ start_link() ->
 
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
-    Count = case erlang:system_info(logical_processors_available) of
-        X when is_integer(X) ->
-            X;
-        _ ->
-            ?DEFAULT_HASH_PROC_COUNT
-    end,
+    Count =
+        case erlang:system_info(logical_processors_available) of
+            X when is_integer(X) ->
+                X;
+            _ ->
+                ?DEFAULT_HASH_PROC_COUNT
+        end,
     Specs = [#{id => I, start => {?MODULE, start_scrypt_port, []}} || I <- lists:seq(1, Count)],
     {ok, {{one_for_one, 1, 3}, Specs}}.
 

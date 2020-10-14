@@ -1,4 +1,5 @@
 -module(cds_storage_riak).
+
 -behaviour(cds_storage).
 
 -export([start/1]).
@@ -13,11 +14,12 @@
 -include_lib("riakc/include/riakc.hrl").
 
 -define(DEFAULT_POOLER_TIMEOUT, {1, sec}).
--define(DEFAULT_TIMEOUT, 5000). % milliseconds
+% milliseconds
+-define(DEFAULT_TIMEOUT, 5000).
 
 -type storage_params() :: #{
     conn_params := conn_params(),
-    timeout     => pos_integer(),
+    timeout => pos_integer(),
     pool_params => pool_params()
 }.
 
@@ -26,26 +28,26 @@
     port := pos_integer(),
     options => #{
         connect_timeout => pos_integer(),
-        keepalive       => boolean()
+        keepalive => boolean()
     }
 }.
 
 -type pool_params() :: #{
-    max_count            => non_neg_integer     (),
-    init_count           => non_neg_integer     (),
-    cull_interval        => pooler_time_interval(),
-    max_age              => pooler_time_interval(),
+    max_count => non_neg_integer(),
+    init_count => non_neg_integer(),
+    cull_interval => pooler_time_interval(),
+    max_age => pooler_time_interval(),
     member_start_timeout => pooler_time_interval(),
-    pool_timeout         => pooler_time_interval()
+    pool_timeout => pooler_time_interval()
 }.
 
 -type pooler_time_interval() :: {non_neg_integer(), min | sec | ms | mu}.
 
 -define(DEFAULT_POOL_PARAMS, #{
-    max_count     => 10,
-    init_count    => 10,
+    max_count => 10,
+    init_count => 10,
     cull_interval => {0, min},
-    pool_timeout  => ?DEFAULT_POOLER_TIMEOUT
+    pool_timeout => ?DEFAULT_POOLER_TIMEOUT
 }).
 
 -define(DEFAULT_CLIENT_OPTS, #{
@@ -55,16 +57,15 @@
 %%
 %% cds_storage behaviour
 %%
--type namespace()   :: cds_storage:namespace().
--type data()        :: cds_storage:data().
--type metadata()    :: cds_storage:metadata().
--type indexes()     :: cds_storage:indexes().
--type index_id()    :: cds_storage:index_id().
+-type namespace() :: cds_storage:namespace().
+-type data() :: cds_storage:data().
+-type metadata() :: cds_storage:metadata().
+-type indexes() :: cds_storage:indexes().
+-type index_id() :: cds_storage:index_id().
 -type index_value() :: cds_storage:index_value().
--type limit()       :: cds_storage:limit().
+-type limit() :: cds_storage:limit().
 
 -spec start([namespace()]) -> ok.
-
 start(NSlist) ->
     _ = start_pool(get_storage_params()),
     lists:foreach(fun set_bucket/1, NSlist).
@@ -115,8 +116,7 @@ delete(NS, Key) ->
     index_value(),
     limit(),
     continuation()
-) ->
-    {ok, {[key()], continuation()}}.
+) -> {ok, {[key()], continuation()}}.
 search_by_index_value(NS, IndexName, IndexValue, Limit, Continuation) ->
     Result = get_index_eq(
         NS,
@@ -133,8 +133,7 @@ search_by_index_value(NS, IndexName, IndexValue, Limit, Continuation) ->
     EndValue :: index_value(),
     limit(),
     continuation()
-) ->
-    {ok, {[key()], continuation()}}.
+) -> {ok, {[key()], continuation()}}.
 search_by_index_range(NS, IndexName, StartValue, EndValue, Limit, Continuation) ->
     Result = get_index_range(
         NS,
@@ -173,7 +172,6 @@ get_pool_timeout() ->
     genlib_map:get(pool_timeout, PoolParams, ?DEFAULT_POOLER_TIMEOUT).
 
 -spec start_pool(storage_params()) -> ok | no_return().
-
 start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = StorageParams) ->
     PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 
@@ -182,10 +180,11 @@ start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = Storag
         [connect_timeout, keepalive],
         maps:get(options, ConnParams, ?DEFAULT_CLIENT_OPTS)
     ),
-    PoolConfig = [
-        {name, riak},
-        {start_mfa, {riakc_pb_socket, start_link, [Host, Port, maps:to_list(Opts)]}}
-    ] ++ maps:to_list(PoolParams),
+    PoolConfig =
+        [
+            {name, riak},
+            {start_mfa, {riakc_pb_socket, start_link, [Host, Port, maps:to_list(Opts)]}}
+        ] ++ maps:to_list(PoolParams),
 
     {ok, _Pid} = pooler:new_pool(PoolConfig),
     ok.
@@ -235,9 +234,10 @@ batch_request(Method, Args, Acc) ->
         Result = batch_request(Method, Client, Args, Acc),
         _ = pooler:return_member(riak, Client, get_client_status(Result)),
         Result
-    catch Class:Exception:Stacktrace ->
-        _ = pooler:return_member(riak, Client, fail),
-        erlang:raise(Class, Exception, Stacktrace)
+    catch
+        Class:Exception:Stacktrace ->
+            _ = pooler:return_member(riak, Client, fail),
+            erlang:raise(Class, Exception, Stacktrace)
     end.
 
 get_client_status(ok) ->
@@ -290,7 +290,7 @@ prepare_options(Opts) ->
     [Item || {_, V} = Item <- Opts, V =/= undefined].
 
 prepare_object(NS, Key, Data, Meta, Indexes) ->
-    case riakc_obj:new(NS, Key, Data)  of
+    case riakc_obj:new(NS, Key, Data) of
         Error = {error, _} ->
             error(Error);
         Obj0 ->

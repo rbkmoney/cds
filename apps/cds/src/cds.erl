@@ -1,4 +1,5 @@
 -module(cds).
+
 -behaviour(supervisor).
 -behaviour(application).
 
@@ -9,7 +10,7 @@
 
 %% Application callbacks
 -export([start/2]).
--export([stop /1]).
+-export([stop/1]).
 
 %% Storage operations
 -export([get_cardholder_data/1]).
@@ -35,7 +36,8 @@
 -type metadata() :: #{binary() := binary()}.
 -type ciphermeta() :: binary().
 -type plaintext() :: binary() | {binary(), metadata()}.
--type ciphertext() :: binary() | {binary(), ciphermeta()}. % <<KeyID/byte, EncryptedData/binary>>
+% <<KeyID/byte, EncryptedData/binary>>
+-type ciphertext() :: binary() | {binary(), ciphermeta()}.
 
 %%
 %% Supervisor callbacks
@@ -54,12 +56,12 @@ init([]) ->
                 cds_thrift_services:handler_spec(card_v2),
                 cds_thrift_services:handler_spec(ident_doc)
             ],
-            event_handler     => cds_woody_event_handler,
-            ip                => IP,
-            port              => genlib_app:env(?MODULE, port, 8022),
-            transport_opts    => genlib_app:env(?MODULE, transport_opts, #{}),
-            protocol_opts     => genlib_app:env(?MODULE, protocol_opts, #{}),
-            shutdown_timeout  => genlib_app:env(?MODULE, shutdown_timeout, 0),
+            event_handler => cds_woody_event_handler,
+            ip => IP,
+            port => genlib_app:env(?MODULE, port, 8022),
+            transport_opts => genlib_app:env(?MODULE, transport_opts, #{}),
+            protocol_opts => genlib_app:env(?MODULE, protocol_opts, #{}),
+            shutdown_timeout => genlib_app:env(?MODULE, shutdown_timeout, 0),
             additional_routes => [HealthRoute]
         }
     ),
@@ -88,14 +90,12 @@ init([]) ->
 -spec enable_health_logging(erl_health:check()) -> erl_health:check().
 enable_health_logging(Check) ->
     EvHandler = {erl_health_event_handler, []},
-    maps:map(fun (_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
-
+    maps:map(fun(_, V = {_, _, _}) -> #{runner => V, event_handler => EvHandler} end, Check).
 
 %%
 %% Application callbacks
 %%
--spec start(normal, any()) ->
-    {ok, pid()} | {error, any()}.
+-spec start(normal, any()) -> {ok, pid()} | {error, any()}.
 start(normal, _StartArgs) ->
     case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
         {ok, Sup} ->
@@ -108,12 +108,9 @@ start(normal, _StartArgs) ->
             {ok, Sup}
     end.
 
-
--spec stop(any()) ->
-    ok.
+-spec stop(any()) -> ok.
 stop(_State) ->
     ok.
-
 
 %%
 %% Storage operations
@@ -190,8 +187,7 @@ decrypt(<<KeyID, Cipher/binary>>) ->
     {ok, {KeyID, Key}} = cds_keyring:get_key(KeyID),
     {KeyID, cds_crypto:decrypt(Key, Cipher)}.
 
--spec find_or_create_token(cds_keyring:key_id(), cds_keyring:key(), cds_keyring:meta(), binary()) ->
-    {token(), hash()}.
+-spec find_or_create_token(cds_keyring:key_id(), cds_keyring:key(), cds_keyring:meta(), binary()) -> {token(), hash()}.
 find_or_create_token(CurrentKeyID, CurrentKey, CurrentKeyMeta, MarshalledCardData) ->
     OtherKeys = cds_keyring:get_keys_except(CurrentKeyID),
     CurrentHash = cds_hash:hash(MarshalledCardData, CurrentKey, scrypt_options(CurrentKeyMeta)),
@@ -225,7 +221,6 @@ find_tokens(CardData, Hash, OtherKeys) ->
             {NotEmptyList, Hash}
     end.
 
-
 -spec token() -> token().
 token() ->
     crypto:strong_rand_bytes(16).
@@ -234,8 +229,8 @@ is_card_data_equal([Token | OtherTokens]) ->
     {_, FirstData} = get_cardholder_data(Token),
     lists:all(
         fun(T) ->
-              {_, OtherData} = get_cardholder_data(T),
-              FirstData =:= OtherData
+            {_, OtherData} = get_cardholder_data(T),
+            FirstData =:= OtherData
         end,
         OtherTokens
     ).

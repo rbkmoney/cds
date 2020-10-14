@@ -9,7 +9,7 @@
 -export([sign/2]).
 
 -type key() :: <<_:256>>.
--type iv()  :: binary().
+-type iv() :: binary().
 -type tag() :: binary().
 -type aad() :: binary().
 -type jwk_encoded() :: binary().
@@ -17,11 +17,12 @@
 
 %% cedf is for CDS Encrypted Data Format
 -record(cedf, {
-    tag    :: tag(),
-    iv     :: iv(),
-    aad    :: aad(),
+    tag :: tag(),
+    iv :: iv(),
+    aad :: aad(),
     cipher :: binary()
 }).
+
 -type cedf() :: #cedf{}.
 
 %%% API
@@ -37,9 +38,10 @@ encrypt(Key, Plain, IV, AAD) ->
     try
         {Cipher, Tag} = crypto:block_encrypt(aes_gcm, Key, IV, {AAD, Plain}),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
-    catch Class:Reason ->
-        _ = logger:error("encryption failed with ~p ~p", [Class, Reason]),
-        throw(encryption_failed)
+    catch
+        Class:Reason ->
+            _ = logger:error("encryption failed with ~p ~p", [Class, Reason]),
+            throw(encryption_failed)
     end.
 
 -spec decrypt(key(), binary()) -> binary().
@@ -52,9 +54,10 @@ decrypt(Key, MarshalledCEDF) ->
             throw(decryption_failed);
         Plain ->
             Plain
-    catch Type:Error ->
-        _ = logger:error("decryption failed with ~p ~p", [Type, Error]),
-        throw(decryption_failed)
+    catch
+        Type:Error ->
+            _ = logger:error("decryption failed with ~p ~p", [Type, Error]),
+            throw(decryption_failed)
     end.
 
 -spec private_decrypt(jwk_encoded(), jwe_compacted()) -> binary().
@@ -88,13 +91,10 @@ aad() ->
     crypto:strong_rand_bytes(4).
 
 -spec marshall_cedf(cedf()) -> binary().
-marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher})
-    when
-        bit_size(Tag) =:= 128,
-        bit_size(IV) =:= 128,
-        bit_size(AAD) =:= 32
-    ->
-        <<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>.
+marshall_cedf(#cedf{tag = Tag, iv = IV, aad = AAD, cipher = Cipher}) when
+    bit_size(Tag) =:= 128, bit_size(IV) =:= 128, bit_size(AAD) =:= 32
+->
+    <<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>.
 
 -spec unmarshall_cedf(binary()) -> cedf().
 unmarshall_cedf(<<Tag:16/binary, IV:16/binary, AAD:4/binary, Cipher/binary>>) ->

@@ -19,16 +19,23 @@ call(Key, Method, Args) ->
             Return;
         {error, Error} ->
             throw(Error)
-    catch Class:Reason:Stacktrace ->
-        _ = logger:error(
-            "~p (~p) ~p failed~nClass: ~s~nReason: ~p~nStacktrace: ~s",
-            [Key, Module, Method, Class, Reason,
-                genlib_format:format_stacktrace(Stacktrace)]),
-        handle_error(Class, Reason)
+    catch
+        Class:Reason:Stacktrace ->
+            _ = logger:error(
+                "~p (~p) ~p failed~nClass: ~s~nReason: ~p~nStacktrace: ~s",
+                [
+                    Key,
+                    Module,
+                    Method,
+                    Class,
+                    Reason,
+                    genlib_format:format_stacktrace(Stacktrace)
+                ]
+            ),
+            handle_error(Class, Reason)
     end.
 
--spec handle_error(atom(), _) ->
-    no_return().
+-spec handle_error(atom(), _) -> no_return().
 handle_error(throw, {pool_error, no_members}) ->
     woody_error:raise(system, {internal, resource_unavailable, <<"{pool_error,no_members}">>});
 handle_error(error, timeout) ->
