@@ -1,4 +1,5 @@
 -module(cds_card_v2_thrift_handler).
+
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("cds_proto/include/cds_proto_storage_thrift.hrl").
@@ -13,7 +14,6 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
         card_data_v2,
@@ -27,9 +27,9 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
                 BankCard = #cds_BankCard{
-                    token          = cds_utils:encode_token(Token),
-                    bin            = maps:get(iin        , CardInfo),
-                    last_digits    = maps:get(last_digits, CardInfo)
+                    token = cds_utils:encode_token(Token),
+                    bin = maps:get(iin, CardInfo),
+                    last_digits = maps:get(last_digits, CardInfo)
                 },
                 {ok, #cds_PutCardResult{
                     bank_card = BankCard
@@ -43,7 +43,6 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-
 handle_function_('GetCardData', [Token], _Context, _Opts) ->
     try
         {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
@@ -58,7 +57,6 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-
 handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
     OwnSessionData = decode_session_data(SessionData),
     try
@@ -68,7 +66,6 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-
 handle_function_('GetSessionData', [Session], _Context, _Opts) ->
     try
         SessionData = get_session_data(Session),

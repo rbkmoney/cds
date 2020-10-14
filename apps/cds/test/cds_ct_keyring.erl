@@ -24,7 +24,6 @@
 %%%
 
 -spec ensure_init(config()) -> _.
-
 ensure_init(C) ->
     RootUrl = root_url(C),
     case cds_keyring_client:get_state(RootUrl) of
@@ -35,7 +34,6 @@ ensure_init(C) ->
     end.
 
 -spec init(config()) -> _.
-
 init(C) ->
     EncryptedMasterKeyShares = cds_keyring_client:start_init(?SHARES_COUNT, root_url(C)),
     EncPrivateKeys = enc_private_keys(C),
@@ -46,10 +44,9 @@ init(C) ->
 
 -spec decrypt_and_sign_masterkeys([cds_keyring_client:encrypted_master_key_share()], map(), map()) ->
     [{cds_keyring_client:shareholder_id(), cds_keyring_client:masterkey_share()}].
-
 decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivateKeys) ->
     lists:map(
-        fun(#{id := Id,  encrypted_share := EncryptedShare}) ->
+        fun(#{id := Id, encrypted_share := EncryptedShare}) ->
             EncPrivateKey = maps:get(Id, EncPrivateKeys),
             SigPrivateKey = maps:get(Id, SigPrivateKeys),
             DecryptedShare = cds_crypto:private_decrypt(EncPrivateKey, EncryptedShare),
@@ -59,7 +56,6 @@ decrypt_and_sign_masterkeys(EncryptedMasterKeyShares, EncPrivateKeys, SigPrivate
     ).
 
 -spec validate_init([{cds_keyring_client:shareholder_id(), cds_keyring_client:masterkey_share()}], config()) -> ok.
-
 validate_init([{Id, DecryptedMasterKeyShare} | []], C) ->
     cds_keyring_client:validate_init(Id, DecryptedMasterKeyShare, root_url(C));
 validate_init([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
@@ -69,7 +65,6 @@ validate_init([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
     validate_init(DecryptedMasterKeyShares, C).
 
 -spec rekey(config()) -> _.
-
 rekey(C) ->
     ok = cds_keyring_client:start_rekey(?SHARES_COUNT, root_url(C)),
     [{Id1, MasterKey1}] = cds_ct_utils:lookup(master_keys),
@@ -82,7 +77,6 @@ rekey(C) ->
     cds_ct_utils:store(master_keys, DecryptedMasterKeyShares).
 
 -spec validate_rekey([{cds_keyring_client:shareholder_id(), cds_keyring_client:masterkey_share()}], config()) -> ok.
-
 validate_rekey([{Id, DecryptedMasterKeyShare} | []], C) ->
     cds_keyring_client:validate_rekey(Id, DecryptedMasterKeyShare, root_url(C));
 validate_rekey([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
@@ -92,19 +86,16 @@ validate_rekey([{Id, DecryptedMasterKeyShare} | DecryptedMasterKeyShares], C) ->
     validate_rekey(DecryptedMasterKeyShares, C).
 
 -spec lock(config()) -> _.
-
 lock(C) ->
     ok = cds_keyring_client:lock(root_url(C)).
 
 -spec unlock(config()) -> _.
-
 unlock(C) ->
     [{Id1, MasterKey1}] = cds_ct_utils:lookup(master_keys),
     ok = cds_keyring_client:start_unlock(root_url(C)),
     ok = cds_keyring_client:confirm_unlock(Id1, MasterKey1, root_url(C)).
 
 -spec rotate(config()) -> _.
-
 rotate(C) ->
     [{Id1, MasterKey1}] = cds_ct_utils:lookup(master_keys),
     RootUrl = root_url(C),

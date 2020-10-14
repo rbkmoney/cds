@@ -64,11 +64,7 @@ init_per_group(riak_storage_backend, C) ->
     cds_ct_utils:set_riak_storage(C);
 init_per_group(ets_storage_backend, C) ->
     cds_ct_utils:set_ets_storage(C);
-init_per_group(Group, C) when
-    Group =:= all;
-    Group =:= general_flow;
-    Group =:= all_groups
-->
+init_per_group(Group, C) when Group =:= all; Group =:= general_flow; Group =:= all_groups ->
     C;
 init_per_group(_, C) ->
     ok = cds_ct_utils:start_stash(),
@@ -81,7 +77,7 @@ end_per_group(Group, C) when
     Group =:= riak_storage_backend;
     Group =:= general_flow;
     Group =:= all_groups
- ->
+->
     C;
 end_per_group(_, C) ->
     cds_ct_utils:stop_clear(C).

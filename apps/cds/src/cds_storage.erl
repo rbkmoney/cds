@@ -2,18 +2,19 @@
 
 %% TODO remove circular dependencies in types (cds:hash, cds:token etc.)
 
--type namespace()   :: binary(). %% e.g. <<"stuff_you_want_to_store">>, but dont be too fancy
--type key()         :: binary().
--type data()        :: binary().
--type metadata()    :: binary() | undefined.
--type indexes()     :: [index()].
--type index()       :: integer_index() | binary_index().
--type integer_index()       :: {integer_index_id(), integer()}.
--type integer_index_id()    :: {integer_index, string()}.
--type binary_index()        :: {binary_index_id(), binary()}.
--type binary_index_id()     :: {binary_index, string()}.
--type index_id()            :: integer_index_id() | binary_index_id().
--type index_value()         :: integer() | binary().
+%% e.g. <<"stuff_you_want_to_store">>, but dont be too fancy
+-type namespace() :: binary().
+-type key() :: binary().
+-type data() :: binary().
+-type metadata() :: binary() | undefined.
+-type indexes() :: [index()].
+-type index() :: integer_index() | binary_index().
+-type integer_index() :: {integer_index_id(), integer()}.
+-type integer_index_id() :: {integer_index, string()}.
+-type binary_index() :: {binary_index_id(), binary()}.
+-type binary_index_id() :: {binary_index, string()}.
+-type index_id() :: integer_index_id() | binary_index_id().
+-type index_value() :: integer() | binary().
 -type limit() :: non_neg_integer() | undefined.
 -type continuation() :: term().
 
@@ -43,8 +44,7 @@
     index_value(),
     limit(),
     continuation()
-) ->
-    {ok, {[key()], continuation()}}.
+) -> {ok, {[key()], continuation()}}.
 
 -callback search_by_index_range(
     namespace(),
@@ -53,8 +53,7 @@
     EndValue :: index_value(),
     limit(),
     continuation()
-) ->
-    {ok, {[key()], continuation()}}.
+) -> {ok, {[key()], continuation()}}.
 
 -callback get_keys(namespace(), limit(), continuation()) -> {ok, {[key()], continuation()}}.
 
@@ -93,8 +92,7 @@ delete(NS, Key) ->
     index_value(),
     limit(),
     continuation()
-) ->
-    {[key()], continuation()} | no_return().
+) -> {[key()], continuation()} | no_return().
 search_by_index_value(NS, Key, Value, Limit, Continuation) ->
     cds_backend:call(storage, search_by_index_value, [NS, Key, Value, Limit, Continuation]).
 
@@ -105,8 +103,7 @@ search_by_index_value(NS, Key, Value, Limit, Continuation) ->
     EndValue :: index_value(),
     limit(),
     continuation()
-) ->
-    {[key()], continuation()} | no_return().
+) -> {[key()], continuation()} | no_return().
 search_by_index_range(NS, Key, StartValue, EndValue, Limit, Continuation) ->
     cds_backend:call(storage, search_by_index_range, [NS, Key, StartValue, EndValue, Limit, Continuation]).
 

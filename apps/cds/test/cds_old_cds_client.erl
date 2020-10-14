@@ -28,9 +28,7 @@
     is_cvv_empty => boolean() | undefined
 }.
 
--spec put_card(card_data(), woody:url()) ->
-    #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
-
+-spec put_card(card_data(), woody:url()) -> #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try call(card, 'PutCard', [encode_card_data(CardData)], RootUrl) of
         #'PutCardResult'{bank_card = BankCard} ->
@@ -49,7 +47,8 @@ encode_card_data(
             month := ExpDateMonth,
             year := ExpDateYear
         }
-    } = CardData) ->
+    } = CardData
+) ->
     #'CardData'{
         pan = Pan,
         exp_date = #'ExpDate'{
@@ -71,7 +70,8 @@ decode_bank_card(
         bank_name = BankName,
         metadata = Metadata,
         is_cvv_empty = IsCVVEmpty
-    }) ->
+    }
+) ->
     DecodedBankCard = #{
         token => Token,
         payment_system => PaymentSystem,

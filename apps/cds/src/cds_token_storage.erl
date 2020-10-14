@@ -12,8 +12,8 @@
 get_namespaces() ->
     [?TOKEN_NS].
 
--type token_id()        :: binary().
--type token_content()   :: binary().
+-type token_id() :: binary().
+-type token_content() :: binary().
 
 -spec put_token(token_id(), token_content()) -> ok.
 put_token(TokenId, TokenContent) ->

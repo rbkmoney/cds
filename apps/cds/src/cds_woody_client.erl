@@ -8,9 +8,10 @@
 %% Types
 %%
 
--type result() :: woody:result()
-                | {exception, woody_error:business_error()}
-                | no_return().
+-type result() ::
+    woody:result()
+    | {exception, woody_error:business_error()}
+    | no_return().
 
 -export_type([result/0]).
 

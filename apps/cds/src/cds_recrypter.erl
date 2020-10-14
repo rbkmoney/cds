@@ -20,22 +20,16 @@
 }.
 
 -spec start_link(state()) -> {ok, pid()} | {error, Reason :: any()}.
-
 start_link(Options) ->
     cds_periodic_job:start_link(?MODULE, [Options]).
 
 -spec init(_) -> {ok, non_neg_integer(), state()}.
-
-init([#{subject := Subject}]) when
-    Subject =:= session;
-    Subject =:= carddata
-->
+init([#{subject := Subject}]) when Subject =:= session; Subject =:= carddata ->
     _ = logger:info("Starting recrypter for ~s ...", [Subject]),
     _ = cds_utils:logtag_process(subject, Subject),
     {ok, get_interval(), #{subject => Subject, continuation => undefined}}.
 
 -spec handle_timeout(state()) -> {ok, done | more, state()} | {error, Reason :: any(), state()}.
-
 handle_timeout(State = #{subject := Subject, continuation := Continuation0}) ->
     _ = logger:info("Starting recrypting", []),
     case process_recrypting(Subject, get_batch_size(), Continuation0) of
@@ -65,12 +59,8 @@ process_recrypting(Subject, BatchSize, Continuation) ->
 
 process_recrypting(_, [], _, _, _) ->
     {ok, done};
-
-process_recrypting(_, _, Left, Continuation, _) when
-    Left =< 0
-->
+process_recrypting(_, _, Left, Continuation, _) when Left =< 0 ->
     {ok, more, Continuation};
-
 process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0, Meta) ->
     {Items, Continuation} = get_data_by_key_id_between(Subject, Interval, BatchSize, Continuation0),
     Count = length(Items),
@@ -80,7 +70,6 @@ process_recrypting(Subject, [Interval | Rest], BatchSize, Continuation0, Meta) -
 
 get_data_by_key_id_between(session, {From, To}, BatchSize, Continuation) ->
     cds_card_storage:get_sessions_by_key_id_between(From, To, BatchSize, Continuation);
-
 get_data_by_key_id_between(carddata, {From, To}, BatchSize, Continuation) ->
     cds_card_storage:get_tokens_by_key_id_between(From, To, BatchSize, Continuation).
 

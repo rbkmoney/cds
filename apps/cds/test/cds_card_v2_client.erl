@@ -26,11 +26,12 @@
 }.
 
 -type session_data() :: #{
-    auth_data := {auth_3ds, #{
-        cryptogram => binary(),
-        eci => binary() | undefined
-    }} |
-    {card_security_code, #{
+    auth_data :=
+        {auth_3ds, #{
+            cryptogram => binary(),
+            eci => binary() | undefined
+        }}
+    | {card_security_code, #{
         value => binary()
     }}
 }.
@@ -50,8 +51,7 @@
 %% API
 %%
 
--spec get_card_data(cds:token(), woody:url()) ->
-    card_data() | {error, card_data_not_found}.
+-spec get_card_data(cds:token(), woody:url()) -> card_data() | {error, card_data_not_found}.
 get_card_data(Token, RootUrl) ->
     try call(card_v2, 'GetCardData', [Token], RootUrl) of
         EncodedCardData ->
@@ -73,8 +73,7 @@ put_card_and_session(CardData, SessionData, RootUrl) ->
             Error
     end.
 
--spec get_session_data(cds:session(), woody:url()) ->
-    session_data() | {error, session_data_not_found}.
+-spec get_session_data(cds:session(), woody:url()) -> session_data() | {error, session_data_not_found}.
 get_session_data(Session, RootUrl) ->
     try call(card_v2, 'GetSessionData', [Session], RootUrl) of
         SessionData ->
@@ -84,8 +83,7 @@ get_session_data(Session, RootUrl) ->
             {error, session_data_not_found}
     end.
 
--spec put_card(card_data(), woody:url()) ->
-    #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
+-spec put_card(card_data(), woody:url()) -> #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
     try call(card_v2, 'PutCard', [encode_card_data(CardData)], RootUrl) of
         #cds_PutCardResult{bank_card = BankCard} ->
@@ -97,13 +95,11 @@ put_card(CardData, RootUrl) ->
             {error, {invalid_card_data, Reason}}
     end.
 
--spec put_session(cds:session(), session_data(), woody:url()) ->
-    ok.
+-spec put_session(cds:session(), session_data(), woody:url()) -> ok.
 put_session(SessionID, SessionData, RootUrl) ->
     call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
 
--spec get_session_card_data(cds:token(), cds:session(), woody:url()) ->
-    card_data() | {error, card_data_not_found}.
+-spec get_session_card_data(cds:token(), cds:session(), woody:url()) -> card_data() | {error, card_data_not_found}.
 %% NOTE: This method added for backward compatibility with client v1 tests.
 get_session_card_data(Token, _Session, RootUrl) ->
     try
@@ -122,27 +118,33 @@ encode_session_data(undefined) ->
     undefined;
 encode_session_data(
     #{
-        auth_data := {auth_3ds, #{
-            cryptogram := Cryptogram,
-            eci := Eci
-        }}
-    }) ->
+        auth_data :=
+            {auth_3ds, #{
+                cryptogram := Cryptogram,
+                eci := Eci
+            }}
+    }
+) ->
     #cds_SessionData{
-        auth_data = {auth_3ds, #cds_Auth3DS{
-            cryptogram = Cryptogram,
-            eci = Eci
-        }}
+        auth_data =
+            {auth_3ds, #cds_Auth3DS{
+                cryptogram = Cryptogram,
+                eci = Eci
+            }}
     };
 encode_session_data(
     #{
-        auth_data := {card_security_code, #{
-            value := Value
-        }}
-    }) ->
+        auth_data :=
+            {card_security_code, #{
+                value := Value
+            }}
+    }
+) ->
     #cds_SessionData{
-        auth_data = {card_security_code, #cds_CardSecurityCode{
-            value = Value
-        }}
+        auth_data =
+            {card_security_code, #cds_CardSecurityCode{
+                value = Value
+            }}
     }.
 
 decode_bank_card(
@@ -150,7 +152,8 @@ decode_bank_card(
         token = Token,
         bin = Bin,
         last_digits = LastDigits
-    }) ->
+    }
+) ->
     #{
         token => Token,
         bin => Bin,
@@ -162,7 +165,8 @@ decode_card_data(
         pan = Pan,
         exp_date = ExpDate,
         cardholder_name = CardholderName
-    }) ->
+    }
+) ->
     DecodedCardData = #{
         pan => Pan,
         exp_date => decode_exp_date(ExpDate),
@@ -183,41 +187,47 @@ decode_exp_date(#cds_ExpDate{
 
 decode_session_data(
     #cds_SessionData{
-        auth_data = {auth_3ds, #cds_Auth3DS{
-            cryptogram = Cryptogram,
-            eci = Eci
-        }}
-    }) ->
+        auth_data =
+            {auth_3ds, #cds_Auth3DS{
+                cryptogram = Cryptogram,
+                eci = Eci
+            }}
+    }
+) ->
     #{
-        auth_data => {auth_3ds, #{
-            cryptogram => Cryptogram,
-            eci => Eci
-        }}
+        auth_data =>
+            {auth_3ds, #{
+                cryptogram => Cryptogram,
+                eci => Eci
+            }}
     };
 decode_session_data(
     #cds_SessionData{
-        auth_data = {card_security_code, #cds_CardSecurityCode{
-            value = Value
-        }}
-    }) ->
+        auth_data =
+            {card_security_code, #cds_CardSecurityCode{
+                value = Value
+            }}
+    }
+) ->
     #{
-        auth_data => {card_security_code, #{
-            value => Value
-        }}
+        auth_data =>
+            {card_security_code, #{
+                value => Value
+            }}
     }.
 
 call(Service, Method, Args, RootUrl) ->
     cds_ct_utils:call(Service, Method, Args, RootUrl).
 
 -spec get_test_card(binary() | undefined) -> card_data().
-
 get_test_card(CVV) ->
     get_test_card(
-    #{
-        pan => <<"5321301234567892">>
-    }, CVV).
+        #{
+            pan => <<"5321301234567892">>
+        },
+        CVV
+    ).
 
 -spec get_test_card(card_data(), binary() | undefined) -> card_data().
-
 get_test_card(#{pan := PAN}, _CVV) ->
     #{pan => PAN}.

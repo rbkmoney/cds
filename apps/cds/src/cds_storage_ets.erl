@@ -1,4 +1,5 @@
 -module(cds_storage_ets).
+
 -behaviour(cds_storage).
 -behaviour(gen_server).
 
@@ -23,15 +24,15 @@
 %%
 %% cds_storage behaviour
 %%
--type namespace()   :: cds_storage:namespace().
--type key()         :: cds_storage:key().
--type data()        :: cds_storage:data().
--type metadata()    :: cds_storage:metadata().
--type indexes()     :: cds_storage:indexes().
--type index_id()        :: cds_storage:index_id().
--type index_value()     :: cds_storage:index_value().
--type limit()           :: cds_storage:limit().
--type continuation()    :: term().
+-type namespace() :: cds_storage:namespace().
+-type key() :: cds_storage:key().
+-type data() :: cds_storage:data().
+-type metadata() :: cds_storage:metadata().
+-type indexes() :: cds_storage:indexes().
+-type index_id() :: cds_storage:index_id().
+-type index_value() :: cds_storage:index_value().
+-type limit() :: cds_storage:limit().
+-type continuation() :: term().
 
 -spec start([namespace()]) -> ok.
 start(NSlist) ->
@@ -78,8 +79,7 @@ delete(NS, Key) ->
     index_value(),
     limit(),
     continuation()
-) ->
-    {ok, {[key()], continuation()}}.
+) -> {ok, {[key()], continuation()}}.
 search_by_index_value(NS, IndexName, IndexValue, Limit, Continuation) ->
     get_keys_by_index_range(NS, IndexName, IndexValue, IndexValue, Limit, Continuation).
 
@@ -90,18 +90,19 @@ search_by_index_value(NS, IndexName, IndexValue, Limit, Continuation) ->
     EndValue :: index_value(),
     limit(),
     continuation()
-) ->
-    {ok, {[key()], continuation()}}.
+) -> {ok, {[key()], continuation()}}.
 search_by_index_range(NS, IndexName, StartValue, EndValue, Limit, Continuation) ->
     get_keys_by_index_range(NS, IndexName, StartValue, EndValue, Limit, Continuation).
 
 -spec get_keys(namespace(), limit(), continuation()) -> {ok, {[key()], continuation()}}.
 get_keys(NS, Limit, Continuation) ->
-    MatchSpec = [{
-        {'$1', '_', '_'},
-        [],
-        ['$1']
-    }],
+    MatchSpec = [
+        {
+            {'$1', '_', '_'},
+            [],
+            ['$1']
+        }
+    ],
     prepare_keys_result(
         select(table_name(NS), MatchSpec, Limit, Continuation)
     ).
@@ -113,7 +114,6 @@ get_keys(NS, Limit, Continuation) ->
 -type state() :: {}.
 
 -spec init([namespace()]) -> {ok, state()}.
-
 init(NSlist) ->
     lists:foreach(
         fun(NS) ->
@@ -125,27 +125,22 @@ init(NSlist) ->
     {ok, {}}.
 
 -spec handle_call(term(), {pid(), term()}, state()) -> {reply, ok, state()}.
-
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
 -spec handle_cast(term(), state()) -> {noreply, state()}.
-
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
 -spec handle_info(term(), state()) -> {noreply, state()}.
-
 handle_info(_Info, State) ->
     {noreply, State}.
 
 -spec terminate(term(), state()) -> ok.
-
 terminate(_Reason, _State) ->
     ok.
 
 -spec code_change(term(), state(), term()) -> {ok, state()}.
-
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -165,19 +160,19 @@ get_(NS, Key) ->
     end.
 
 get_keys_by_index_range(NS, IndexName, From, To, Limit, Continuation) ->
-    MatchSpec = [{
-        {'$1', '_', #{IndexName => '$2'}},
-        [{'=<', {const, From}, '$2'}, {'=<', '$2', {const, To}}],
-        ['$1']
-    }],
+    MatchSpec = [
+        {
+            {'$1', '_', #{IndexName => '$2'}},
+            [{'=<', {const, From}, '$2'}, {'=<', '$2', {const, To}}],
+            ['$1']
+        }
+    ],
     prepare_keys_result(select(table_name(NS), MatchSpec, Limit, Continuation)).
 
 select(Tab, MatchSpec, undefined, undefined) ->
     ets:select(Tab, MatchSpec);
-
 select(Tab, MatchSpec, Limit, undefined) when Limit > 0 ->
     ets:select(Tab, MatchSpec, Limit);
-
 select(_, _, _, Continuation) ->
     ets:select(Continuation).
 

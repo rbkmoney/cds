@@ -6,12 +6,10 @@
 -export([init/1]).
 
 -spec start_link() -> {ok, pid()} | {error, Reason :: any()}.
-
 start_link() ->
     supervisor:start_link(?MODULE, []).
 
 -spec init(_) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
-
 init(_) ->
     ChildSpecs = [
         #{
@@ -25,4 +23,3 @@ init(_) ->
         period => 5
     },
     {ok, {SupFlags, ChildSpecs}}.
-

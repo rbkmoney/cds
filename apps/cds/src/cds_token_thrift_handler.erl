@@ -1,4 +1,5 @@
 -module(cds_token_thrift_handler).
+
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("tds_proto/include/tds_proto_storage_thrift.hrl").

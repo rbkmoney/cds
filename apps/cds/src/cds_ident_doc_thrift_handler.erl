@@ -1,4 +1,5 @@
 -module(cds_ident_doc_thrift_handler).
+
 -behaviour(woody_server_thrift_handler).
 
 -include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
@@ -12,7 +13,6 @@
 
 -spec handle_function(woody:func(), woody:args(), woody_context:ctx(), woody:options()) ->
     {ok, woody:result()} | no_return().
-
 handle_function(OperationID, Args, Context, Opts) ->
     scoper:scope(
         ident_doc,
@@ -45,23 +45,24 @@ handle_function_('Get', [IdentityDocumentToken], _Context, _Opts) ->
 %% Internals
 %%
 
--spec decode(identdocstore_identity_document_storage_thrift:'IdentityDocument'()) ->
-    cds_ident_doc:identity_document().
-decode({
-    russian_domestic_passport,
-    #identdocstore_RussianDomesticPassport{
-        series = Series,
-        number = Number,
-        issuer = Issuer,
-        issuer_code = IssuerCode,
-        issued_at = IssuedAt,
-        family_name = FamilyName,
-        first_name = FirstName,
-        patronymic = Patronymic,
-        birth_date = BirthDate,
-        birth_place = BirthPlace
+-spec decode(identdocstore_identity_document_storage_thrift:'IdentityDocument'()) -> cds_ident_doc:identity_document().
+decode(
+    {
+        russian_domestic_passport,
+        #identdocstore_RussianDomesticPassport{
+            series = Series,
+            number = Number,
+            issuer = Issuer,
+            issuer_code = IssuerCode,
+            issued_at = IssuedAt,
+            family_name = FamilyName,
+            first_name = FirstName,
+            patronymic = Patronymic,
+            birth_date = BirthDate,
+            birth_place = BirthPlace
+        }
     }
-}) ->
+) ->
     #{
         type => russian_domestic_passport,
         series => Series,
@@ -75,19 +76,20 @@ decode({
         birth_date => BirthDate,
         birth_place => BirthPlace
     };
-decode({
-    russian_retiree_insurance_certificate,
-    #identdocstore_RussianRetireeInsuranceCertificate{
-        number = Number
+decode(
+    {
+        russian_retiree_insurance_certificate,
+        #identdocstore_RussianRetireeInsuranceCertificate{
+            number = Number
+        }
     }
-}) ->
+) ->
     #{
         type => russian_retiree_insurance_certificate,
         number => Number
     }.
 
--spec encode(cds_ident_doc:identity_document()) ->
-    identdocstore_identity_document_storage_thrift:'IdentityDocument'().
+-spec encode(cds_ident_doc:identity_document()) -> identdocstore_identity_document_storage_thrift:'IdentityDocument'().
 encode(#{type := russian_domestic_passport} = Doc) ->
     {russian_domestic_passport, encode_russian_domestic_passport(Doc)};
 encode(#{type := russian_retiree_insurance_certificate} = Doc) ->

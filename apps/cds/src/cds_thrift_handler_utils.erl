@@ -25,8 +25,7 @@ filter_fun_exceptions(Fun) ->
         end
     end.
 
--spec raise_keyring_unavailable() ->
-    no_return().
+-spec raise_keyring_unavailable() -> no_return().
 raise_keyring_unavailable() ->
     woody_error:raise(system, {internal, resource_unavailable, <<"Keyring is unavailable">>}).
 
@@ -34,9 +33,7 @@ raise_keyring_unavailable() ->
 raise(Exception) ->
     woody_error:raise(business, Exception).
 
--spec map_validation_error(cds_card_data:reason()) ->
-    ErrorMessage :: binary().
-
+-spec map_validation_error(cds_card_data:reason()) -> ErrorMessage :: binary().
 map_validation_error(unrecognized) ->
     <<"Unrecognized payment system">>;
 map_validation_error({invalid, Field, Check}) ->
@@ -64,16 +61,16 @@ filter_stacktrace(Stacktrace) when is_list(Stacktrace) ->
 
 filter_stacktrace_item({Module, Function, Arity, Location} = ST) when
     is_atom(Module) andalso
-    is_atom(Function) andalso
-    is_integer(Arity) andalso
-    is_list(Location)
+        is_atom(Function) andalso
+        is_integer(Arity) andalso
+        is_list(Location)
 ->
     ST;
 filter_stacktrace_item({Module, Function, Args, Location}) when
     is_atom(Module) andalso
-    is_atom(Function) andalso
-    is_list(Args) andalso
-    is_list(Location)
+        is_atom(Function) andalso
+        is_list(Args) andalso
+        is_list(Location)
 ->
     {Module, Function, filter_stacktrace_args(Args), Location};
 filter_stacktrace_item(_) ->
@@ -99,7 +96,7 @@ filter(Reason) when
         is_number(Reason) orelse
         is_reference(Reason) orelse
         is_pid(Reason)
-    ->
+->
     Reason;
 % Other
 filter(_Reason) ->
