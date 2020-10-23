@@ -48,6 +48,7 @@ init([]) ->
     {ok, IP} = inet:parse_address(application:get_env(cds, ip, "::")),
     HealthCheck = genlib_app:env(?MODULE, health_check, #{}),
     HealthRoute = erl_health_handle:get_route(enable_health_logging(HealthCheck)),
+    PrometeusRoute = get_prometheus_route(),
     Service = woody_server:child_spec(
         cds_thrift_service_sup,
         #{
@@ -62,7 +63,7 @@ init([]) ->
             transport_opts => genlib_app:env(?MODULE, transport_opts, #{}),
             protocol_opts => genlib_app:env(?MODULE, protocol_opts, #{}),
             shutdown_timeout => genlib_app:env(?MODULE, shutdown_timeout, 0),
-            additional_routes => [HealthRoute]
+            additional_routes => [HealthRoute, PrometeusRoute]
         }
     ),
     KeyringSupervisor = #{
@@ -237,3 +238,7 @@ is_card_data_equal([Token | OtherTokens]) ->
 
 scrypt_options(Meta) ->
     cds_keyring:deduplication_hash_opts(Meta).
+
+-spec get_prometheus_route() -> {iodata(), module(), _Opts :: any()}.
+get_prometheus_route() ->
+    {"/metrics/[:registry]", prometheus_cowboy2_handler, []}.
