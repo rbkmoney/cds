@@ -7,6 +7,7 @@
     R :: integer(),
     P :: integer()
 }.
+
 -export_type([scrypt_options/0]).
 
 -spec hash(binary(), binary(), scrypt_options()) -> Hash :: binary().
