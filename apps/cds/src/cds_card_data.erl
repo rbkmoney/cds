@@ -246,7 +246,8 @@ check_luhn(<<N, Rest/binary>>, Sum) ->
     | jcb
     | maestro
     | forbrugsforeningen
-    | dankort.
+    | dankort
+    | dummy.
 
 -type check() ::
     {length, [pos_integer() | {range, pos_integer(), pos_integer()}]}
@@ -254,6 +255,14 @@ check_luhn(<<N, Rest/binary>>, Sum) ->
 
 get_payment_system_map() ->
     #{
+        dummy => #{
+            assertions => #{
+                cardnumber => [{length, [16]}, luhn]
+            },
+            iin_length => 6,
+            exposed_length => 4
+        },
+
         visa => #{
             assertions => #{
                 cardnumber => [{length, [13, 16]}, luhn]
@@ -444,5 +453,8 @@ get_inn_map() ->
         <<"2201">> => nspkmir,
         <<"2202">> => nspkmir,
         <<"2203">> => nspkmir,
-        <<"2204">> => nspkmir
+        <<"2204">> => nspkmir,
+
+        %% non-existent payment system for non-prod or legally restricted evironments
+        <<"1">> => dummy
     }.
