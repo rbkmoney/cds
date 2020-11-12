@@ -75,14 +75,8 @@ init([]) ->
         start => {cds_maintenance_sup, start_link, []},
         type => supervisor
     },
-    HashSup = #{
-        id => cds_hash_sup,
-        start => {cds_hash, start_link, []},
-        type => supervisor
-    },
     Procs = [
         KeyringSupervisor,
-        HashSup,
         Maintenance,
         Service
     ],
