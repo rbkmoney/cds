@@ -50,7 +50,7 @@ services:
     healthcheck:
       test: "riak-admin test"
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 20
   member:
     image: dr2.rbkmoney.com/rbkmoney/riak-base:d9dec1c4a69482f5c013bb155f6ccd18cd9d4653
