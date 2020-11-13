@@ -87,7 +87,7 @@
   0},
  {<<"scrypt">>,
   {git,"https://github.com/kpy3/erlscrypt",
-       {ref,"c6eff58285089bfc2db81e28e1ba5bf3b3593f0b"}},
+       {ref,"76ca7ec4b1619dd336a5b024dd5fd2dd67968219"}},
   0},
  {<<"shamir">>,
   {git,"git@github.com:rbkmoney/shamir.git",
