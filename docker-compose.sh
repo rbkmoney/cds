@@ -67,7 +67,7 @@ services:
       - ./test/riak/user.conf:/etc/riak/user.conf:ro
 
   kds:
-    image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
+    image: dr2.rbkmoney.com/rbkmoney/kds:2d23c339d2781e5ac8619d287260b754f410fcec
     command: /opt/kds/bin/kds foreground
     volumes:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro

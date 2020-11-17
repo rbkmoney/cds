@@ -17,7 +17,7 @@ BASE_IMAGE_NAME := service-erlang
 BASE_IMAGE_TAG := b7873e38b777322bbb1ce5d73507c26e6280c144
 
 BUILD_IMAGE_NAME := build-erlang
-BUILD_IMAGE_TAG := 491bc06c745a07c6fe9e8b5dbbe958e8e0b82c4c
+BUILD_IMAGE_TAG := 12beabfb5b6968c7566fa3d872ad1b3e8d612f46
 
 CALL_W_CONTAINER := all submodules compile xref lint dialyze test start devrel \
 					release clean distclean check_format format
