@@ -50,7 +50,7 @@ services:
     healthcheck:
       test: "riak-admin test"
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 20
   member:
     image: dr2.rbkmoney.com/rbkmoney/riak-base:d9dec1c4a69482f5c013bb155f6ccd18cd9d4653
@@ -67,7 +67,7 @@ services:
       - ./test/riak/user.conf:/etc/riak/user.conf:ro
 
   kds:
-    image: dr2.rbkmoney.com/rbkmoney/kds:bbbf99db9636f9554f8bf092b268a2e479481943
+    image: dr2.rbkmoney.com/rbkmoney/kds:2eba263c863a3137036480718a922394a7215375
     command: /opt/kds/bin/kds foreground
     volumes:
       - ./test/kds/sys.config:/opt/kds/releases/0.1.0/sys.config:ro
