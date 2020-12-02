@@ -19,7 +19,7 @@ BASE_IMAGE_TAG := 54a794b4875ad79f90dba0a7708190b3b37d584f
 BUILD_IMAGE_NAME := build-erlang
 BUILD_IMAGE_TAG := 12beabfb5b6968c7566fa3d872ad1b3e8d612f46
 
-CALL_W_CONTAINER := all submodules compile xref lint dialyze test start devrel \
+CALL_W_CONTAINER := all submodules compile xref lint dialyze test \
 					release clean distclean check_format format
 
 .PHONY: $(CALL_W_CONTAINER)
@@ -52,12 +52,6 @@ format:
 
 dialyze: submodules
 	$(REBAR) dialyzer
-
-start: submodules
-	$(REBAR) run
-
-devrel: submodules
-	$(REBAR) release
 
 release: submodules distclean
 	$(REBAR) as prod release
