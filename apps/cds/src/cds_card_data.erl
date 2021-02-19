@@ -247,7 +247,8 @@ check_luhn(<<N, Rest/binary>>, Sum) ->
     | maestro
     | forbrugsforeningen
     | dankort
-    | dummy.
+    | dummy
+    | uzcard.
 
 -type check() ::
     {length, [pos_integer() | {range, pos_integer(), pos_integer()}]}
@@ -368,6 +369,10 @@ get_payment_system_map() ->
             },
             iin_length => 6,
             exposed_length => 4
+        },
+
+        uzcard => #{
+            cardnumber => [{length, [16]}]
         }
     }.
 
@@ -454,6 +459,8 @@ get_inn_map() ->
         <<"2202">> => nspkmir,
         <<"2203">> => nspkmir,
         <<"2204">> => nspkmir,
+
+        <<"8600">> => uzcard,
 
         %% non-existent payment system for non-prod or legally restricted evironments
         <<"1">> => dummy
