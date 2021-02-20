@@ -374,7 +374,9 @@ get_payment_system_map() ->
         uzcard => #{
             assertions => #{
                 cardnumber => [{length, [16]}]
-            }
+            },
+            iin_length => 6,
+            exposed_length => 4
         }
     }.
 
