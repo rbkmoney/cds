@@ -19,6 +19,7 @@
 -export([get_card_data/1]).
 -export([get_session_data/1]).
 -export([put_card/1]).
+-export([put_uzcard/1]).
 -export([put_session/1]).
 -export([put_card_data_3ds/1]).
 -export([get_card_data_3ds/1]).
@@ -149,6 +150,7 @@ groups() ->
             rotate,
             get_session_data,
             put_card,
+            put_uzcard,
             put_session,
             put_card_data_3ds,
             rotate,
@@ -375,6 +377,24 @@ put_card(C) ->
             token := Token
         }
     } = cds_card_v2_client:put_card(CardData, root_url(C)),
+    CardData2 = cds_card_v2_client:get_test_card(CardData, <<>>),
+    ?assertEqual(CardData2, cds_card_v2_client:get_card_data(Token, root_url(C))).
+
+-spec put_uzcard(config()) -> _.
+put_uzcard(C) ->
+    CardData = #{
+        pan => <<"8600094576231787">>,
+        exp_date => #{
+            month => 11,
+            year => 3000
+        }
+    },
+    #{
+        bank_card := #{
+            token := Token
+        }
+    } = cds_card_v2_client:put_card(CardData, root_url(C)),
+    erlang:display(cds_card_v2_client:put_card(CardData, root_url(C))),
     CardData2 = cds_card_v2_client:get_test_card(CardData, <<>>),
     ?assertEqual(CardData2, cds_card_v2_client:get_card_data(Token, root_url(C))).
 
