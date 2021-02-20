@@ -372,7 +372,9 @@ get_payment_system_map() ->
         },
 
         uzcard => #{
-            cardnumber => [{length, [16]}]
+            assertions => #{
+                cardnumber => [{length, [16]}]
+            }
         }
     }.
 
