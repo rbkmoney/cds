@@ -47,9 +47,7 @@ full_card_data_validation(_C) ->
         payment_system := mastercard,
         iin := <<"532130">>,
         last_digits := <<"7892">>
-    }} = cds_card_data:validate(MC),
-    {error, {invalid, cardnumber, {length, _}}} = cds_card_data:validate(MC#{cardnumber := <<"53213012345678905">>}),
-    {error, {invalid, cardnumber, luhn}} = cds_card_data:validate(MC#{cardnumber := <<"5321301234567890">>}),
+    }} = cds_card_data:get_card_info(MC),
     MIR = #{
         cardnumber => <<"2204301234567891">>,
         exp_date => {12, 3000},
@@ -59,18 +57,18 @@ full_card_data_validation(_C) ->
         payment_system := nspkmir,
         iin := <<"22043012">>,
         last_digits := <<"91">>
-    }} = cds_card_data:validate(MIR),
+    }} = cds_card_data:get_card_info(MIR),
     {ok, #{
         payment_system := mastercard,
         iin := <<"532130">>,
         last_digits := <<"7892">>
-    }} = cds_card_data:validate(MC),
+    }} = cds_card_data:get_card_info(MC),
     ok.
 
 -spec payment_system_detection(config()) -> _.
 payment_system_detection(_C) ->
     [
-        {ok, #{payment_system := Target}} = cds_card_data:validate(Sample)
+        {ok, #{payment_system := Target}} = cds_card_data:get_card_info(Sample)
         || {Target, Sample} <- get_card_data_samples()
     ].
 

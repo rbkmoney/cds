@@ -23,7 +23,7 @@ handle_function(OperationID, Args, Context, Opts) ->
 handle_function_('PutCard', [CardData], _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
     try
-        case cds_card_data:validate(OwnCardData) of
+        case cds_card_data:get_card_info(OwnCardData) of
             {ok, CardInfo} ->
                 Token = put_card(OwnCardData),
                 BankCard = #cds_BankCard{

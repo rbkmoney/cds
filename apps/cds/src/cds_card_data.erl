@@ -4,7 +4,7 @@
 
 -module(cds_card_data).
 
--export([validate/1]).
+-export([get_card_info/1]).
 
 -export([marshal_cardholder_data/1]).
 -export([marshal_session_data/1]).
@@ -63,17 +63,12 @@
     unrecognized
     | {invalid, cardnumber, check()}.
 
--spec validate(cardholder_data()) -> {ok, card_info()} | {error, reason()}.
-validate(CardData = #{cardnumber := CardNumber}) ->
+-spec get_card_info(cardholder_data()) -> {ok, card_info()} | {error, reason()}.
+get_card_info(CardData = #{cardnumber := CardNumber}) ->
     case detect_payment_system(CardNumber) of
         {ok, PaymentSystem} ->
             #{PaymentSystem := Ruleset} = get_payment_system_map(),
-            case validate_card_data(CardData, Ruleset) of
-                ok ->
-                    {ok, get_card_info(CardData, PaymentSystem, Ruleset)};
-                {error, Reason} ->
-                    {error, Reason}
-            end;
+            {ok, get_card_info(CardData, PaymentSystem, Ruleset)};
         {error, Reason} ->
             {error, Reason}
     end.
@@ -181,57 +176,6 @@ unmarshal(auth_data, #{<<"type">> := <<"3ds">>, <<"cryptogram">> := Cryptogram} 
 unmarshal(metadata, #{<<"content_type">> := ContentType, <<"vsn">> := VSN}) ->
     #{content_type => ContentType, vsn => binary_to_integer(VSN)}.
 
-%%
-
-validate_card_data(CardData, #{assertions := Assertions}) ->
-    try
-        run_assertions(CardData, Assertions)
-    catch
-        Reason ->
-            {error, Reason}
-    end.
-
-run_assertions(CardData, Assertions) ->
-    genlib_map:foreach(
-        fun(K, Checks) ->
-            V = maps:get(K, CardData, undefined),
-            lists:foreach(
-                fun(C) -> check_value(V, C) orelse throw({invalid, K, C}) end,
-                Checks
-            )
-        end,
-        Assertions
-    ).
-
-check_value(undefined, _) ->
-    true;
-check_value(V, {length, Ls}) ->
-    lists:any(fun(L) -> check_length(V, L) end, Ls);
-check_value(V, luhn) ->
-    check_luhn(V, 0).
-
-check_length(V, {range, L, U}) ->
-    L =< byte_size(V) andalso byte_size(V) =< U;
-check_length(V, L) ->
-    byte_size(V) =:= L.
-
-check_luhn(<<CheckSum>>, Sum) ->
-    case Sum * 9 rem 10 of
-        M when M =:= CheckSum - $0 ->
-            true;
-        _M ->
-            false
-    end;
-check_luhn(<<N, Rest/binary>>, Sum) when byte_size(Rest) rem 2 =:= 1 ->
-    case (N - $0) * 2 of
-        M when M >= 10 ->
-            check_luhn(Rest, Sum + M div 10 + M rem 10);
-        M ->
-            check_luhn(Rest, Sum + M)
-    end;
-check_luhn(<<N, Rest/binary>>, Sum) ->
-    check_luhn(Rest, Sum + N - $0).
-
 % config
 
 -type payment_system() ::
@@ -257,33 +201,21 @@ check_luhn(<<N, Rest/binary>>, Sum) ->
 get_payment_system_map() ->
     #{
         dummy => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         visa => #{
-            assertions => #{
-                cardnumber => [{length, [13, 16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         mastercard => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         visaelectron => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
@@ -300,81 +232,51 @@ get_payment_system_map() ->
         %% The IIN appears in the first six (6) digits of the PAN and must be assigned
         %% by the ISO Registration Authority, and must be unique.
         maestro => #{
-            assertions => #{
-                cardnumber => [{length, [{range, 12, 19}]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         nspkmir => #{
-            assertions => #{
-                cardnumber => [{length, [{range, 16, 19}]}, luhn]
-            },
             iin_length => 8,
             exposed_length => 2
         },
 
         amex => #{
-            assertions => #{
-                cardnumber => [{length, [15]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         dinersclub => #{
-            assertions => #{
-                cardnumber => [{length, [{range, 14, 19}]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         discover => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         unionpay => #{
-            assertions => #{
-                cardnumber => [{length, [{range, 16, 19}]}]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         jcb => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         forbrugsforeningen => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         dankort => #{
-            assertions => #{
-                cardnumber => [{length, [16]}, luhn]
-            },
             iin_length => 6,
             exposed_length => 4
         },
 
         uzcard => #{
-            assertions => #{
-                cardnumber => [{length, [16]}]
-            },
             iin_length => 6,
             exposed_length => 4
         }
