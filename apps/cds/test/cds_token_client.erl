@@ -18,8 +18,8 @@
 
 -spec get_token(token_id(), woody:url()) -> result().
 get_token(TokenId, RootUrl) ->
-    cds_woody_client:call(token, 'GetToken', [TokenId], RootUrl).
+    cds_woody_client:call(token, 'GetToken', {TokenId}, RootUrl).
 
 -spec put_token(token_id(), token(), woody:url()) -> result().
 put_token(TokenId, Token, RootUrl) ->
-    cds_woody_client:call(token, 'PutToken', [TokenId, Token], RootUrl).
+    cds_woody_client:call(token, 'PutToken', {TokenId, Token}, RootUrl).

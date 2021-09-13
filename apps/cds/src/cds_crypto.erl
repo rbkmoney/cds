@@ -36,7 +36,7 @@ encrypt(Key, Plain) ->
 -spec encrypt(key(), binary(), iv(), aad()) -> binary().
 encrypt(Key, Plain, IV, AAD) ->
     try
-        {Cipher, Tag} = crypto:block_encrypt(aes_gcm, Key, IV, {AAD, Plain}),
+        {Cipher, Tag} = crypto:crypto_one_time_aead(aes_gcm, Key, IV, Plain, AAD, true),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
     catch
         Class:Reason ->
@@ -48,7 +48,7 @@ encrypt(Key, Plain, IV, AAD) ->
 decrypt(Key, MarshalledCEDF) ->
     try
         #cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag} = unmarshall_cedf(MarshalledCEDF),
-        crypto:block_decrypt(aes_gcm, Key, IV, {AAD, Cipher, Tag})
+        crypto:crypto_one_time_aead(aes_gcm, Key, IV, Cipher, AAD, Tag, false)
     of
         error ->
             throw(decryption_failed);

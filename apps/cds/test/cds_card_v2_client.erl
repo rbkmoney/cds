@@ -31,9 +31,9 @@
             cryptogram => binary(),
             eci => binary() | undefined
         }}
-    | {card_security_code, #{
-        value => binary()
-    }}
+        | {card_security_code, #{
+            value => binary()
+        }}
 }.
 
 -type bank_card() :: #{
@@ -53,7 +53,7 @@
 
 -spec get_card_data(cds:token(), woody:url()) -> card_data() | {error, card_data_not_found}.
 get_card_data(Token, RootUrl) ->
-    try call(card_v2, 'GetCardData', [Token], RootUrl) of
+    try call(card_v2, 'GetCardData', {Token}, RootUrl) of
         EncodedCardData ->
             decode_card_data(EncodedCardData)
     catch
@@ -75,7 +75,7 @@ put_card_and_session(CardData, SessionData, RootUrl) ->
 
 -spec get_session_data(cds:session(), woody:url()) -> session_data() | {error, session_data_not_found}.
 get_session_data(Session, RootUrl) ->
-    try call(card_v2, 'GetSessionData', [Session], RootUrl) of
+    try call(card_v2, 'GetSessionData', {Session}, RootUrl) of
         SessionData ->
             decode_session_data(SessionData)
     catch
@@ -85,7 +85,7 @@ get_session_data(Session, RootUrl) ->
 
 -spec put_card(card_data(), woody:url()) -> #{bank_card := bank_card()} | {error, {invalid_card_data, binary()}}.
 put_card(CardData, RootUrl) ->
-    try call(card_v2, 'PutCard', [encode_card_data(CardData)], RootUrl) of
+    try call(card_v2, 'PutCard', {encode_card_data(CardData)}, RootUrl) of
         #cds_PutCardResult{bank_card = BankCard} ->
             #{
                 bank_card => decode_bank_card(BankCard)
@@ -97,7 +97,7 @@ put_card(CardData, RootUrl) ->
 
 -spec put_session(cds:session(), session_data(), woody:url()) -> ok.
 put_session(SessionID, SessionData, RootUrl) ->
-    call(card_v2, 'PutSession', [SessionID, encode_session_data(SessionData)], RootUrl).
+    call(card_v2, 'PutSession', {SessionID, encode_session_data(SessionData)}, RootUrl).
 
 -spec get_session_card_data(cds:token(), cds:session(), woody:url()) -> card_data() | {error, card_data_not_found}.
 %% NOTE: This method added for backward compatibility with client v1 tests.

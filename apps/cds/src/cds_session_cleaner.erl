@@ -61,7 +61,7 @@ clean_sessions(From, To, BatchSize, Continuation0) ->
                 _ = cds_card_storage:delete_session(ID),
                 logger:debug("Deleted session with id = ~s", [cds_utils:encode_session(ID)])
             end
-            || ID <- Sessions
+         || ID <- Sessions
         ],
         case BatchSize of
             undefined ->

@@ -295,7 +295,7 @@ get_keyring() ->
     WoodyContext1 = woody_context:new(),
     Deadline = woody_deadline:from_timeout(maps:get(timeout, Opts, ?DEFAULT_TIMEOUT)),
     WoodyContext2 = woody_context:set_deadline(Deadline, WoodyContext1),
-    cds_woody_client:call(keyring_storage, 'GetKeyring', [], RootUrl, ExtraOpts, WoodyContext2).
+    cds_woody_client:call(keyring_storage, 'GetKeyring', {}, RootUrl, ExtraOpts, WoodyContext2).
 
 -spec start_timer() -> reference().
 start_timer() ->
