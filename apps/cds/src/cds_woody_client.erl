@@ -19,7 +19,7 @@
 %% API
 %%
 
--spec call(atom(), atom(), tuple(), woody:url()) -> result().
+-spec call(atom(), atom(), woody:args(), woody:url()) -> result().
 call(ServiceCode, Function, Args, RootUrl) ->
     call(ServiceCode, Function, Args, RootUrl, #{}).
 
