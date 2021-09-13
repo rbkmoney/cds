@@ -27,7 +27,7 @@ call(ServiceCode, Function, Args, RootUrl) ->
 call(ServiceCode, Function, Args, RootUrl, ExtraOpts) ->
     call(ServiceCode, Function, Args, RootUrl, ExtraOpts, woody_context:new()).
 
--spec call(atom(), atom(), tuple(), woody:url(), woody_client:options() | map(), woody_context:ctx()) -> result().
+-spec call(atom(), atom(), woody:args(), woody:url(), woody_client:options() | map(), woody_context:ctx()) -> result().
 call(ServiceCode, Function, Args, RootUrl, ExtraOpts, WoodyContext) ->
     Request = {cds_thrift_services:thrift_service(ServiceCode), Function, Args},
     Path = genlib:to_binary(cds_thrift_services:service_path(ServiceCode)),
