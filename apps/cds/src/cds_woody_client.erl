@@ -23,7 +23,7 @@
 call(ServiceCode, Function, Args, RootUrl) ->
     call(ServiceCode, Function, Args, RootUrl, #{}).
 
--spec call(atom(), atom(), tuple(), woody:url(), woody_client:options() | map()) -> result().
+-spec call(atom(), atom(), woody:args(), woody:url(), woody_client:options() | map()) -> result().
 call(ServiceCode, Function, Args, RootUrl, ExtraOpts) ->
     call(ServiceCode, Function, Args, RootUrl, ExtraOpts, woody_context:new()).
 
