@@ -25,6 +25,8 @@
 
 -type cedf() :: #cedf{}.
 
+-define(CIPHER_TYPE, aes_256_gcm).
+
 %%% API
 
 -spec encrypt(key(), binary()) -> binary().
@@ -36,7 +38,7 @@ encrypt(Key, Plain) ->
 -spec encrypt(key(), binary(), iv(), aad()) -> binary().
 encrypt(Key, Plain, IV, AAD) ->
     try
-        {Cipher, Tag} = crypto:crypto_one_time_aead(aes_gcm, Key, IV, Plain, AAD, true),
+        {Cipher, Tag} = crypto:crypto_one_time_aead(?CIPHER_TYPE, Key, IV, Plain, AAD, true),
         marshall_cedf(#cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag})
     catch
         Class:Reason ->
@@ -48,7 +50,7 @@ encrypt(Key, Plain, IV, AAD) ->
 decrypt(Key, MarshalledCEDF) ->
     try
         #cedf{iv = IV, aad = AAD, cipher = Cipher, tag = Tag} = unmarshall_cedf(MarshalledCEDF),
-        crypto:crypto_one_time_aead(aes_gcm, Key, IV, Cipher, AAD, Tag, false)
+        crypto:crypto_one_time_aead(?CIPHER_TYPE, Key, IV, Cipher, AAD, Tag, false)
     of
         error ->
             throw(decryption_failed);
