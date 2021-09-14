@@ -20,7 +20,7 @@ handle_function(OperationID, Args, Context, Opts) ->
         cds_thrift_handler_utils:filter_fun_exceptions(fun() -> handle_function_(OperationID, Args, Context, Opts) end)
     ).
 
-handle_function_('PutCard', [CardData], _Context, _Opts) ->
+handle_function_('PutCard', {CardData}, _Context, _Opts) ->
     OwnCardData = decode_card_data(CardData),
     try
         case cds_card_data:get_card_info(OwnCardData) of
@@ -43,7 +43,7 @@ handle_function_('PutCard', [CardData], _Context, _Opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-handle_function_('GetCardData', [Token], _Context, _Opts) ->
+handle_function_('GetCardData', {Token}, _Context, _Opts) ->
     try
         {DecodedToken, DecodedPayload} = cds_utils:decode_token_with_payload(Token),
         CardData = maps:merge(
@@ -57,7 +57,7 @@ handle_function_('GetCardData', [Token], _Context, _Opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
+handle_function_('PutSession', {Session, SessionData}, _Context, _Opts) ->
     OwnSessionData = decode_session_data(SessionData),
     try
         ok = put_session(Session, OwnSessionData),
@@ -66,7 +66,7 @@ handle_function_('PutSession', [Session, SessionData], _Context, _Opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-handle_function_('GetSessionData', [Session], _Context, _Opts) ->
+handle_function_('GetSessionData', {Session}, _Context, _Opts) ->
     try
         SessionData = get_session_data(Session),
         {ok, encode_session_data(SessionData)}

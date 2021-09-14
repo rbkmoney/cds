@@ -394,7 +394,6 @@ put_uzcard(C) ->
             token := Token
         }
     } = cds_card_v2_client:put_card(CardData, root_url(C)),
-    erlang:display(cds_card_v2_client:put_card(CardData, root_url(C))),
     CardData2 = cds_card_v2_client:get_test_card(CardData, <<>>),
     ?assertEqual(CardData2, cds_card_v2_client:get_card_data(Token, root_url(C))).
 
@@ -643,7 +642,7 @@ refresh_sessions(C) ->
             _ = ?assertEqual(ok, catch cds_maintenance:refresh_sessions_created_at()),
             timer:sleep((Lifetime * 1000) div 4)
         end
-        || _ <- lists:seq(1, 6)
+     || _ <- lists:seq(1, 6)
     ],
 
     ok = timer:sleep(Interval),

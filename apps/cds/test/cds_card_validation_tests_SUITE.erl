@@ -69,7 +69,7 @@ full_card_data_validation(_C) ->
 payment_system_detection(_C) ->
     [
         {ok, #{payment_system := Target}} = cds_card_data:get_card_info(Sample)
-        || {Target, Sample} <- get_card_data_samples()
+     || {Target, Sample} <- get_card_data_samples()
     ].
 
 %%
@@ -111,5 +111,5 @@ get_card_data_samples() ->
                 #{cardnumber => CN}
             }
         end
-        || {Target, CN} <- Samples
+     || {Target, CN} <- Samples
     ].

@@ -19,7 +19,7 @@ handle_function(OperationID, Args, Context, Opts) ->
         fun() -> handle_function_(OperationID, Args, Context, Opts) end
     ).
 
-handle_function_('GetToken', [TokenId], _Context, _opts) ->
+handle_function_('GetToken', {TokenId}, _Context, _opts) ->
     try
         TokenContent = cds_token_storage:get_token(TokenId),
         Token = #tds_Token{content = TokenContent},
@@ -30,7 +30,7 @@ handle_function_('GetToken', [TokenId], _Context, _opts) ->
         no_keyring ->
             cds_thrift_handler_utils:raise_keyring_unavailable()
     end;
-handle_function_('PutToken', [TokenId, Token], _Context, _opts) ->
+handle_function_('PutToken', {TokenId, Token}, _Context, _opts) ->
     try
         TokenContent = Token#tds_Token.content,
         ok = cds_token_storage:put_token(TokenId, TokenContent),

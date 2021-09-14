@@ -169,7 +169,7 @@ start_stash() ->
             ok
     end.
 
--spec call(atom(), atom(), list(), woody:url()) -> cds_woody_client:result().
+-spec call(atom(), atom(), woody:args(), woody:url()) -> cds_woody_client:result().
 call(Service, Method, Args, RootUrl) ->
     Strategy = genlib_retry:linear(10, 1000),
     call(Service, Method, Args, RootUrl, Strategy).
@@ -217,7 +217,7 @@ clean_riak_storage(CdsEnv) ->
             {ok, Keys} = riakc_pb_socket:list_keys(Client, B),
             [
                 ok = riakc_pb_socket:delete(Client, B, K)
-                || K <- Keys
+             || K <- Keys
             ]
         end,
         Buckets
