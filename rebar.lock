@@ -78,7 +78,7 @@
   1},
  {<<"riakc">>,
   {git,"https://github.com/rbkmoney/riak-erlang-client.git",
-       {ref,"edba3d0f8f06d7e4eba84ab1e52ea30551bd0f92"}},
+       {ref,"121a893c429eaa5cab85761771e557f7f15d7659"}},
   0},
  {<<"scoper">>,
   {git,"https://github.com/rbkmoney/scoper.git",

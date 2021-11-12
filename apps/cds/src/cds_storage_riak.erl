@@ -176,8 +176,8 @@ start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = Storag
     PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 
     Opts = maps:with(
-        % As of https://github.com/rbkmoney/riak-erlang-client/blob/edba3d0/include/riakc.hrl#L30
-        [connect_timeout, keepalive],
+        % As of https://github.com/rbkmoney/riak-erlang-client/blob/121a893c429eaa5cab85761771e557f7f15d7659/include/riakc.hrl#L30
+        [connect_timeout, keepalive, credentials, certfile, cacertfile, keyfile, ssl_opts],
         maps:get(options, ConnParams, ?DEFAULT_CLIENT_OPTS)
     ),
     PoolConfig =
