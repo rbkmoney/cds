@@ -26,10 +26,7 @@
 -type conn_params() :: #{
     host := string(),
     port := pos_integer(),
-    options => #{
-        connect_timeout => pos_integer(),
-        keepalive => boolean()
-    }
+    options => client_options()
 }.
 
 -type pool_params() :: #{
@@ -50,9 +47,9 @@
     pool_timeout => ?DEFAULT_POOLER_TIMEOUT
 }).
 
--define(DEFAULT_CLIENT_OPTS, #{
-    connect_timeout => 5000
-}).
+-define(DEFAULT_CLIENT_OPTS, [
+    {connect_timeout, 5000}
+]).
 
 %%
 %% cds_storage behaviour
@@ -175,15 +172,11 @@ get_pool_timeout() ->
 start_pool(#{conn_params := ConnParams = #{host := Host, port := Port}} = StorageParams) ->
     PoolParams = maps:get(pool_params, StorageParams, ?DEFAULT_POOL_PARAMS),
 
-    Opts = maps:with(
-        % As of https://github.com/rbkmoney/riak-erlang-client/blob/121a893c/include/riakc.hrl#L30
-        [connect_timeout, keepalive, credentials, certfile, cacertfile, keyfile, ssl_opts],
-        maps:get(options, ConnParams, ?DEFAULT_CLIENT_OPTS)
-    ),
+    ClientOpts = maps:get(options, ConnParams, ?DEFAULT_CLIENT_OPTS),
     PoolConfig =
         [
             {name, riak},
-            {start_mfa, {riakc_pb_socket, start_link, [Host, Port, maps:to_list(Opts)]}}
+            {start_mfa, {riakc_pb_socket, start_link, [Host, Port, ClientOpts]}}
         ] ++ maps:to_list(PoolParams),
 
     {ok, _Pid} = pooler:new_pool(PoolConfig),
