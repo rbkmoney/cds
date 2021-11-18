@@ -29,9 +29,9 @@ services:
       kds:
         condition: service_healthy
     volumes:
-      - ./test/cds/sys.config:/opt/cds/releases/0.1.0/sys.config
-      - ./test/cds/ca.crt:/var/lib/cds/ca.crt:ro
-      - ./test/cds/client.pem:/var/lib/cds/client.pem:ro
+      - ./test/oldcds/sys.config:/opt/cds/releases/0.1.0/sys.config
+      - ./test/oldcds/ca.crt:/var/lib/cds/ca.crt:ro
+      - ./test/oldcds/client.pem:/var/lib/cds/client.pem:ro
 
     healthcheck:
       test: "curl http://localhost:8022/"
